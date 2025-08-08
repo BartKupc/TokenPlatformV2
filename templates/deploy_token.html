@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Deploy Token - Token Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-rocket me-2"></i>
+                        Deploy New Security Token
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Token Deployment:</strong> Deploy a compliant security token with built-in KYC requirements. 
+                        This token will be deployed using the ERC-3643 T-REX standard.
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="token_name" class="form-label">Token Name *</label>
+                                    <input type="text" class="form-control" id="token_name" name="token_name" 
+                                           placeholder="My Startup Token" required>
+                                    <div class="form-text">Full name of your token</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="token_symbol" class="form-label">Token Symbol *</label>
+                                    <input type="text" class="form-control" id="token_symbol" name="token_symbol" 
+                                           placeholder="MST" maxlength="10" required>
+                                    <div class="form-text">Short symbol (3-10 characters)</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="total_supply" class="form-label">Total Supply *</label>
+                                    <input type="number" class="form-control" id="total_supply" name="total_supply" 
+                                           placeholder="1000000" min="1" required>
+                                    <div class="form-text">Max number of tokens in circulation</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="price_per_token" class="form-label">Price per Token (USD)</label>
+                                    <input type="number" class="form-control" id="price_per_token" name="price_per_token" 
+                                           placeholder="1.00" min="0" step="0.01" value="1.00">
+                                    <div class="form-text">Price in USD for each token</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Token Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="4" 
+                                      placeholder="Describe your project, use case, and what investors can expect..."></textarea>
+                            <div class="form-text">Optional: Describe your project and token utility</div>
+                        </div>
+
+                        <!-- Agent Configuration -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-users-cog me-2"></i>Agent Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Agent Setup:</strong> You will be automatically assigned as both the Identity Registry Agent and Token Agent for this token.
+                                    <ul class="mb-0 mt-2">
+                                        <li><strong>Identity Registry Agent:</strong> You can manage identity registrations and KYC requirements</li>
+                                        <li><strong>Token Agent:</strong> You can perform token operations (mint, burn, transfer restrictions)</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Claim Topics Configuration -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-certificate me-2"></i>Required Claim Topics
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_kyc" name="claim_topics" value="1" checked>
+                                            <label class="form-check-label" for="claim_kyc">
+                                                <i class="fas fa-check-circle text-success me-1"></i>KYC Status (Topic 1)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: APPROVED</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_nationality" name="claim_topics" value="2">
+                                            <label class="form-check-label" for="claim_nationality">
+                                                <i class="fas fa-globe text-info me-1"></i>Nationality (Topic 2)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: Specific countries</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_age" name="claim_topics" value="3">
+                                            <label class="form-check-label" for="claim_age">
+                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age Verification (Topic 3)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: Minimum age</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_accredited" name="claim_topics" value="4">
+                                            <label class="form-check-label" for="claim_accredited">
+                                                <i class="fas fa-star text-warning me-1"></i>Accredited Investor (Topic 4)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: ACCREDITED status</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_residency" name="claim_topics" value="5">
+                                            <label class="form-check-label" for="claim_residency">
+                                                <i class="fas fa-home text-info me-1"></i>Residency (Topic 5)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: Specific jurisdictions</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_compliance" name="claim_topics" value="6" checked>
+                                            <label class="form-check-label" for="claim_compliance">
+                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance (Topic 6)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: COMPLIANT status</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Claim Issuer Configuration -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-user-shield me-2"></i>Claim Issuer Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="claim_issuer_id" class="form-label">Select Trusted Issuer *</label>
+                                    <select class="form-select" id="claim_issuer_id" name="claim_issuer_id" required onchange="showTrustedIssuerCapabilities()">
+                                        <option value="">Select a Trusted Issuer</option>
+                                        {% for ti in trusted_issuers %}
+                                        <option value="{{ ti.id }}" data-capabilities="{{ ti.capabilities_json|tojson }}">
+                                            {{ ti.username }} ({{ ti.wallet_address[:10] }}...{{ ti.wallet_address[-8:] }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">Choose a trusted issuer who will handle KYC and compliance claims for your token</div>
+                                    
+                                    <div id="capabilities_display" class="mt-2" style="display: none;">
+                                        <small class="text-muted">
+                                            <strong>Available Claims:</strong>
+                                            <span id="capabilities_list"></span>
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Note:</strong> The selected trusted issuer will be responsible for:
+                                    <ul class="mb-0 mt-2">
+                                        <li>Creating OnchainID for investors</li>
+                                        <li>Adding required claims to OnchainID</li>
+                                        <li>Maintaining compliance with token requirements</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Important:</strong> 
+                            <ul class="mb-0 mt-2">
+                                <li>This token will require KYC verification for all investors</li>
+                                <li>Token deployment will incur gas fees on the blockchain</li>
+                                <li>Once deployed, token parameters cannot be changed</li>
+                                <li>Ensure all information is accurate before deployment</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-rocket me-2"></i>Deploy Token
+                            </button>
+                            <a href="{{ url_for('issuer.dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTrustedIssuerCapabilities() {
+    const selectedOption = document.getElementById('claim_issuer_id').selectedOptions[0];
+    const capabilitiesDisplay = document.getElementById('capabilities_display');
+    const capabilitiesList = document.getElementById('capabilities_list');
+    
+    if (selectedOption && selectedOption.dataset.capabilities) {
+        try {
+            const capabilities = JSON.parse(selectedOption.dataset.capabilities);
+            if (capabilities.length > 0) {
+                const capabilityTexts = capabilities.map(cap => 
+                    `Topic ${cap.claim_topic}: ${cap.claim_data}`
+                ).join(', ');
+                capabilitiesList.textContent = capabilityTexts;
+                capabilitiesDisplay.style.display = 'block';
+            } else {
+                capabilitiesDisplay.style.display = 'none';
+            }
+        } catch (e) {
+            capabilitiesDisplay.style.display = 'none';
+        }
+    } else {
+        capabilitiesDisplay.style.display = 'none';
+    }
+}
+
+// Add event listener for trusted issuer selection
+document.addEventListener('DOMContentLoaded', function() {
+    const trustedIssuerSelect = document.getElementById('claim_issuer_id');
+    if (trustedIssuerSelect) {
+        trustedIssuerSelect.addEventListener('change', showTrustedIssuerCapabilities);
+    }
+});
+</script>
+{% endblock %}

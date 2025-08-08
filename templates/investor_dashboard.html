@@ -1,0 +1,643 @@
+{% extends "base.html" %}
+
+{% block title %}Investor Dashboard{% endblock %}
+
+{% block content %}
+<!-- Clean Header -->
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">Investor Dashboard</h1>
+                    <p class="text-muted mb-0">Welcome, {{ user.username }}!</p>
+                </div>
+                <div class="d-flex gap-2">
+                    {% if user.kyc_status == 'approved' %}
+                        <span class="badge bg-success fs-6">
+                            <i class="fas fa-check-circle me-1"></i>KYC Approved
+                        </span>
+                    {% elif user.kyc_status == 'pending' %}
+                        <span class="badge bg-warning fs-6">
+                            <i class="fas fa-clock me-1"></i>KYC Pending
+                        </span>
+                    {% else %}
+                        <span class="badge bg-danger fs-6">
+                            <i class="fas fa-times-circle me-1"></i>KYC Required
+                        </span>
+                    {% endif %}
+                    
+                    {% if user.onchain_id %}
+                        <a href="{{ url_for('onchainid.view_onchainid', onchainid_address=user.onchain_id) }}?tab_session={{ request.args.get('tab_session') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-eye me-1"></i>OnchainID
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- KYC Status Card (Compact) -->
+    {% if user.kyc_status != 'approved' %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-{{ 'warning' if user.kyc_status == 'pending' else 'danger' }}">
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                {% if user.kyc_status == 'pending' %}
+                                    <i class="fas fa-clock text-warning fa-lg"></i>
+                                {% else %}
+                                    <i class="fas fa-exclamation-triangle text-danger fa-lg"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                {% if user.kyc_status == 'pending' %}
+                                    <h6 class="mb-1">KYC Under Review</h6>
+                                    <p class="text-muted mb-0">Your KYC application is being reviewed by a trusted issuer. You'll be notified once approved.</p>
+                                {% else %}
+                                    <h6 class="mb-1">KYC Required</h6>
+                                    <p class="text-muted mb-0">Complete your KYC verification to start investing in tokens.</p>
+                                {% endif %}
+                            </div>
+                            {% if user.kyc_status == 'not_submitted' %}
+                                <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#kycForm">
+                                    <i class="fas fa-edit me-1"></i>Submit KYC
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-12">
+            {% if user.kyc_status == 'not_submitted' %}
+                <!-- KYC Form (Collapsible) -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user-check me-2"></i>KYC Information Submission
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('investor.kyc_submission', tab_session=tab_session_id) }}">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="full_name" class="form-label">Full Name *</label>
+                                        <input type="text" class="form-control" id="full_name" name="full_name" 
+                                               placeholder="John Doe" required>
+                                        <div class="form-text">Enter your legal full name as it appears on official documents</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="nationality" class="form-label">Nationality *</label>
+                                        <select class="form-control" id="nationality" name="nationality" required>
+                                            <option value="">Select your nationality</option>
+                                            <option value="US">United States</option>
+                                            <option value="EU">European Union</option>
+                                            <option value="UK">United Kingdom</option>
+                                            <option value="CA">Canada</option>
+                                            <option value="AU">Australia</option>
+                                            <option value="ASIA">Asia</option>
+                                            <option value="OTHER">Other</option>
+                                        </select>
+                                        <div class="form-text">Your region of citizenship</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="date_of_birth" class="form-label">Date of Birth *</label>
+                                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
+                                        <div class="form-text">Must be 18 or older to participate</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Important:</strong> By submitting this form, you agree to provide accurate 
+                                information and understand that false statements may result in rejection of your application.
+                                Your KYC information will be reviewed by a trusted issuer before approval.
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane me-2"></i>Submit KYC Information
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% elif user.kyc_status == 'pending' %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-clock me-2"></i>
+                    <strong>KYC Pending Review</strong> Your KYC information has been submitted and is being reviewed by a trusted issuer.
+                </div>
+            {% endif %}
+            
+            <!-- KYC Form (Collapsible) -->
+            {% if user.kyc_status == 'not_submitted' %}
+            <div class="collapse" id="kycForm">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-user-check me-2"></i>KYC Information Submission
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('investor.kyc_submission', tab_session=tab_session_id) }}">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="full_name" class="form-label">Full Name *</label>
+                                        <input type="text" class="form-control" id="full_name" name="full_name" 
+                                               placeholder="John Doe" required>
+                                        <div class="form-text">Enter your legal full name as it appears on official documents</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="nationality" class="form-label">Nationality *</label>
+                                        <select class="form-control" id="nationality" name="nationality" required>
+                                            <option value="">Select your nationality</option>
+                                            <option value="US">United States</option>
+                                            <option value="EU">European Union</option>
+                                            <option value="UK">United Kingdom</option>
+                                            <option value="CA">Canada</option>
+                                            <option value="AU">Australia</option>
+                                            <option value="ASIA">Asia</option>
+                                            <option value="OTHER">Other</option>
+                                        </select>
+                                        <div class="form-text">Your region of citizenship</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="date_of_birth" class="form-label">Date of Birth *</label>
+                                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
+                                        <div class="form-text">Must be 18 or older to participate</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Important:</strong> By submitting this form, you agree to provide accurate 
+                                information and understand that false statements may result in rejection of your application.
+                                Your KYC information will be reviewed by a trusted issuer before approval.
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane me-2"></i>Submit KYC Information
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tabs: Requests | My Tokens -->
+    <ul class="nav nav-tabs" id="invTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="requests-tab" data-bs-toggle="tab" data-bs-target="#requests" type="button" role="tab">Requests</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="mytokens-tab" data-bs-toggle="tab" data-bs-target="#mytokens" type="button" role="tab">My Tokens</button>
+      </li>
+    </ul>
+    <div class="tab-content" id="invTabsContent">
+      <div class="tab-pane fade show active" id="requests" role="tabpanel">
+        <!-- Available Tokens -->
+        <div class="row mt-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h4>Available Tokens</h4>
+              </div>
+              <div class="card-body">
+                    {% if available_tokens %}
+                        <div class="row">
+                            {% for token in available_tokens %}
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ token.name }} ({{ token.symbol }})</h5>
+                                        <p class="card-text">{{ token.description[:100] }}{% if token.description|length > 100 %}...{% endif %}</p>
+                                        <ul class="list-unstyled">
+                                            <li><strong>Total Supply:</strong> {{ "{:,.0f}".format(token.total_supply) }}</li>
+                                            <li><strong>Price:</strong> ${{ "%.2f"|format(token.price_per_token) }}</li>
+                                            <li><strong>Deployed:</strong> {{ token.deployed_at.strftime('%Y-%m-%d') }}</li>
+                                        </ul>
+                                        
+                                        {% if user.kyc_status == 'approved' %}
+                                            {% set existing_purchase = purchase_requests | selectattr('token_id', 'equalto', token.id) | list %}
+                                            {% set existing_interest = user_interests | selectattr('token_id', 'equalto', token.id) | list %}
+                                            
+                                            {% if existing_purchase %}
+                                                {% set purchase = existing_purchase[0] %}
+                                                {% if purchase.status == 'approved' %}
+                                                    <a href="{{ url_for('investor.request_purchase', token_id=token.id, tab_session=tab_session_id) }}" 
+                                                       class="btn btn-success btn-sm">
+                                                        <i class="fas fa-shopping-cart"></i> Purchase Approved
+                                                    </a>
+                                                {% elif purchase.status == 'pending' %}
+                                                    <span class="badge bg-warning">
+                                                        <i class="fas fa-clock me-1"></i>Purchase Pending
+                                                    </span>
+                                                {% elif purchase.status == 'rejected' %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="fas fa-times me-1"></i>Purchase Rejected
+                                                    </span>
+                                                {% endif %}
+                                            {% elif existing_interest %}
+                                                {% set interest = existing_interest[0] %}
+                                                {% if interest.status == 'approved' %}
+                                                    <a href="{{ url_for('investor.request_purchase', token_id=token.id, tab_session=tab_session_id) }}" 
+                                                       class="btn btn-primary btn-sm">
+                                                        <i class="fas fa-shopping-cart"></i> Request Purchase
+                                                    </a>
+                                                {% elif interest.status == 'pending' %}
+                                                    <span class="badge bg-warning">
+                                                        <i class="fas fa-clock me-1"></i>Interest Pending
+                                                    </span>
+                                                {% elif interest.status == 'rejected' %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="fas fa-times me-1"></i>Interest Rejected
+                                                    </span>
+                                                {% endif %}
+                                            {% else %}
+                                                <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#interestModal{{ token.id }}">
+                                                    <i class="fas fa-hand-pointer"></i> Express Interest
+                                                </button>
+                                            {% endif %}
+                                        {% else %}
+                                            <button class="btn btn-secondary btn-sm" disabled>
+                                                <i class="fas fa-lock"></i> KYC Required
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No tokens available at the moment.</p>
+                    {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Token Interests -->
+        <div class="row mt-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h4>My Token Interests</h4>
+              </div>
+              <div class="card-body">
+                {% if user_interests %}
+                <div class="table-responsive">
+                  <table class="table table-striped">
+                    <thead>
+                      <tr>
+                        <th>Token</th><th>Amount Requested</th><th>Status</th><th>Requested</th><th>Processed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for interest in user_interests %}
+                      <tr>
+                        <td><strong>{{ interest.token.name }}</strong> ({{ interest.token.symbol }})</td>
+                        <td>{{ "{:,.0f}".format(interest.amount_requested) }}</td>
+                        <td><span class="badge bg-{{ 'warning' if interest.status == 'pending' else 'success' if interest.status == 'approved' else 'danger' }}">{{ interest.status.title() }}</span></td>
+                        <td>{{ interest.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{% if interest.processed_at %}{{ interest.processed_at.strftime('%Y-%m-%d %H:%M') }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <p class="text-muted">You haven't expressed interest in any tokens yet.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Purchase Requests -->
+        <div class="row mt-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>My Purchase Requests</h4>
+              </div>
+              <div class="card-body">
+                {% if purchase_requests %}
+                <div class="table-responsive">
+                  <table class="table table-striped">
+                    <thead>
+                      <tr>
+                        <th>Token</th><th>Amount</th><th>Total Value</th><th>Status</th><th>Verification</th><th>Created</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for request in purchase_requests %}
+                      <tr>
+                        <td><strong>{{ request.token.name }}</strong> ({{ request.token.symbol }})</td>
+                        <td>{{ "{:,.0f}".format(request.amount_requested) }} {{ request.token.symbol }}</td>
+                        <td>${{ "%.2f"|format(request.total_value) }}</td>
+                        <td><span class="badge bg-{{ 'warning' if request.status=='pending' else 'info' if request.status=='verified' else 'success' if request.status=='approved' else 'danger' if request.status=='rejected' else 'primary' if request.status=='completed' else 'secondary' }}">{{ request.status.title() }}</span></td>
+                        {% set vstatus = purchase_verifications.get(request.id) or request.verification_status %}
+                        <td><span class="badge bg-{{ 'secondary' if vstatus=='pending' else 'success' if vstatus=='verified' else 'danger' }}">{{ vstatus.title() }}</span></td>
+                        <td>{{ request.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <p class="text-muted">You haven't submitted any purchase requests yet.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- My Tokens tab -->
+      <div class="tab-pane fade" id="mytokens" role="tabpanel">
+        <div class="row mt-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>My Tokens (On-chain)</h4>
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshMyTokens()">
+                  <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+              </div>
+              <div class="card-body">
+                {% if my_holdings %}
+                <div class="table-responsive">
+                  <table class="table table-striped">
+                    <thead>
+                      <tr>
+                        <th>Token</th><th>Balance</th><th>Verified</th><th>Token Address</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for h in my_holdings %}
+                      <tr>
+                        <td><strong>{{ h.token.name }}</strong> ({{ h.token.symbol }})</td>
+                        <td>{{ "{:,.4f}".format(h.balance) }} {{ h.token.symbol }}</td>
+                        <td>{% if h.verified %}<span class="badge bg-success">Verified</span>{% else %}<span class="badge bg-warning">Not Verified</span>{% endif %}</td>
+                        <td><code>{{ h.token.token_address }}</code></td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No on-chain token holdings found for your wallet.</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remove duplicated sections below; content now lives in the Requests tab -->
+    <!-- My Token Interests (duplicate) -->
+    <div class="row mt-4 d-none">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>My Token Interests</h4>
+                </div>
+                <div class="card-body">
+                    {% if user_interests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Amount Requested</th>
+                                        <th>Status</th>
+                                        <th>Requested</th>
+                                        <th>Processed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for interest in user_interests %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ interest.token.name }}</strong> ({{ interest.token.symbol }})
+                                        </td>
+                                        <td>{{ "{:,.0f}".format(interest.amount_requested) }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ 'warning' if interest.status == 'pending' else 'success' if interest.status == 'approved' else 'danger' }}">
+                                                {{ interest.status.title() }}
+                                            </span>
+                                        </td>
+                                        <td>{{ interest.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if interest.processed_at %}
+                                                {{ interest.processed_at.strftime('%Y-%m-%d %H:%M') }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">You haven't expressed interest in any tokens yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Purchase Requests (duplicate) -->
+    <div class="row mt-4 d-none">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4>My Purchase Requests</h4>
+                    <a href="{{ url_for('investor.purchase_requests', tab_session=tab_session_id) }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye me-2"></i>View All
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if purchase_requests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Amount</th>
+                                        <th>Total Value</th>
+                                        <th>Status</th>
+                                        <th>Verification</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request in purchase_requests[:5] %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ request.token.name }}</strong> ({{ request.token.symbol }})
+                                        </td>
+                                        <td>{{ "{:,}".format(request.amount_requested) }} {{ request.token.symbol }}</td>
+                                        <td>${{ "%.2f"|format(request.total_value) }}</td>
+                                        <td>
+                                            {% if request.status == 'pending' %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-clock me-1"></i>Pending
+                                                </span>
+                                            {% elif request.status == 'verified' %}
+                                                <span class="badge bg-info">
+                                                    <i class="fas fa-user-check me-1"></i>Verified
+                                                </span>
+                                            {% elif request.status == 'approved' %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>Approved
+                                                </span>
+                                            {% elif request.status == 'rejected' %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-times me-1"></i>Rejected
+                                                </span>
+                                            {% elif request.status == 'completed' %}
+                                                <span class="badge bg-primary">
+                                                    <i class="fas fa-check-double me-1"></i>Completed
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                        {% set vstatus = purchase_verifications.get(request.id) or request.verification_status %}
+                        <span class="badge bg-{{ 'secondary' if vstatus=='pending' else 'success' if vstatus=='verified' else 'danger' }}">
+                            {{ vstatus.title() }}
+                        </span>
+                                        </td>
+                                        <td>{{ request.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if request.status == 'approved' %}
+                                                <form method="POST" action="{{ url_for('investor.execute_purchase', request_id=request.id, tab_session=tab_session_id) }}" style="display: inline;">
+                                                    <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Execute this purchase?')">
+                                                        <i class="fas fa-play me-1"></i>Execute
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% if purchase_requests|length > 5 %}
+                            <div class="text-center mt-3">
+                                <a href="{{ url_for('investor.purchase_requests', tab_session=tab_session_id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-list me-2"></i>View All {{ purchase_requests|length }} Requests
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted">You haven't submitted any purchase requests yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interest Modals -->
+{% for token in available_tokens %}
+<div class="modal fade" id="interestModal{{ token.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Express Interest in {{ token.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+                            <form method="POST" action="{{ url_for('investor.express_interest', token_id=token.id, tab_session=tab_session_id) }}">
+                <div class="modal-body">
+                    <p>Express your interest in purchasing {{ token.symbol }} tokens.</p>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Process:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Submit interest request</li>
+                            <li>Issuer will verify your KYC status</li>
+                            <li>If approved, you can request specific purchases</li>
+                        </ol>
+                    </div>
+                    <p class="text-muted">Available: {{ "{:,.0f}".format(token.total_supply) }} {{ token.symbol }}</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Interest</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+// Auto-refresh My Tokens tab when activated
+document.addEventListener('DOMContentLoaded', function() {
+    const myTokensTab = document.getElementById('mytokens-tab');
+    const myTokensPane = document.getElementById('mytokens');
+    
+    // Check if we should activate the My Tokens tab on page load
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('active_tab');
+    if (activeTab === 'mytokens') {
+        // Activate the My Tokens tab
+        const tab = new bootstrap.Tab(myTokensTab);
+        tab.show();
+    }
+    
+    // Refresh when tab is shown (but only if not coming from a refresh)
+    myTokensTab.addEventListener('shown.bs.tab', function() {
+        // Only auto-refresh if we're not already on the mytokens tab from a refresh
+        if (!urlParams.get('active_tab')) {
+            // Add a small delay to ensure the tab is fully visible
+            setTimeout(function() {
+                refreshMyTokens();
+            }, 100);
+        }
+    });
+});
+
+function refreshMyTokens() {
+    // Reload the page to get fresh blockchain data, preserving the active tab
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.set('active_tab', 'mytokens');
+    window.location.href = currentUrl.toString();
+}
+</script>
+{% endblock %}

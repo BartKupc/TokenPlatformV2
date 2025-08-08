@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}Agents - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <div class="token-selector">
+                <h6 class="mb-2">
+                    <i class="fas fa-coins me-2"></i>Select Token
+                </h6>
+                <select class="form-select" id="tokenSelector" onchange="changeToken()">
+                    <option value="">Choose a token...</option>
+                    {% for t in tokens %}
+                        <option value="{{ t.id }}" {% if t.id == token.id %}selected{% endif %}>
+                            {{ t.name }} ({{ t.symbol }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <nav class="nav flex-column">
+                <!-- Dashboard -->
+                <a class="nav-link" href="{{ url_for('issuer.dashboard', tab_session=tab_session_id) }}">
+                    <i class="fas fa-tachometer-alt"></i>Dashboard
+                </a>
+                
+                <!-- Token Management -->
+                <div class="mt-3">
+                    <h6 class="px-3 text-muted text-uppercase small">Token Management</h6>
+                    <div class="submenu">
+                        <a class="nav-link" href="{{ url_for('issuer.token_actions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-cogs"></i>Actions
+                        </a>
+                        <a class="nav-link active" href="{{ url_for('issuer.token_agents', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-users-cog"></i>Agents
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_transactions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-exchange-alt"></i>Transactions
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_requests', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-clipboard-list"></i>Requests
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Investors -->
+                <div class="mt-3">
+                    <h6 class="px-3 text-muted text-uppercase small">Investors</h6>
+                    <div class="submenu">
+                        <a class="nav-link" href="{{ url_for('issuer.investors_list', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-users"></i>All Investors
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10 main-content">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-users-cog me-2"></i>
+                        Agents - {{ token.name }}
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Manage agents for {{ token.symbol }} token
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('issuer.dashboard', token_id=token.id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Agent Types -->
+            <div class="row">
+                <!-- Identity Registry Agents -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-id-card me-2"></i>
+                                    Identity Registry Agents
+                                </h5>
+                                <button class="btn btn-primary btn-sm" onclick="addIdentityAgent()">
+                                    <i class="fas fa-plus me-1"></i>Add Agent
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% if agents.identity_agents %}
+                                <div class="list-group list-group-flush">
+                                    {% for agent in agents.identity_agents %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <code>{{ agent }}</code>
+                                            <span class="badge bg-success ms-2">Active</span>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-danger" data-address="{{ agent }}" onclick="removeAgent(this.dataset.address, 'identity')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-3">
+                                    <i class="fas fa-users fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">No identity agents assigned</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Token Agents -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-coins me-2"></i>
+                                    Token Agents
+                                </h5>
+                                <button class="btn btn-primary btn-sm" onclick="addTokenAgent()">
+                                    <i class="fas fa-plus me-1"></i>Add Agent
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% if agents.token_agents %}
+                                <div class="list-group list-group-flush">
+                                    {% for agent in agents.token_agents %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <code>{{ agent }}</code>
+                                            <span class="badge bg-success ms-2">Active</span>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-danger" data-address="{{ agent }}" onclick="removeAgent(this.dataset.address, 'token')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-3">
+                                    <i class="fas fa-coins fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">No token agents assigned</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Compliance Agents -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-shield-alt me-2"></i>
+                                    Compliance Agents
+                                </h5>
+                                <button class="btn btn-primary btn-sm" onclick="addComplianceAgent()">
+                                    <i class="fas fa-plus me-1"></i>Add Agent
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% if agents.compliance_agents %}
+                                <div class="list-group list-group-flush">
+                                    {% for agent in agents.compliance_agents %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <code>{{ agent }}</code>
+                                            <span class="badge bg-success ms-2">Active</span>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-danger" data-address="{{ agent }}" onclick="removeAgent(this.dataset.address, 'compliance')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-3">
+                                    <i class="fas fa-shield-alt fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">No compliance agents assigned</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Agent Information -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Agent Roles & Permissions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6>Identity Registry Agents</h6>
+                                    <ul class="list-unstyled">
+                                        <li><i class="fas fa-check text-success me-2"></i>Register new identities</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Update identity information</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Add/remove claims</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Verify KYC status</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Token Agents</h6>
+                                    <ul class="list-unstyled">
+                                        <li><i class="fas fa-check text-success me-2"></i>Mint new tokens</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Burn tokens</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Force transfer tokens</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Pause/unpause transfers</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Compliance Agents</h6>
+                                    <ul class="list-unstyled">
+                                        <li><i class="fas fa-check text-success me-2"></i>Update compliance rules</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Add/remove claim topics</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Manage trusted issuers</li>
+                                        <li><i class="fas fa-check text-success me-2"></i>Configure transfer restrictions</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Agent Modal -->
+<div class="modal fade" id="addAgentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Agent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAgentForm">
+                    <div class="mb-3">
+                        <label for="agentAddress" class="form-label">Agent Address</label>
+                        <input type="text" class="form-control" id="agentAddress" placeholder="0x..." required>
+                        <div class="form-text">Enter the Ethereum address of the agent</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="agentType" class="form-label">Agent Type</label>
+                        <select class="form-select" id="agentType" required>
+                            <option value="">Select agent type...</option>
+                            <option value="identity">Identity Registry Agent</option>
+                            <option value="token">Token Agent</option>
+                            <option value="compliance">Compliance Agent</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmAddAgent()">
+                    <i class="fas fa-plus me-1"></i>Add Agent
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changeToken() {
+    const tokenId = document.getElementById('tokenSelector').value;
+    if (tokenId) {
+        // Get current page path to determine where to redirect
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search;
+        
+        // Extract current token_id from URL if it exists
+        const urlParams = new URLSearchParams(currentSearch);
+        const currentTokenId = urlParams.get('token_id');
+        
+        // If we're on a token-specific page, redirect to the same page with new token
+        if (currentPath.includes('/token/') && currentTokenId) {
+            // Replace the current token_id with the new one
+            const newSearch = currentSearch.replace(`token_id=${currentTokenId}`, `token_id=${tokenId}`);
+            window.location.href = currentPath + newSearch;
+        } else {
+            // Default to dashboard
+            window.location.href = `{{ url_for('issuer.dashboard') }}?token_id=${tokenId}&tab_session={{ tab_session_id }}`;
+        }
+    } else {
+        // If no token selected, go to dashboard without token
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/token/')) {
+            // If on token page, go to dashboard
+            window.location.href = `{{ url_for('issuer.dashboard') }}?tab_session={{ tab_session_id }}`;
+        } else {
+            // Already on dashboard, just clear token
+            window.location.href = `{{ url_for('issuer.dashboard') }}?tab_session={{ tab_session_id }}`;
+        }
+    }
+}
+
+function addIdentityAgent() {
+    document.getElementById('agentType').value = 'identity';
+    new bootstrap.Modal(document.getElementById('addAgentModal')).show();
+}
+
+function addTokenAgent() {
+    document.getElementById('agentType').value = 'token';
+    new bootstrap.Modal(document.getElementById('addAgentModal')).show();
+}
+
+function addComplianceAgent() {
+    document.getElementById('agentType').value = 'compliance';
+    new bootstrap.Modal(document.getElementById('addAgentModal')).show();
+}
+
+function confirmAddAgent() {
+    const address = document.getElementById('agentAddress').value;
+    const type = document.getElementById('agentType').value;
+    
+    if (!address || !type) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    // Mock implementation
+    alert(`Mock: Added ${type} agent at address ${address}`);
+    bootstrap.Modal.getInstance(document.getElementById('addAgentModal')).hide();
+    
+    // Clear form
+    document.getElementById('agentAddress').value = '';
+    document.getElementById('agentType').value = '';
+}
+
+function removeAgent(address, type) {
+    if (confirm(`Are you sure you want to remove ${type} agent at ${address}?`)) {
+        // Mock implementation
+        alert(`Mock: Removed ${type} agent at address ${address}`);
+    }
+}
+</script>
+{% endblock %} 

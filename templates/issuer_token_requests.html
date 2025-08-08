@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block title %}Requests - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <div class="token-selector">
+                <h6 class="mb-2">
+                    <i class="fas fa-coins me-2"></i>Select Token
+                </h6>
+                <select class="form-select" id="tokenSelector" onchange="changeToken()">
+                    <option value="">Choose a token...</option>
+                    {% for t in tokens %}
+                        <option value="{{ t.id }}" {% if t.id == token.id %}selected{% endif %}>
+                            {{ t.name }} ({{ t.symbol }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <nav class="nav flex-column">
+                <!-- Dashboard -->
+                <a class="nav-link" href="{{ url_for('issuer.dashboard', tab_session=tab_session_id) }}">
+                    <i class="fas fa-tachometer-alt"></i>Dashboard
+                </a>
+                
+                <!-- Token Management -->
+                <div class="mt-3">
+                    <h6 class="px-3 text-muted text-uppercase small">Token Management</h6>
+                    <div class="submenu">
+                        <a class="nav-link" href="{{ url_for('issuer.token_actions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-cogs"></i>Actions
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_agents', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-users-cog"></i>Agents
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_transactions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-exchange-alt"></i>Transactions
+                        </a>
+                        <a class="nav-link active" href="{{ url_for('issuer.token_requests', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-clipboard-list"></i>Requests
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Investors -->
+                <div class="mt-3">
+                    <h6 class="px-3 text-muted text-uppercase small">Investors</h6>
+                    <div class="submenu">
+                        <a class="nav-link" href="{{ url_for('issuer.investors_list', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-users"></i>All Investors
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10 main-content">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        Requests - {{ token.name }}
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Manage requests for {{ token.symbol }} token
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('issuer.dashboard', token_id=token.id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Interest Requests Table -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-clipboard-list me-2"></i>
+                            Pending Requests
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm" id="requestTypeFilter">
+                                <option value="">All Types</option>
+                                <option value="kyc">KYC Approval</option>
+                                <option value="transfer">Transfer Request</option>
+                                <option value="mint">Mint Request</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if pending_interests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Investor</th>
+                                        <th>Amount Requested</th>
+                                        <th>Identity Registry</th>
+                                        <th>Requested</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for interest in pending_interests %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ interest.investor.username }}</strong><br>
+                                            <small class="text-muted">{{ interest.investor.email }}</small>
+                                        </td>
+                                        <td>{{ "{:,.0f}".format(interest.amount_requested) }} {{ token.symbol }}</td>
+                                        <td>
+                                            {% if interest.ir_status == 'pending' or not interest.ir_status %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-question me-1"></i>Not Added
+                                                </span>
+                                            {% elif interest.ir_status == 'added' %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-user-plus me-1"></i>Added
+                                                </span>
+                                            {% elif interest.ir_status == 'failed' %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-times me-1"></i>Failed
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ interest.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if interest.kyc_verified %}
+                                                <span class="badge bg-success mb-2">
+                                                    <i class="fas fa-check me-1"></i>KYC Verified
+                                                </span>
+                                                <br>
+                                                <a href="{{ url_for('issuer.approve_token_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-success btn-sm" 
+                                                   onclick="return confirm('Approve request for {{ interest.investor.username }}?')">
+                                                    <i class="fas fa-check"></i> Approve
+                                                </a>
+                                                <a href="{{ url_for('issuer.reject_token_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-danger btn-sm" 
+                                                   onclick="return confirm('Reject request for {{ interest.investor.username }}?')">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </a>
+                                            {% else %}
+                                                <!-- Step 1: Add to Identity Registry -->
+                                                {% if interest.ir_status != 'added' %}
+                                                    <form method="POST" action="{{ url_for('issuer.add_to_identity_registry_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" style="display: inline;">
+                                                        <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Add {{ interest.investor.username }} to Identity Registry?')">
+                                                            <i class="fas fa-user-plus"></i> Add to IR
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                
+                                                <!-- Step 2: Verify KYC (only if added to IR) -->
+                                                {% if interest.ir_status == 'added' %}
+                                                    <form method="POST" action="{{ url_for('issuer.verify_kyc_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" style="display: inline;">
+                                                        <button type="submit" class="btn btn-info btn-sm" onclick="return confirm('Verify KYC for {{ interest.investor.username }}?')">
+                                                            <i class="fas fa-user-check"></i> Verify KYC
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                
+                                                <a href="{{ url_for('issuer.reject_token_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-danger btn-sm" 
+                                                   onclick="return confirm('Reject request for {{ interest.investor.username }}?')">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                            <h5>No Pending Requests</h5>
+                            <p class="text-muted">Requests from investors will appear here for your review.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Purchase Requests Table -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-shopping-cart me-2"></i>
+                        Purchase Requests
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if purchase_requests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Investor</th>
+                                        <th>Amount</th>
+                                        <th>Total Value</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for req in purchase_requests %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ req.investor.username }}</strong><br>
+                                            <small class="text-muted"><code>{{ req.investor.wallet_address[:6] }}...{{ req.investor.wallet_address[-4:] }}</code></small>
+                                        </td>
+                                        <td>{{ "{:,.0f}".format(req.amount_requested) }} {{ token.symbol }}</td>
+                                        <td>
+                                            ${{ "%.2f"|format(req.total_value) }}
+                                            <br>
+                                            <small class="text-muted">@ ${{ "%.2f"|format(req.price_per_token) }}</small>
+                                        </td>
+                                        <td>
+                                            {% if req.status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif req.status == 'approved' %}
+                                                <span class="badge bg-success">Approved</span>
+                                            {% elif req.status == 'rejected' %}
+                                                <span class="badge bg-danger">Rejected</span>
+                                            {% elif req.status == 'completed' %}
+                                                <span class="badge bg-primary">Completed</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ req.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><small>{{ req.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                {% if req.status != 'completed' %}
+                                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                                        data-req-id="{{ req.id }}"
+                                                        data-username="{{ req.investor.username }}"
+                                                        data-wallet="{{ req.investor.wallet_address }}"
+                                                        data-amount="{{ req.amount_requested }}"
+                                                        onclick="openPurchaseProcessModalFromBtn(this)">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                            <h5>No Purchase Requests</h5>
+                            <p class="text-muted">No purchase requests have been submitted for this token yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Approved Requests -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Approved Requests
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if approved_interests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Investor</th>
+                                        <th>Amount Requested</th>
+                                        <th>Approved</th>
+                                        <th>Processed By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for interest in approved_interests %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ interest.investor.username }}</strong><br>
+                                            <small class="text-muted">{{ interest.investor.email }}</small>
+                                        </td>
+                                        <td>{{ "{:,.0f}".format(interest.amount_requested) }} {{ token.symbol }}</td>
+                                        <td>{{ interest.processed_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>{{ interest.processor.username if interest.processor else 'System' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-check-circle fa-3x text-muted mb-3"></i>
+                            <h5>No Approved Requests</h5>
+                            <p class="text-muted">Approved requests will appear here.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changeToken() {
+    const tokenId = document.getElementById('tokenSelector').value;
+    if (tokenId) {
+        // Get current page path to determine where to redirect
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search;
+        
+        // Extract current token_id from URL if it exists
+        const urlParams = new URLSearchParams(currentSearch);
+        const currentTokenId = urlParams.get('token_id');
+        
+        // If we're on a token-specific page, redirect to the same page with new token
+        if (currentPath.includes('/token/') && currentTokenId) {
+            // Replace the current token_id with the new one
+            const newSearch = currentSearch.replace(`token_id=${currentTokenId}`, `token_id=${tokenId}`);
+            window.location.href = currentPath + newSearch;
+        } else {
+            // Default to dashboard
+            window.location.href = `{{ url_for('issuer.dashboard') }}?token_id=${tokenId}&tab_session={{ tab_session_id }}`;
+        }
+    } else {
+        // If no token selected, go to dashboard without token
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/token/')) {
+            // If on token page, go to dashboard
+            window.location.href = `{{ url_for('issuer.dashboard') }}?tab_session={{ tab_session_id }}`;
+        } else {
+            // Already on dashboard, just clear token
+            window.location.href = `{{ url_for('issuer.dashboard') }}?tab_session={{ tab_session_id }}`;
+        }
+    }
+}
+
+const tabSessionId = '{{ tab_session_id }}';
+
+function openPurchaseProcessModalFromBtn(btn) {
+    const requestId = Number(btn.dataset.reqId);
+    const investorUsername = btn.dataset.username;
+    const investorWallet = btn.dataset.wallet;
+    const amountRequested = Number(btn.dataset.amount);
+    openPurchaseProcessModal(requestId, investorUsername, investorWallet, amountRequested);
+}
+
+function openPurchaseProcessModal(requestId, investorUsername, investorWallet, amountRequested) {
+    // Fill modal content
+    const modal = new bootstrap.Modal(document.getElementById('purchaseProcessModal'));
+    document.getElementById('pp_investor').textContent = investorUsername;
+    document.getElementById('pp_wallet').textContent = investorWallet;
+    document.getElementById('pp_amount').textContent = amountRequested.toLocaleString();
+
+    // Set form actions to existing real endpoints
+    const mintForm = document.getElementById('pp_mint_form');
+    const transferForm = document.getElementById('pp_transfer_form');
+    // Submit mint using purchase-linked route so DB status updates to completed
+    mintForm.action = `/issuer/token/{{ token.id }}/mint-for-purchase/${requestId}?tab_session={{ tab_session_id }}`;
+    // Force transfer posts directly to route
+    transferForm.action = `/issuer/token/{{ token.id }}/force-transfer-for-purchase/${requestId}?tab_session={{ tab_session_id }}`;
+    transferForm.method = 'POST';
+    modal.show();
+}
+</script>
+{% endblock %} 
+
+{% block modals %}
+<!-- Purchase Process Modal -->
+<div class="modal fade" id="purchaseProcessModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-cogs me-2"></i>Process Purchase Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6>Investor</h6>
+                        <p><strong id="pp_investor"></strong><br><code id="pp_wallet"></code></p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Request</h6>
+                        <p><strong id="pp_amount"></strong> {{ token.symbol }}</p>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="fas fa-plus-circle text-success me-2"></i>Mint to Investor</h6>
+                                    <form id="pp_mint_form" method="POST">
+                                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-plus-circle me-1"></i>Mint</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6><i class="fas fa-exchange-alt text-warning me-2"></i>Force Transfer</h6>
+                                <form id="pp_transfer_form">
+                                    <div class="mb-2">
+                                        <label class="form-label">From Address</label>
+                                        <input id="pp_from" class="form-control" placeholder="0x..." required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">To Address</label>
+                                        <input id="pp_to" class="form-control" placeholder="0x..." required>
+                                    </div>
+                                    <button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-exchange-alt me-1"></i>Transfer</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

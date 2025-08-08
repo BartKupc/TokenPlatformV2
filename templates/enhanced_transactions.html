@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Transactions - {{ token.symbol }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history"></i> Enhanced Transaction History - {{ token.symbol }}
+                    </h5>
+                    <div>
+                        <a href="{{ url_for('issuer.token_actions', token_id=token.id, tab_session=tab_session_id) }}" 
+                           class="btn btn-secondary btn-sm">
+                            <i class="fas fa-arrow-left"></i> Back to Actions
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if transactions %}
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Date/Time</th>
+                                        <th>Type</th>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Amount</th>
+                                        <th>Executed By</th>
+                                        <th>Transaction Hash</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for transaction in transactions %}
+                                    <tr>
+                                        <td>
+                                            <small class="text-muted">
+                                                {{ transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            {% if transaction.transaction_type == 'mint' %}
+                                                <span class="badge bg-success">Mint</span>
+                                            {% elif transaction.transaction_type == 'burn' %}
+                                                <span class="badge bg-danger">Burn</span>
+                                            {% elif transaction.transaction_type == 'transfer' %}
+                                                <span class="badge bg-primary">Transfer</span>
+                                            {% elif transaction.transaction_type == 'forced_transfer' %}
+                                                <span class="badge bg-warning">Force Transfer</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ transaction.transaction_type }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if transaction.from_address %}
+                                                <code class="text-primary">{{ transaction.from_address[:6] }}...{{ transaction.from_address[-4:] }}</code>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if transaction.to_address %}
+                                                <code class="text-success">{{ transaction.to_address[:6] }}...{{ transaction.to_address[-4:] }}</code>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <strong>{{ "%.2f"|format(transaction.amount_formatted) }} {{ token.symbol }}</strong>
+                                        </td>
+                                        <td>
+                                            <small>
+                                                <code>{{ transaction.executed_by_address[:6] }}...{{ transaction.executed_by_address[-4:] }}</code>
+                                            </small>
+                                        </td>
+                                        <td>
+                                            {% if transaction.transaction_hash %}
+                                                <a href="https://sepolia.etherscan.io/tx/{{ transaction.transaction_hash }}" 
+                                                   target="_blank" class="text-decoration-none">
+                                                    <code class="text-info">{{ transaction.transaction_hash[:10] }}...</code>
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if transaction.notes %}
+                                                <small class="text-muted">{{ transaction.notes }}</small>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        {% if total_pages > 1 %}
+                        <nav aria-label="Transaction pagination">
+                            <ul class="pagination justify-content-center">
+                                {% if current_page > 1 %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('issuer.enhanced_transactions', token_id=token.id, page=current_page-1, tab_session=tab_session_id) }}">
+                                            Previous
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for page_num in range(1, total_pages + 1) %}
+                                    {% if page_num == current_page %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                    {% elif page_num <= current_page + 2 and page_num >= current_page - 2 %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('issuer.enhanced_transactions', token_id=token.id, page=page_num, tab_session=tab_session_id) }}">
+                                                {{ page_num }}
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if current_page < total_pages %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="{{ url_for('issuer.enhanced_transactions', token_id=token.id, page=current_page+1, tab_session=tab_session_id) }}">
+                                            Next
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        {% endif %}
+                        
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                Showing {{ (current_page - 1) * 20 + 1 }} to {{ (current_page - 1) * 20 + transactions|length }} 
+                                of {{ total_transactions }} transactions
+                            </small>
+                        </div>
+                        
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No transactions found</h5>
+                            <p class="text-muted">This token hasn't had any transactions yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.table th {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.table td {
+    font-size: 0.85rem;
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+code {
+    font-size: 0.8rem;
+    background-color: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+</style>
+{% endblock %} 

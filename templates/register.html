@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Test Token Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Register for Test Token Platform
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="registrationForm">
+                        <!-- Role Selection -->
+                        <div class="mb-4">
+                            <label class="form-label">Select Your Role *</label>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="user_type" id="roleAdmin" value="admin">
+                                        <label class="form-check-label" for="roleAdmin">
+                                            <i class="fas fa-crown text-warning me-2"></i>Admin
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="user_type" id="roleIssuer" value="issuer">
+                                        <label class="form-check-label" for="roleIssuer">
+                                            <i class="fas fa-building text-primary me-2"></i>Issuer
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="user_type" id="roleTrustedIssuer" value="trusted_issuer">
+                                        <label class="form-check-label" for="roleTrustedIssuer">
+                                            <i class="fas fa-user-shield text-info me-2"></i>Trusted Issuer
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="user_type" id="roleInvestor" value="investor" checked>
+                                        <label class="form-check-label" for="roleInvestor">
+                                            <i class="fas fa-user text-success me-2"></i>Investor
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Basic Information -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Username *</label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                    <div class="form-text">Choose a unique username for login</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="wallet_address" class="form-label">Wallet Address *</label>
+                                    <input type="text" class="form-control" id="wallet_address" name="wallet_address" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{40}$" required>
+                                    <div class="form-text">Your Ethereum wallet address</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Password *</label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                    <div class="form-text">Choose a secure password</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="private_key" class="form-label">Private Key *</label>
+                                    <input type="password" class="form-control" id="private_key" name="private_key" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{64}$" required>
+                                    <div class="form-text">Your Ethereum private key (66 characters including 0x)</div>
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                        <!-- Role Descriptions -->
+                        <div class="alert alert-info mb-4">
+                            <h6>Role Descriptions:</h6>
+                            <ul class="mb-0">
+                                <li><strong>Admin:</strong> Platform oversight, user management, and compliance monitoring</li>
+                                <li><strong>Issuer:</strong> Deploy and manage security tokens, approve investor requests</li>
+                                <li><strong>Trusted Issuer:</strong> KYC verification and OnchainID creation for investors</li>
+                                <li><strong>Investor:</strong> Browse tokens, complete KYC, and express investment interest</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-user-plus me-2"></i>Register
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Already have an account?</p>
+                        <a href="{{ url_for('main.home') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

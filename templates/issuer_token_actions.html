@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+
+{% block title %}Token Actions - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <div class="token-selector">
+                <h6 class="mb-2">
+                    <i class="fas fa-coins me-2"></i>Select Token
+                </h6>
+                <select class="form-select" id="tokenSelector" onchange="changeToken()">
+                    <option value="">Choose a token...</option>
+                    {% for t in tokens %}
+                        <option value="{{ t.id }}" {% if t.id == token.id %}selected{% endif %}>
+                            {{ t.name }} ({{ t.symbol }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <nav class="nav flex-column">
+                <!-- Dashboard -->
+                <a class="nav-link" href="{{ url_for('issuer.dashboard', tab_session=tab_session_id) }}">
+                    <i class="fas fa-tachometer-alt"></i>Dashboard
+                </a>
+                
+                <!-- Token Management -->
+                <div class="mt-3">
+                    <h6 class="px-3 text-muted text-uppercase small">Token Management</h6>
+                    <div class="submenu">
+                        <a class="nav-link active" href="{{ url_for('issuer.token_actions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-cogs"></i>Actions
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_agents', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-users-cog"></i>Agents
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_transactions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-exchange-alt"></i>Transactions
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.enhanced_transactions', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-history"></i>Enhanced History
+                        </a>
+                        <a class="nav-link" href="{{ url_for('issuer.token_requests', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-clipboard-list"></i>Requests
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Investors -->
+                <div class="mt-3">
+                    <h6 class="px-3 text-muted text-uppercase small">Investors</h6>
+                    <div class="submenu">
+                        <a class="nav-link" href="{{ url_for('issuer.investors_list', token_id=token.id, tab_session=tab_session_id) }}">
+                            <i class="fas fa-users"></i>All Investors
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10 main-content">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Token Actions - {{ token.name }}
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Manage investors and perform token operations
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('issuer.dashboard', token_id=token.id, tab_session=tab_session_id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Token Status -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>Token Status
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">Status:</span>
+                                        {% if blockchain_paused %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-pause me-1"></i>Paused
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-play me-1"></i>Active
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">Minting:</span>
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Enabled
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">Burning:</span>
+                                        {% if token.is_burnable %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check me-1"></i>Enabled
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times me-1"></i>Disabled
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">Transfers:</span>
+                                        {% if token.is_transferable %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check me-1"></i>Enabled
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times me-1"></i>Disabled
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <form method="POST" action="{{ url_for('issuer.toggle_pause', token_id=token.id, tab_session=tab_session_id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-{% if blockchain_paused %}success{% else %}warning{% endif %}" onclick="return confirm('{% if blockchain_paused %}Unpause{% else %}Pause{% endif %} this token?')">
+                                        <i class="fas fa-{% if blockchain_paused %}play{% else %}pause{% endif %} me-2"></i>{% if blockchain_paused %}Unpause{% else %}Pause{% endif %} Token
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Investors Table -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-users me-2"></i>
+                            Investors ({{ investors|length }})
+                        </h5>
+
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if investors %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+
+                                        <th>Wallet Address</th>
+                                        <th>Email</th>
+                                        <th>KYC Status</th>
+                                        <th>Registration Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for investor in investors %}
+                                    <tr>
+
+                                        <td>
+                                            <code>{{ investor.wallet_address }}</code>
+                                        </td>
+                                        <td>{{ investor.email or 'Not provided' }}</td>
+                                        <td>
+                                            {% if investor.kyc_status == 'approved' %}
+                                                <span class="badge bg-success">Approved</span>
+                                            {% elif investor.kyc_status == 'pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif investor.kyc_status == 'rejected' %}
+                                                <span class="badge bg-danger">Rejected</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Unknown</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ investor.created_at.strftime('%b %d, %Y') }}</td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button class="btn btn-sm btn-outline-primary" data-address="{{ investor.wallet_address }}" onclick="mintTokens(this.dataset.address)">
+                                                    <i class="fas fa-plus me-1"></i>Mint
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-warning" data-address="{{ investor.wallet_address }}" onclick="burnTokens(this.dataset.address)">
+                                                    <i class="fas fa-minus me-1"></i>Burn
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-info" data-address="{{ investor.wallet_address }}" onclick="forceTransfer(this.dataset.address)">
+                                                    <i class="fas fa-exchange-alt me-1"></i>Transfer
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" data-address="{{ investor.wallet_address }}" onclick="toggleBlock(this.dataset.address)">
+                                                    <i class="fas fa-ban me-1"></i>Block
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5>No Investors Found</h5>
+                            <p class="text-muted">No investors have registered for this token yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mint Modal -->
+<div class="modal fade" id="mintModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Mint Tokens</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="mintForm" method="POST" action="{{ url_for('issuer.mint_tokens', token_id=token.id, tab_session=tab_session_id) }}">
+                    <div class="mb-3">
+                        <label for="to_address" class="form-label">Recipient Address</label>
+                        <input type="text" class="form-control" id="to_address" name="to_address" placeholder="0x..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount to Mint</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="amount" name="amount" min="1" required>
+                            <span class="input-group-text">{{ token.symbol }}</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="purchase_request_id" class="form-label">Purchase Request ID (Optional)</label>
+                        <input type="number" class="form-control" id="purchase_request_id" name="purchase_request_id" placeholder="Leave empty if not related to purchase">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmMint()">
+                    <i class="fas fa-plus me-1"></i>Mint Tokens
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Burn Modal -->
+<div class="modal fade" id="burnModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Burn Tokens</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="burnForm" method="POST" action="{{ url_for('issuer.burn_tokens', token_id=token.id, tab_session=tab_session_id) }}">
+                    <div class="mb-3">
+                        <label for="from_address" class="form-label">Address to Burn From</label>
+                        <input type="text" class="form-control" id="from_address" name="from_address" placeholder="0x..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="burn_amount" class="form-label">Amount to Burn</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="burn_amount" name="amount" min="1" required>
+                            <span class="input-group-text">{{ token.symbol }}</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmBurn()">
+                    <i class="fas fa-minus me-1"></i>Burn Tokens
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Force Transfer Modal -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Force Transfer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="transferForm" method="POST" action="{{ url_for('issuer.transfer_tokens', token_id=token.id, tab_session=tab_session_id) }}">
+                    <div class="mb-3">
+                        <label for="transfer_from_address" class="form-label">From Address</label>
+                        <input type="text" class="form-control" id="transfer_from_address" name="from_address" placeholder="0x..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer_to_address" class="form-label">To Address</label>
+                        <input type="text" class="form-control" id="transfer_to_address" name="to_address" placeholder="0x..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer_amount" class="form-label">Amount to Transfer</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="transfer_amount" name="amount" min="1" required>
+                            <span class="input-group-text">{{ token.symbol }}</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" onclick="confirmTransfer()">
+                    <i class="fas fa-exchange-alt me-1"></i>Force Transfer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changeToken() {
+    const tokenId = document.getElementById('tokenSelector').value;
+    if (tokenId) {
+        // Get current page path to determine where to redirect
+        const currentPath = window.location.pathname;
+        const currentSearch = window.location.search;
+        
+        // Extract current token_id from URL if it exists
+        const urlParams = new URLSearchParams(currentSearch);
+        const currentTokenId = urlParams.get('token_id');
+        
+        // If we're on a token-specific page, redirect to the same page with new token
+        if (currentPath.includes('/token/') && currentTokenId) {
+            // Replace the current token_id with the new one
+            const newSearch = currentSearch.replace(`token_id=${currentTokenId}`, `token_id=${tokenId}`);
+            window.location.href = currentPath + newSearch;
+        } else {
+            // Default to dashboard
+            window.location.href = `{{ url_for('issuer.dashboard') }}?token_id=${tokenId}&tab_session={{ tab_session_id }}`;
+        }
+    } else {
+        // If no token selected, go to dashboard without token
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/token/')) {
+            // If on token page, go to dashboard
+            window.location.href = `{{ url_for('issuer.dashboard') }}?tab_session={{ tab_session_id }}`;
+        } else {
+            // Already on dashboard, just clear token
+            window.location.href = `{{ url_for('issuer.dashboard') }}?tab_session={{ tab_session_id }}`;
+        }
+    }
+}
+
+
+
+function mintTokens(address) {
+    document.getElementById('to_address').value = address;
+    new bootstrap.Modal(document.getElementById('mintModal')).show();
+}
+
+function burnTokens(address) {
+    document.getElementById('from_address').value = address;
+    new bootstrap.Modal(document.getElementById('burnModal')).show();
+}
+
+function forceTransfer(address) {
+    document.getElementById('transfer_from_address').value = address;
+    new bootstrap.Modal(document.getElementById('transferModal')).show();
+}
+
+function toggleBlock(address) {
+    if (confirm(`Are you sure you want to block/unblock ${address}?`)) {
+        // Mock implementation
+        alert(`Mock: ${address} block status toggled`);
+    }
+}
+
+function confirmMint() {
+    const form = document.getElementById('mintForm');
+    const toAddress = document.getElementById('to_address').value;
+    const amount = document.getElementById('amount').value;
+    
+    if (!toAddress || !amount) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (confirm(`Mint ${amount} {{ token.symbol }} tokens to ${toAddress}?`)) {
+        form.submit();
+    }
+}
+
+function confirmBurn() {
+    const form = document.getElementById('burnForm');
+    const fromAddress = document.getElementById('from_address').value;
+    const amount = document.getElementById('burn_amount').value;
+    
+    if (!fromAddress || !amount) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (confirm(`Burn ${amount} {{ token.symbol }} tokens from ${fromAddress}?`)) {
+        form.submit();
+    }
+}
+
+function confirmTransfer() {
+    const form = document.getElementById('transferForm');
+    const fromAddress = document.getElementById('transfer_from_address').value;
+    const toAddress = document.getElementById('transfer_to_address').value;
+    const amount = document.getElementById('transfer_amount').value;
+    
+    if (!fromAddress || !toAddress || !amount) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (confirm(`Transfer ${amount} {{ token.symbol }} tokens from ${fromAddress} to ${toAddress}?`)) {
+        form.submit();
+    }
+}
+
+
+</script>
+{% endblock %} 

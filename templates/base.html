@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Token Platform{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+            color: #1a237e !important;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        
+        .btn-primary {
+            background-color: #1a237e;
+            border-color: #1a237e;
+        }
+        
+        .btn-primary:hover {
+            background-color: #3949ab;
+            border-color: #3949ab;
+        }
+        
+        .status-pending {
+            color: #ff9800;
+        }
+        
+        .status-approved {
+            color: #4caf50;
+        }
+        
+        .status-rejected {
+            color: #f44336;
+        }
+        
+        .wallet-address {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .token-card {
+            transition: transform 0.2s;
+        }
+        
+        .token-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .sidebar {
+            min-height: calc(100vh - 76px);
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        
+        .sidebar .nav-link {
+            color: #495057;
+            padding: 0.75rem 1rem;
+            border-radius: 0.375rem;
+            margin: 0.125rem 0.5rem;
+        }
+        
+        .sidebar .nav-link:hover {
+            background-color: #e9ecef;
+            color: #212529;
+        }
+        
+        .sidebar .nav-link.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+        
+        .sidebar .nav-link i {
+            width: 20px;
+            text-align: center;
+            margin-right: 0.5rem;
+        }
+        
+        .submenu {
+            margin-left: 1rem;
+            border-left: 2px solid #dee2e6;
+            padding-left: 0.5rem;
+        }
+        
+        .submenu .nav-link {
+            font-size: 0.875rem;
+            padding: 0.5rem 0.75rem;
+            margin: 0.125rem 0.25rem;
+        }
+        
+        .token-selector {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .main-content {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .stats-card .card-body {
+            padding: 1.5rem;
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+                            <a class="navbar-brand" href="{{ url_for('main.home') }}">
+                <i class="fas fa-coins me-2"></i>
+                Token Platform
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.home') }}">
+                            <i class="fas fa-home me-1"></i>Home
+                        </a>
+                    </li>
+                    {% if current_user %}
+                        {% if current_user.user_type == 'issuer' %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('issuer.dashboard', tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-chart-line me-1"></i>Dashboard
+                            </a>
+                        </li>
+                        {% if current_user.onchain_id %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('onchainid.view_onchainid', onchainid_address=current_user.onchain_id, tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-id-card me-1"></i>My OnchainID
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% elif current_user.user_type == 'trusted_issuer' %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('trusted_issuer.dashboard', tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-user-shield me-1"></i>Dashboard
+                            </a>
+                        </li>
+                        {% if current_user.onchain_id %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('onchainid.view_onchainid', onchainid_address=current_user.onchain_id, tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-id-card me-1"></i>My OnchainID
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% elif current_user.user_type == 'investor' %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('investor.dashboard', tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-user me-1"></i>Dashboard
+                            </a>
+                        </li>
+                        {% if current_user.onchain_id %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('onchainid.view_onchainid', onchainid_address=current_user.onchain_id, tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-id-card me-1"></i>My OnchainID
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% elif current_user.user_type == 'admin' %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin.dashboard', tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-cog me-1"></i>Dashboard
+                            </a>
+                        </li>
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                
+                <ul class="navbar-nav">
+                    {% if current_user %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user me-1"></i>
+                                {{ current_user.wallet_address[:6] }}...{{ current_user.wallet_address[-4:] }}
+                                <span class="badge bg-secondary ms-1">{{ current_user.user_type.title() }}</span>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{{ url_for('main.home', tab_session=request.args.get('tab_session')) }}">Home</a></li>
+                                {% if current_user.user_type == 'issuer' %}
+                                <li><a class="dropdown-item" href="{{ url_for('issuer.dashboard', tab_session=request.args.get('tab_session')) }}">Dashboard</a></li>
+                                {% elif current_user.user_type == 'trusted_issuer' %}
+                                <li><a class="dropdown-item" href="{{ url_for('trusted_issuer.dashboard', tab_session=request.args.get('tab_session')) }}">Dashboard</a></li>
+                                {% elif current_user.user_type == 'investor' %}
+                                <li><a class="dropdown-item" href="{{ url_for('investor.dashboard', tab_session=request.args.get('tab_session')) }}">Dashboard</a></li>
+                                {% elif current_user.user_type == 'admin' %}
+                                <li><a class="dropdown-item" href="{{ url_for('admin.dashboard', tab_session=request.args.get('tab_session')) }}">Dashboard</a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="logout()">Logout</a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-sign-in-alt me-1"></i>Login
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{{ url_for('issuer.login', tab_session=request.args.get('tab_session')) }}">Issuer</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('trusted_issuer.login', tab_session=request.args.get('tab_session')) }}">Trusted Issuer</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('investor.login', tab_session=request.args.get('tab_session')) }}">Investor</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('admin.login', tab_session=request.args.get('tab_session')) }}">Admin</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.register', tab_session=request.args.get('tab_session')) }}">
+                                <i class="fas fa-user-plus me-1"></i>Register
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container mt-3">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block modals %}{% endblock %}
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Token Platform</h5>
+                    <p class="mb-0">ERC-3643 Compliant Security Token Platform</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-0">&copy; 2024 Token Platform. All rights reserved.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Web3.js for blockchain interactions -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    
+    <script>
+        // Tab session management
+        function getTabSessionId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('tab_session');
+        }
+        
+        // Add tab session to all internal links
+        function addTabSessionToLinks() {
+            const tabSessionId = getTabSessionId();
+            if (tabSessionId) {
+                document.querySelectorAll('a[href^="/"]').forEach(link => {
+                    const url = new URL(link.href, window.location.origin);
+                    if (!url.searchParams.has('tab_session')) {
+                        url.searchParams.set('tab_session', tabSessionId);
+                        link.href = url.toString();
+                    }
+                });
+            }
+        }
+        
+            // Logout function
+    function logout() {
+        const tabSessionId = getTabSessionId();
+        const logoutUrl = tabSessionId ? `/auth/logout?tab_session=${tabSessionId}` : '/auth/logout';
+        
+        fetch(logoutUrl, { method: 'POST' })
+                .then(() => {
+                    const homeUrl = tabSessionId ? `/?tab_session=${tabSessionId}` : '/';
+                    window.location.href = homeUrl;
+                });
+        }
+        
+        // Format wallet addresses
+        function formatAddress(address) {
+            if (!address) return '';
+            return address.substring(0, 6) + '...' + address.substring(address.length - 4);
+        }
+        
+        // Format token amounts
+        function formatTokenAmount(amount, decimals = 18) {
+            if (!amount) return '0';
+            return (parseFloat(amount) / Math.pow(10, decimals)).toFixed(2);
+        }
+        
+        
+        // Run tab session link updates when page loads
+        document.addEventListener('DOMContentLoaded', addTabSessionToLinks);
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

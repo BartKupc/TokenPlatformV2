@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}On-Chain Claims Check - {{ target_user.username }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-link me-2"></i>
+                    On-Chain Claims Verification
+                </h2>
+                <a href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Information -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user me-2"></i>
+                        User Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Username:</strong> {{ target_user.username }}</p>
+                            <p><strong>User Type:</strong> 
+                                <span class="badge bg-{% if target_user.user_type == 'investor' %}success{% elif target_user.user_type == 'trusted_issuer' %}info{% else %}primary{% endif %}">
+                                    {{ target_user.user_type.title() }}
+                                </span>
+                            </p>
+                            <p><strong>Wallet Address:</strong> <span class="wallet-address">{{ target_user.wallet_address }}</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>OnchainID:</strong> 
+                                {% if target_user.onchain_id %}
+                                    <span class="wallet-address">{{ target_user.onchain_id }}</span>
+                                {% else %}
+                                    <span class="text-warning">Not created</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Registration Date:</strong> {{ target_user.created_at.strftime('%B %d, %Y') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OnchainID Claims -->
+    {% if onchainid_claims.success %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-certificate me-2"></i>
+                        OnchainID Claims ({{ onchainid_claims.total_claims }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if onchainid_claims.claims %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Claim ID</th>
+                                        <th>Topic</th>
+                                        <th>Issuer</th>
+                                        <th>Data</th>
+                                        <th>Scheme</th>
+                                        <th>URI</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for claim in onchainid_claims.claims %}
+                                    <tr>
+                                        <td><code>{{ claim.id }}</code></td>
+                                        <td><span class="badge bg-primary">{{ claim.topic }}</span></td>
+                                        <td><span class="wallet-address">{{ claim.issuer }}</span></td>
+                                        <td><code>{{ claim.data }}</code></td>
+                                        <td>{{ claim.scheme }}</td>
+                                        <td>{{ claim.uri or 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+                            <p class="text-muted">No claims found in OnchainID</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>OnchainID Claims Error:</strong> {{ onchainid_claims.error }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Token Compliance Results -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-coins me-2"></i>
+                        Token Compliance Results
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if onchain_results %}
+                        {% for token_id, result in onchain_results.items() %}
+                            {% set token = all_tokens|selectattr("id", "equalto", token_id)|first %}
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        {{ token.name }} ({{ token.symbol }})
+                                        {% if result.success %}
+                                            {% if result.compliant %}
+                                                <span class="badge bg-success ms-2">Compliant</span>
+                                            {% else %}
+                                                <span class="badge bg-danger ms-2">Non-Compliant</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-warning ms-2">Error</span>
+                                        {% endif %}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if result.success %}
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p><strong>Token Address:</strong> <span class="wallet-address">{{ result.token_address }}</span></p>
+                                                <p><strong>User Address:</strong> <span class="wallet-address">{{ result.user_address }}</span></p>
+                                                <p><strong>OnchainID:</strong> <span class="wallet-address">{{ result.onchainid_address }}</span></p>
+                                                <p><strong>Verified in IR:</strong> 
+                                                    {% if result.is_verified %}
+                                                        <span class="badge bg-success">Yes</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">No</span>
+                                                    {% endif %}
+                                                </p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p><strong>Required Topics:</strong> 
+                                                    {% if result.required_topics %}
+                                                        {% for topic in result.required_topics %}
+                                                            <span class="badge bg-primary me-1">{{ topic }}</span>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <span class="text-muted">None</span>
+                                                    {% endif %}
+                                                </p>
+                                                <p><strong>Missing Topics:</strong> 
+                                                    {% if result.missing_topics %}
+                                                        {% for topic in result.missing_topics %}
+                                                            <span class="badge bg-danger me-1">{{ topic }}</span>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <span class="text-success">None</span>
+                                                    {% endif %}
+                                                </p>
+                                                <p><strong>Total User Claims:</strong> {{ result.total_user_claims }}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        {% if result.valid_claims %}
+                                        <div class="mt-3">
+                                            <h6>Valid Claims:</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Topic</th>
+                                                            <th>Issuer</th>
+                                                            <th>Data</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for claim in result.valid_claims %}
+                                                        <tr>
+                                                            <td><span class="badge bg-primary">{{ claim.topic }}</span></td>
+                                                            <td><span class="wallet-address">{{ claim.issuer }}</span></td>
+                                                            <td><code>{{ claim.data }}</code></td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        {% if result.invalid_claims %}
+                                        <div class="mt-3">
+                                            <h6>Invalid Claims:</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Topic</th>
+                                                            <th>Error</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for claim in result.invalid_claims %}
+                                                        <tr>
+                                                            <td><span class="badge bg-danger">{{ claim.topic }}</span></td>
+                                                            <td>{{ claim.error }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        
+                                    {% else %}
+                                        <div class="alert alert-danger">
+                                            <strong>Error:</strong> {{ result.error }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-coins fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">No tokens found for on-chain verification</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}OnchainID Details - {{ onchainid_address }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-id-card"></i> OnchainID Details
+                        <small class="text-muted">{{ onchainid_address }}</small>
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if onchainid_info.error %}
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> Error: {{ onchainid_info.error }}
+                        </div>
+                    {% else %}
+                        <!-- Summary Stats -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <div class="card bg-primary text-white">
+                                    <div class="card-body text-center">
+                                        <h4>{{ onchainid_info.total_keys }}</h4>
+                                        <p class="mb-0">Total Keys</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body text-center">
+                                        <h4>{{ onchainid_info.total_claims }}</h4>
+                                        <p class="mb-0">Total Claims</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body text-center">
+                                        <h4>{{ onchainid_info.get('keys', {}).get('management_keys', [])|length }}</h4>
+                                        <p class="mb-0">Management Keys</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white">
+                                    <div class="card-body text-center">
+                                        <h4>{{ onchainid_info.get('keys', {}).get('claim_signer_keys', [])|length }}</h4>
+                                        <p class="mb-0">Claim Signers</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabs -->
+                        <ul class="nav nav-tabs" id="onchainidTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="keys-tab" data-bs-toggle="tab" data-bs-target="#keys" type="button" role="tab">
+                                    <i class="fas fa-key"></i> Keys
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="claims-tab" data-bs-toggle="tab" data-bs-target="#claims" type="button" role="tab">
+                                    <i class="fas fa-certificate"></i> Claims
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="topics-tab" data-bs-toggle="tab" data-bs-target="#topics" type="button" role="tab">
+                                    <i class="fas fa-tags"></i> Claim Topics
+                                </button>
+                            </li>
+                        </ul>
+
+
+
+                        <div class="tab-content mt-3" id="onchainidTabContent">
+                            <!-- Keys Tab -->
+                            <div class="tab-pane fade show active" id="keys" role="tabpanel">
+                                <div class="row">
+                                    <!-- Management Keys -->
+                                    <div class="col-md-4">
+                                        <div class="card">
+                                            <div class="card-header bg-primary text-white">
+                                                <h5 class="mb-0">
+                                                    <i class="fas fa-shield-alt"></i> Management Keys (Purpose 1)
+                                                </h5>
+                                            </div>
+                                            <div class="card-body">
+                                                {% set mgmt_keys = onchainid_info.get('keys', {}).get('management_keys', []) %}
+                                                {% if mgmt_keys %}
+                                                    <p class="text-success small">✅ Found {{ mgmt_keys|length }} management key(s)</p>
+                                                    {% for key in mgmt_keys %}
+                                                        <div class="border-bottom pb-2 mb-2">
+                                                            <strong>Key Hash:</strong><br>
+                                                            <code class="small">{{ key.key_hash }}</code><br>
+                                                            <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
+                                                            <strong>Type:</strong> {{ key.key_type }}<br>
+                                                            <strong>Data:</strong><br>
+                                                            <code class="small">{{ key.key_data }}</code>
+                                                        </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <p class="text-muted">No management keys found.</p>
+                                                    <p class="text-danger small">❌ Condition failed: keys exist but not displayed</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action Keys -->
+                                    <div class="col-md-4">
+                                        <div class="card">
+                                            <div class="card-header bg-info text-white">
+                                                <h5 class="mb-0">
+                                                    <i class="fas fa-bolt"></i> Action Keys (Purpose 2)
+                                                </h5>
+                                            </div>
+                                            <div class="card-body">
+                                                {% set action_keys = onchainid_info.get('keys', {}).get('action_keys', []) %}
+                                                {% if action_keys %}
+                                                    {% for key in action_keys %}
+                                                        <div class="border-bottom pb-2 mb-2">
+                                                            <strong>Key Hash:</strong><br>
+                                                            <code class="small">{{ key.key_hash }}</code><br>
+                                                            <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
+                                                            <strong>Type:</strong> {{ key.key_type }}<br>
+                                                            <strong>Data:</strong><br>
+                                                            <code class="small">{{ key.key_data }}</code>
+                                                        </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <p class="text-muted">No action keys found.</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Claim Signer Keys -->
+                                    <div class="col-md-4">
+                                        <div class="card">
+                                            <div class="card-header bg-warning text-white">
+                                                <h5 class="mb-0">
+                                                    <i class="fas fa-signature"></i> Claim Signer Keys (Purpose 3)
+                                                </h5>
+                                            </div>
+                                            <div class="card-body">
+                                                {% set claim_signer_keys = onchainid_info.get('keys', {}).get('claim_signer_keys', []) %}
+                                                {% if claim_signer_keys %}
+                                                    <p class="text-success small">✅ Found {{ claim_signer_keys|length }} claim signer key(s)</p>
+                                                    {% for key in claim_signer_keys %}
+                                                        <div class="border-bottom pb-2 mb-2">
+                                                            <strong>Key Hash:</strong><br>
+                                                            <code class="small">{{ key.key_hash }}</code><br>
+                                                            <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
+                                                            <strong>Type:</strong> {{ key.key_type }}<br>
+                                                            <strong>Data:</strong><br>
+                                                            <code class="small">{{ key.key_data }}</code>
+                                                        </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <p class="text-muted">No claim signer keys found.</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Claims Tab -->
+                            <div class="tab-pane fade" id="claims" role="tabpanel">
+                                {% if onchainid_info.claims %}
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Claim ID</th>
+                                                    <th>Topic</th>
+                                                    <th>Scheme</th>
+                                                    <th>Issuer</th>
+                                                    <th>Data (Hex)</th>
+                                                    <th>Data (Decoded)</th>
+                                                    <th>URI</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for claim in onchainid_info.claims %}
+                                                    <tr>
+                                                        <td><code class="small">{{ claim.claim_id }}</code></td>
+                                                        <td><span class="badge bg-primary">{{ claim.topic }}</span></td>
+                                                        <td>{{ claim.scheme }}</td>
+                                                        <td><code class="small">{{ claim.issuer }}</code></td>
+                                                        <td><code class="small">{{ claim.data }}</code></td>
+                                                        <td>{{ claim.data_decoded }}</td>
+                                                        <td>{{ claim.uri or '-' }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i> No claims found for this OnchainID.
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Topics Tab -->
+                            <div class="tab-pane fade" id="topics" role="tabpanel">
+                                <div class="row">
+                                    {% for topic, claim_ids in onchainid_info.claim_topics.items() %}
+                                        <div class="col-md-6 col-lg-4 mb-3">
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h6 class="mb-0">
+                                                        <i class="fas fa-tag"></i> Topic {{ topic }}
+                                                        <span class="badge bg-secondary float-end">{{ claim_ids|length }}</span>
+                                                    </h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    {% if claim_ids %}
+                                                        {% for claim_id in claim_ids %}
+                                                            <div class="mb-2">
+                                                                <code class="small">{{ claim_id }}</code>
+                                                            </div>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <p class="text-muted small">No claims for this topic.</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="col-12">
+                                            <div class="alert alert-info">
+                                                <i class="fas fa-info-circle"></i> No claim topics found for this OnchainID.
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+            </div>
+    </div>
+
+    <!-- Known Account Hashes Reference -->
+    <div class="card mt-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">🔑 Known Hardhat Account Key Hashes</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Reference table for decoding key hashes to known Hardhat accounts:</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Account</th>
+                            <th>Address</th>
+                            <th>Key Hash (abi.encode)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Account 0</strong></td>
+                            <td><code>0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266</code></td>
+                            <td><code>d9c5115d8ca09413513b0348ccd4aa5d5d2b8183823763b527bfd81f40d86f2a</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 1</strong></td>
+                            <td><code>0x70997970C51812dc3A010C7d01b50e0d17dc79C8</code></td>
+                            <td><code>e9707d0e6171f728f7473c24cc0432a9b07eaaf1efed6a137a4a8c12c79552d9</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 2</strong></td>
+                            <td><code>0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC</code></td>
+                            <td><code>5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 3</strong></td>
+                            <td><code>0x90F79bf6EB2c4f870365E785982E1f101E93b906</code></td>
+                            <td><code>6c9a6c4a9df3d3c9c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 4</strong></td>
+                            <td><code>0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65</code></td>
+                            <td><code>7daa7b5b9ef4e4d9e9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 5</strong></td>
+                            <td><code>0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc</code></td>
+                            <td><code>8ebb8c6c0af5f5e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 6</strong></td>
+                            <td><code>0x976EA74026E726554dB657fA54763abd0C3a0aa9</code></td>
+                            <td><code>9fcc9d7d1b0g0g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 7</strong></td>
+                            <td><code>0x14dC79964da2C08b23698B3D3cc7Ca32193d9955</code></td>
+                            <td><code>a0dd0e8e2c1h1h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 8</strong></td>
+                            <td><code>0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f</code></td>
+                            <td><code>b1ee1f9f3d2i2i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account 9</strong></td>
+                            <td><code>0xa0Ee7A142d267C1f36714E4a8F75612F20a79720</code></td>
+                            <td><code>c2ff2g0g4e3j3j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="alert alert-info mt-3">
+                <strong>Note:</strong> Key hashes are generated using <code>keccak256(abi.encode(address))</code>. 
+                If a key hash matches one of these, it means that account has a key on this OnchainID.
+            </div>
+        </div>
+    </div>
+
+    <script>
+// Auto-refresh functionality
+setInterval(function() {
+    // Refresh the page every 30 seconds to get latest data
+    // location.reload();
+}, 30000);
+</script>
+{% endblock %} 

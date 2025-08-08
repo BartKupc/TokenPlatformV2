@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Admin OnchainID Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-2 d-none d-md-block bg-dark sidebar">
+            <div class="sidebar-sticky">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}">
+                            <i class="fas fa-user-check"></i> Trusted Issuer Approvals
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{{ url_for('admin.blockchain_verification', tab_session=tab_session_id) }}">
+                            <i class="fas fa-link"></i> Blockchain Verification
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white active" href="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}">
+                            <i class="fas fa-id-card"></i> OnchainID Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="{{ url_for('admin.transaction_history', tab_session=tab_session_id) }}">
+                            <i class="fas fa-history"></i> Transaction History
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main content -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">
+                    <i class="fas fa-id-card"></i> OnchainID Dashboard
+                </h1>
+            </div>
+
+            <!-- OnchainID Selection -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i> Select OnchainID to View
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}">
+                        <div class="form-group">
+                            <label for="onchainid">Choose OnchainID:</label>
+                            <select class="form-control" id="onchainid" name="onchainid" onchange="submitForm()">
+                                <option value="">-- Select an OnchainID --</option>
+                                {% for onchainid in onchainid_list %}
+                                <option value="{{ onchainid.address }}" 
+                                        {% if selected_onchainid == onchainid.address %}selected{% endif %}>
+                                    {{ onchainid.address[:10] }}...{{ onchainid.address[-8:] }} - {{ onchainid.role }} ({{ onchainid.username }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <!-- Hidden input to preserve tab_session -->
+                            <input type="hidden" name="tab_session" value="{{ tab_session_id }}">
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- OnchainID Details -->
+            {% if selected_onchainid and onchainid_details %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle"></i> OnchainID Details
+                        <small class="text-muted">- {{ selected_onchainid }}</small>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if onchainid_details.error %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> {{ onchainid_details.error }}
+                    </div>
+                    {% else %}
+                    <!-- Address Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-map-marker-alt"></i> Address Information</h6>
+                            <p><strong>OnchainID Address:</strong> <code>{{ onchainid_details.address }}</code></p>
+                            <p><strong>Total Keys:</strong> {{ onchainid_details.total_keys }}</p>
+                            <p><strong>Total Claims:</strong> {{ onchainid_details.total_claims }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Management Keys -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-key"></i> Management Keys (Purpose 1)</h6>
+                            {% set management_keys = onchainid_details.get('keys', {}).get('management_keys', []) %}
+                            {% if management_keys %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Key Hash</th>
+                                            <th>Purposes</th>
+                                            <th>Type</th>
+                                            <th>Data</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key in management_keys %}
+                                        <tr>
+                                            <td><code>{{ key.key_hash }}</code></td>
+                                            <td>
+                                                {% for purpose in key.purposes %}
+                                                <span class="badge badge-primary">{{ purpose }}</span>
+                                                {% endfor %}
+                                            </td>
+                                            <td>{{ key.key_type }}</td>
+                                            <td><code>{{ key.key_data }}</code></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> No management keys found
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Action Keys -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-bolt"></i> Action Keys (Purpose 2)</h6>
+                            {% set action_keys = onchainid_details.get('keys', {}).get('action_keys', []) %}
+                            {% if action_keys %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Key Hash</th>
+                                            <th>Purposes</th>
+                                            <th>Type</th>
+                                            <th>Data</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key in action_keys %}
+                                        <tr>
+                                            <td><code>{{ key.key_hash }}</code></td>
+                                            <td>
+                                                {% for purpose in key.purposes %}
+                                                <span class="badge badge-success">{{ purpose }}</span>
+                                                {% endfor %}
+                                            </td>
+                                            <td>{{ key.key_type }}</td>
+                                            <td><code>{{ key.key_data }}</code></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> No action keys found
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Claim Signer Keys -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-signature"></i> Claim Signer Keys (Purpose 3)</h6>
+                            {% set claim_signer_keys = onchainid_details.get('keys', {}).get('claim_signer_keys', []) %}
+                            {% if claim_signer_keys %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Key Hash</th>
+                                            <th>Purposes</th>
+                                            <th>Type</th>
+                                            <th>Data</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key in claim_signer_keys %}
+                                        <tr>
+                                            <td><code>{{ key.key_hash }}</code></td>
+                                            <td>
+                                                {% for purpose in key.purposes %}
+                                                <span class="badge badge-warning">{{ purpose }}</span>
+                                                {% endfor %}
+                                            </td>
+                                            <td>{{ key.key_type }}</td>
+                                            <td><code>{{ key.key_data }}</code></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> No claim signer keys found
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Claims -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h6><i class="fas fa-certificate"></i> Claims</h6>
+                            {% if onchainid_details.claims %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Topic</th>
+                                            <th>Scheme</th>
+                                            <th>Issuer</th>
+                                            <th>Signature</th>
+                                            <th>Data</th>
+                                            <th>URI</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for claim in onchainid_details.claims %}
+                                        <tr>
+                                            <td>{{ claim.topic }}</td>
+                                            <td>{{ claim.scheme }}</td>
+                                            <td><code>{{ claim.issuer }}</code></td>
+                                            <td><code>{{ claim.signature[:20] }}...</code></td>
+                                            <td><code>{{ claim.data }}</code></td>
+                                            <td>{{ claim.uri or '-' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> No claims found
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% elif selected_onchainid %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> Could not load OnchainID details. Please try again.
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Please select an OnchainID from the dropdown above to view its details.
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</div>
+
+<script>
+function submitForm() {
+    const form = document.querySelector('form');
+    const onchainid = document.getElementById('onchainid').value;
+    const tabSession = '{{ tab_session_id }}';
+    
+    // Build URL with tab_session parameter
+    let url = '{{ url_for("admin.onchainid_dashboard") }}?tab_session=' + tabSession;
+    if (onchainid) {
+        url += '&onchainid=' + onchainid;
+    }
+    
+    // Navigate to the URL
+    window.location.href = url;
+}
+</script>
+{% endblock %} 

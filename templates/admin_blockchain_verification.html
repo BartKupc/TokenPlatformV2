@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Blockchain Verification - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Admin Panel
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('admin.blockchain_verification', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action active">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Blockchain Verification
+                        </a>
+                        <a href="{{ url_for('admin.transaction_history', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-history me-2"></i>
+                            Transaction History
+                        </a>
+                        <a href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-check me-2"></i>
+                            Trusted Issuer Approvals
+                        </a>
+                        <a href="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-id-card me-2"></i>
+                            OnchainID Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h1 class="mb-4">
+                <i class="fas fa-shield-alt me-2"></i>
+                Blockchain Verification Dashboard
+            </h1>
+
+            <!-- System Status -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-server me-2"></i>
+                                System Status
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        {% if verification_results.system_status.connected %}
+                                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                                            <h5 class="text-success">Connected</h5>
+                                        {% else %}
+                                            <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                                            <h5 class="text-danger">Disconnected</h5>
+                                        {% endif %}
+                                        <small class="text-muted">Blockchain Connection</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        {% if verification_results.system_status.current_block is not none %}
+                                            <i class="fas fa-cube fa-2x text-info mb-2"></i>
+                                            <h5 class="text-info">{{ "{:,}".format(verification_results.system_status.current_block|default(0)|int) }}</h5>
+                                        {% else %}
+                                            <i class="fas fa-question-circle fa-2x text-muted mb-2"></i>
+                                            <h5 class="text-muted">Unknown</h5>
+                                        {% endif %}
+                                        <small class="text-muted">Current Block</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        {% if verification_results.system_status.network_id is not none %}
+                                            <i class="fas fa-network-wired fa-2x text-primary mb-2"></i>
+                                            <h5 class="text-primary">{{ verification_results.system_status.network_id }}</h5>
+                                        {% else %}
+                                            <i class="fas fa-question-circle fa-2x text-muted mb-2"></i>
+                                            <h5 class="text-muted">Unknown</h5>
+                                        {% endif %}
+                                        <small class="text-muted">Network ID</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        {% if verification_results.system_status.gas_price is not none %}
+                                            <i class="fas fa-gas-pump fa-2x text-warning mb-2"></i>
+                                            <h5 class="text-warning">{{ "{:,.0f}".format(verification_results.system_status.gas_price|default(0)|int) }}</h5>
+                                        {% else %}
+                                            <i class="fas fa-question-circle fa-2x text-muted mb-2"></i>
+                                            <h5 class="text-muted">Unknown</h5>
+                                        {% endif %}
+                                        <small class="text-muted">Gas Price (wei)</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {% if verification_results.system_status.error %}
+                                <div class="alert alert-danger mt-3">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>System Error:</strong> {{ verification_results.system_status.error }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Token Verification -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-coins me-2"></i>
+                                Token Verification ({{ verification_results.tokens|length }})
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            {% if verification_results.tokens %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Token Name</th>
+                                                <th>Address</th>
+                                                <th>Blockchain Status</th>
+                                                <th>On-Chain Data</th>
+                                                <th>Verification Details</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in verification_results.tokens %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ item.token.name }}</strong>
+                                                    <br><span class="badge bg-primary">{{ item.token.symbol }}</span>
+                                                </td>
+                                                <td>
+                                                    <code class="text-break">{{ item.token.token_address }}</code>
+                                                </td>
+                                                <td>
+                                                    {% if item.verification.valid %}
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-check-circle me-1"></i>Valid
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">
+                                                            <i class="fas fa-times-circle me-1"></i>Invalid
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.verification.valid %}
+                                                        <small>
+                                                            <strong>Name:</strong> {{ item.verification.token_info.name }}<br>
+                                                            <strong>Symbol:</strong> {{ item.verification.token_info.symbol }}<br>
+                                                            <strong>Supply:</strong> {{ "{:,.0f}".format(item.verification.token_info.totalSupply|default(0)|int) }}<br>
+                                                            <strong>Decimals:</strong> {{ item.verification.token_info.decimals }}
+                                                        </small>
+                                                    {% else %}
+                                                        <span class="text-muted">Not available</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.verification.valid %}
+                                                        <small class="text-success">
+                                                            ✅ Contract exists<br>
+                                                            ✅ Data verified<br>
+                                                            ✅ ERC-3643 compliant
+                                                        </small>
+                                                    {% else %}
+                                                        <small class="text-danger">
+                                                            ❌ {{ item.verification.error }}
+                                                        </small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <a href="{{ url_for('token.view', token_id=item.token.id, tab_session=tab_session_id) }}" 
+                                                       class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye me-1"></i>View Details
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-coins fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted">No tokens to verify</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deployed Contracts Verification -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-file-contract me-2"></i>
+                                Deployed Contracts Verification ({{ verification_results.deployed_contracts|length }})
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            {% if verification_results.deployed_contracts %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Contract Name</th>
+                                                <th>Address</th>
+                                                <th>Status</th>
+                                                <th>Blockchain Data</th>
+                                                <th>Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in verification_results.deployed_contracts %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ item.name }}</strong>
+                                                </td>
+                                                <td>
+                                                    <code class="text-break">{{ item.address }}</code>
+                                                </td>
+                                                <td>
+                                                    {% if item.info.exists %}
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-check-circle me-1"></i>Deployed
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">
+                                                            <i class="fas fa-times-circle me-1"></i>Not Found
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.info.exists %}
+                                                        <small>
+                                                            <strong>Code Size:</strong> {{ "{:,}".format(item.info.code_size|default(0)|int) }} bytes<br>
+                                                            <strong>Balance:</strong> {{ "{:.6f}".format(item.info.balance_eth|default(0)|float) }} ETH<br>
+                                                            <strong>Block:</strong> {{ "{:,}".format(item.info.current_block|default(0)|int) }}
+                                                        </small>
+                                                    {% else %}
+                                                        <span class="text-danger">{{ item.info.error }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.info.exists %}
+                                                        <small class="text-success">
+                                                            ✅ Contract verified<br>
+                                                            ✅ Code deployed<br>
+                                                            ✅ Address valid
+                                                        </small>
+                                                    {% else %}
+                                                        <small class="text-danger">
+                                                            ❌ {{ item.info.error }}
+                                                        </small>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-file-contract fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted">No deployed contracts found</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Identity Verification -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="mb-0">
+                                <i class="fas fa-id-card me-2"></i>
+                                User Identity Verification ({{ verification_results.users|length }})
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            {% if verification_results.users %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Wallet Address</th>
+                                                <th>OnchainID</th>
+                                                <th>Identity Status</th>
+                                                <th>Blockchain Data</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in verification_results.users %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ item.user.username }}</strong>
+                                                    <br><span class="badge bg-info">{{ item.user.user_type.replace('_', ' ').title() }}</span>
+                                                </td>
+                                                <td>
+                                                    <code class="text-break">{{ item.user.wallet_address }}</code>
+                                                </td>
+                                                <td>
+                                                    <code class="text-break">{{ item.user.onchain_id }}</code>
+                                                </td>
+                                                <td>
+                                                    {% if item.identity_info.success %}
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-check-circle me-1"></i>Registered
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-warning">
+                                                            <i class="fas fa-exclamation-triangle me-1"></i>Error
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.identity_info.success %}
+                                                        <small>
+                                                            <strong>Identity:</strong> {{ item.identity_info.identity_address[:10] }}...<br>
+                                                            <strong>Country:</strong> {{ item.identity_info.country_code }}<br>
+                                                            <strong>Status:</strong> Active
+                                                        </small>
+                                                    {% else %}
+                                                        <small class="text-danger">
+                                                            {{ item.identity_info.error }}
+                                                        </small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if item.user.user_type == 'investor' %}
+                                                        <a href="{{ url_for('trusted_issuer.view_onchainid', user_id=item.user.id) }}" 
+                                                           class="btn btn-sm btn-outline-info">
+                                                            <i class="fas fa-eye me-1"></i>View OnchainID
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">N/A</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-id-card fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted">No users with OnchainID to verify</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Summary -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                Verification Summary
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-2 text-center">
+                                    <div class="border-end">
+                                        <h4 class="text-primary mb-1">{{ verification_results.tokens|length }}</h4>
+                                        <small class="text-muted">Total Tokens</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <div class="border-end">
+                                        <h4 class="text-success mb-1">
+                                            {{ verification_results.tokens|selectattr('verification.valid')|list|length }}
+                                        </h4>
+                                        <small class="text-muted">Valid Tokens</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <div class="border-end">
+                                        <h4 class="text-info mb-1">{{ verification_results.deployed_contracts|length }}</h4>
+                                        <small class="text-muted">Deployed Contracts</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <div class="border-end">
+                                        <h4 class="text-success mb-1">
+                                            {{ verification_results.deployed_contracts|selectattr('info.exists')|list|length }}
+                                        </h4>
+                                        <small class="text-muted">Valid Contracts</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <div class="border-end">
+                                        <h4 class="text-info mb-1">{{ verification_results.users|length }}</h4>
+                                        <small class="text-muted">Users with OnchainID</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <div>
+                                        <h4 class="text-success mb-1">
+                                            {{ verification_results.users|selectattr('identity_info.success')|list|length }}
+                                        </h4>
+                                        <small class="text-muted">Valid Identities</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" onclick="location.reload()">
+                            <i class="fas fa-sync-alt me-2"></i>Refresh Verification
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh every 30 seconds
+setTimeout(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced OnchainID Key Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-key"></i> Enhanced OnchainID Key Management
+                    </h5>
+                    <div>
+                        <form method="POST" action="{{ url_for('issuer.sync_onchainid_keys', tab_session=tab_session_id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-sync"></i> Sync All Keys
+                            </button>
+                        </form>
+                        <a href="{{ url_for('issuer.dashboard', tab_session=tab_session_id) }}" 
+                           class="btn btn-secondary btn-sm ms-2">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if keys_by_onchainid %}
+                        {% for onchainid_address, keys in keys_by_onchainid.items() %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-id-card"></i> OnchainID: {{ onchainid_address[:6] }}...{{ onchainid_address[-4:] }}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <!-- Management Keys -->
+                                    <div class="col-md-6">
+                                        <h6 class="text-primary">
+                                            <i class="fas fa-cog"></i> Management Keys
+                                        </h6>
+                                        {% set management_keys = keys|selectattr('key_type', 'equalto', 'management')|list %}
+                                        {% if management_keys %}
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                                                            <thead>
+                                            <tr>
+                                                <th>Original Address</th>
+                                                <th>Key Hash</th>
+                                                <th>Added By</th>
+                                                <th>Transaction</th>
+                                                <th>Added</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key in management_keys %}
+                                            <tr>
+                                                <td>
+                                                    <code class="text-primary">{{ key.wallet_address[:6] }}...{{ key.wallet_address[-4:] }}</code>
+                                                    <br>
+                                                    <small class="text-muted">{{ key.wallet_address }}</small>
+                                                </td>
+                                                <td>
+                                                    {% if key.key_hash.startswith('pending_') %}
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    {% else %}
+                                                        <code class="text-info">{{ key.key_hash[:10] }}...</code>
+                                                        <br>
+                                                        <small class="text-muted">{{ key.key_hash }}</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.owner_type == 'issuer' %}
+                                                        <span class="badge bg-success">Issuer</span>
+                                                    {% elif key.owner_type == 'investor' %}
+                                                        <span class="badge bg-info">Investor</span>
+                                                    {% elif key.owner_type == 'admin' %}
+                                                        <span class="badge bg-danger">Admin</span>
+                                                    {% elif key.owner_type == 'trusted_issuer' %}
+                                                        <span class="badge bg-warning">Trusted Issuer</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ key.owner_type }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.transaction_hash %}
+                                                        <a href="https://sepolia.etherscan.io/tx/{{ key.transaction_hash }}" 
+                                                           target="_blank" class="text-decoration-none">
+                                                            <code class="text-success">{{ key.transaction_hash[:10] }}...</code>
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">{{ key.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                                </table>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No management keys found</p>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Claim Signer Keys -->
+                                    <div class="col-md-6">
+                                        <h6 class="text-success">
+                                            <i class="fas fa-signature"></i> Claim Signer Keys
+                                        </h6>
+                                        {% set claim_keys = keys|selectattr('key_type', 'equalto', 'claim_signer')|list %}
+                                        {% if claim_keys %}
+                                            <div class="table-responsive">
+                                                <table class="table table-sm">
+                                                                                            <thead>
+                                            <tr>
+                                                <th>Original Address</th>
+                                                <th>Key Hash</th>
+                                                <th>Added By</th>
+                                                <th>Transaction</th>
+                                                <th>Added</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for key in claim_keys %}
+                                            <tr>
+                                                <td>
+                                                    <code class="text-success">{{ key.wallet_address[:6] }}...{{ key.wallet_address[-4:] }}</code>
+                                                    <br>
+                                                    <small class="text-muted">{{ key.wallet_address }}</small>
+                                                </td>
+                                                <td>
+                                                    {% if key.key_hash.startswith('pending_') %}
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    {% else %}
+                                                        <code class="text-info">{{ key.key_hash[:10] }}...</code>
+                                                        <br>
+                                                        <small class="text-muted">{{ key.key_hash }}</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.owner_type == 'issuer' %}
+                                                        <span class="badge bg-success">Issuer</span>
+                                                    {% elif key.owner_type == 'investor' %}
+                                                        <span class="badge bg-info">Investor</span>
+                                                    {% elif key.owner_type == 'admin' %}
+                                                        <span class="badge bg-danger">Admin</span>
+                                                    {% elif key.owner_type == 'trusted_issuer' %}
+                                                        <span class="badge bg-warning">Trusted Issuer</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ key.owner_type }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.transaction_hash %}
+                                                        <a href="https://sepolia.etherscan.io/tx/{{ key.transaction_hash }}" 
+                                                           target="_blank" class="text-decoration-none">
+                                                            <code class="text-success">{{ key.transaction_hash[:10] }}...</code>
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <small class="text-muted">{{ key.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                                </table>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No claim signer keys found</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        <div class="text-center mt-4">
+                            <small class="text-muted">
+                                Total OnchainID addresses: {{ keys_by_onchainid|length }} | 
+                                Total keys: {{ keys_by_onchainid.values()|sum(attribute='__len__') }}
+                            </small>
+                        </div>
+                        
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-key fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No OnchainID keys found</h5>
+                            <p class="text-muted">Click "Sync All Keys" to index OnchainID keys from the blockchain.</p>
+                            <form method="POST" action="{{ url_for('issuer.sync_onchainid_keys', tab_session=tab_session_id) }}">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-sync"></i> Sync All Keys
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.table th {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.table td {
+    font-size: 0.8rem;
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.7rem;
+}
+
+code {
+    font-size: 0.75rem;
+    background-color: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.card-header h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+</style>
+{% endblock %} 

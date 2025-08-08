@@ -1,0 +1,1003 @@
+ethers.formatUnits(await token.balanceOf(walletAddr), dec);
+// Balance (formatted)
+try { dec = await token.decimals(); } catch { dec = 18; }
+let dec;
+// Decimals (fallback to 18 if needed)
+(await token.symbol()).toString();
+(await token.name()).toString();
+/ Optional basics
+const token = await ethers.getContractAt("Token", tokenAddr);
+const tokenAddr = "0x051b8B011F721B1D00376Fc28C5dc61451e90Bf6";
+const walletAddr = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+ethers.formatUnits(await token.balanceOf(walletAddr), dec);
+// Balance (formatted)
+await token.queryFilter(token.filters.Transfer(walletAddr, null), 0, "latest");
+// Transfers from wallet (outgoing)
+await token.queryFilter(token.filters.Transfer(null, walletAddr), 0, "latest");
+// Transfers to wallet (incoming)
+ethers.formatUnits(await token.balanceOf(walletAddr), dec);
+try { dec = await token.decimals(); } catch { dec = 18; }
+let dec;
+// Decimals (fallback to 18 if needed)
+(await token.symbol()).toString();
+(await token.name()).toString();
+const token = await ethers.getContractAt("Token", tokenAddr);
+const tokenAddr = "0x051b8B011F721B1D00376Fc28C5dc61451e90Bf6";
+const walletAddr = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const token = await ethers.getContractAt("Token", tokenAddr);
+const tokenAddr = "0x051b8B011F721B1D00376Fc28C5dc61451e90Bf6";
+const investor = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+await token.queryFilter(token.filters.Transfer(null, investor), fromBlock, "latest");
+const fromBlock = (await ethers.provider.getBlockNumber()) - 50000;
+await ir.hasRole(AGENT_ROLE, issuer); // true means address is an IR Agent_ROLE
+const issuer = "0xYourIssuerAddress";
+const AGENT_ROLE = ethers.utils.id("AGENT_ROLE");
+await ir.identity(investor);
+await ir.isVerified(investor);
+const ir = await ethers.getContractAt("IdentityRegistry", irAddr);
+// isVerified + identity mapping (web3 truth)
+irAddr;
+const irAddr = await token.identityRegistry();
+// Identity Registry (IR)
+ethers.utils.formatUnits(await token.balanceOf(investor), dec);
+// Balance
+ethers.utils.formatUnits(await token.totalSupply(), dec);
+const dec = await token.decimals();
+(await token.symbol()).toString();
+(await token.name()).toString();
+// Basics
+const token = await ethers.getContractAt("Token", tokenAddr);
+const tokenAddr = "0x051b8B011F721B1D00376Fc28C5dc61451e90Bf6";
+const investor = "0x3EC859aAdD9435FB39Eb6DF02f7deCe98246b32E";
+console.log("Claim data:", claim)
+const claim = await investorOnchainID.getClaim(claimId)
+const claimId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256"], [claimIssuerAddress, topic]))
+console.log("=== CLAIM VERIFICATION ===")
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+console.log("Add claim transaction:", claimTx.hash)
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+// STEP 5: CREATE SIGNATURE
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.connect(managementAccount).addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("Using management account:", managementAccount.address)
+const managementAccount = signers[3] // Account with management permissions
+const signers = await ethers.getSigners()
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xf5E926037b19EDd3d270dB603EC84D8435F19007")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+console.log("Using ClaimIssuer address:", claimIssuerAddress)const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xf5E926037b19EDd3d270dB603EC84D8435F19007")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach(" 0xf5E926037b19EDd3d270dB603EC84D8435F19007")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach(" 0xf5E926037b19EDd3d270dB603EC84D8435F19007")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+await ethers.provider.getCode("0xf5E926037b19EDd3d270dB603EC84D8435F19007")
+await ethers.provider.getCode("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Claim:", claim)
+const claim = await investorOnchainID.getClaim(claimIds[0])
+console.log("Claim IDs for topic", topic, ":", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(topic)
+console.log("Claim data:", claim)
+const claim = await investorOnchainID.getClaim(claimId)
+const claimId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256"], [claimIssuerAddress, topic]))
+console.log("=== CLAIM VERIFICATION ===")
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+console.log("Add claim transaction:", claimTx.hash)
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.connect(managementAccount).addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("Using management account:", managementAccount.address)
+const managementAccount = signers[3] // Account with management permissions
+const signers = await ethers.getSigners()
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+// Check trusted issuer signing key
+await investorOnchainID.keyHasPurpose(claimIssuerKeyHash, 1)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], ["0x057ef64E23666F000b34aE31332854aCBd1c8544"]))
+// Check ClaimIssuer management key
+const [deployer, trustedIssuer] = await ethers.getSigners()
+// Get signers
+const claimIssuerContract = ClaimIssuer.attach("0x057ef64E23666F000b34aE31332854aCBd1c8544")
+const investorOnchainID = Identity.attach("0xf5E926037b19EDd3d270dB603EC84D8435F19007")
+// Attach to existing contracts
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+const Identity = await ethers.getContractFactory("Identity")
+// Get contracts
+}
+  shortMessage: 'invalid BytesLike value'
+  value: 1,
+  argument: 'value',
+  code: 'INVALID_ARGUMENT',
+    at makeError (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/errors.ts:691:21) {
+    at assert (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/errors.ts:719:25)
+    at assertArgument (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/errors.ts:731:5)
+    at _getBytes (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/data.ts:44:19)
+    at getBytesCopy (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/data.ts:66:12)
+    at FixedBytesCoder.encode (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/abi/coders/fixed-bytes.ts:29:32)
+TypeError: invalid BytesLike value (argument="value", value=1, code=INVALID_ARGUMENT, version=6.15.0)
+Uncaught:
+> const claim1 = await IIdentity.getClaim(1)
+Uncaught SyntaxError: Identifier 'claim' has already been declared
+> const claim = await IIdentity.getClaim(1)
+undefined
+> const IIdentity = await ethers.getContractAt("IIdentity", "0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+const claim1 = await IIdentity.getClaim(1)
+const claim = await IIdentity.getClaim(1)
+const IIdentity = await ethers.getContractAt("IIdentity", "0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+const claim = await IIdentity.getClaim(1)
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+console.log("Add claim transaction:", claimTx.hash)
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.connect(managementAccount).addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("Using management account:", managementAccount.address)
+const managementAccount = signers[3] // Account with management permissions
+const signers = await ethers.getSigners()
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+console.log("Using ClaimIssuer address:", claimIssuerAddress)const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+onchainID.queryFilter("ClaimAdded", "latest", "latest").then(events => console.log("Recent ClaimAdded events:", events)).catch(e => console.log("Events failed:", e.message))
+onchainID.getClaimIdsByTopic(2).then(ids => console.log("Topic 2 claim IDs:", ids)).catch(e => console.log("Topic 2 failed:", e.message))
+onchainID.getClaimIdsByTopic(1).then(ids => console.log("Topic 1 claim IDs:", ids)).catch(e => console.log("Topic 1 failed:", e.message))
+onchainID.getClaimCount().then(count => console.log("Total claims:", count.toString())).catch(e => console.log("getClaimCount failed:", e.message))
+console.log("OnchainID code length:", await ethers.provider.getCode("0x7D877f9989bA14d570d891242889ab4A8A73283D"))
+const onchainID = Identity.attach("0x7D877f9989bA14d570d891242889ab4A8A73283D")
+const Identity = await ethers.getContractFactory("Identity")
+}
+    console.log("Could not check events:", e.message)
+} catch (e) {
+    })
+        console.log(`Event ${i}:`, event)
+    events.forEach((event, i) => {
+    console.log(`Found ${events.length} ClaimAdded events in last 100 blocks`)
+    const events = await onchainID.queryFilter("ClaimAdded", fromBlock, "latest")
+try {
+const fromBlock = Math.max(0, latestBlock - 100)
+const latestBlock = await ethers.provider.getBlockNumber()
+console.log("Checking recent events...")
+// 6. Check recent events
+}
+    }
+        // This is normal - most topics won't have claims
+    } catch (e) {
+        }
+            }
+                }
+                    console.log(`  Could not get claim ${claimId}:`, e.message)
+                } catch (e) {
+                    console.log(`  Claim ${claimId}:`, claim)
+                    const claim = await onchainID.getClaim(claimId)
+                try {
+            for (const claimId of claimIds) {
+            console.log(`Topic ${topic} claims:`, claimIds)
+        if (claimIds && claimIds.length > 0) {
+        const claimIds = await onchainID.getClaimIdsByTopic(topic)
+    try {
+for (let topic = 1; topic <= 8; topic++) {
+// 5. Try to get claims by topic
+}
+    console.log("getClaimCount failed:", e.message)
+} catch (e) {
+    }
+        }
+            }
+                console.log(`Could not get claim ${i}:`, e.message)
+            } catch (e) {
+                console.log(`Claim ${i}:`, claim)
+                const claim = await onchainID.getClaimByIndex(i)
+            try {
+        for (let i = 0; i < claimCount; i++) {
+        console.log("Claims found! Let's examine them:")
+    if (claimCount > 0) {
+    console.log("Total claims:", claimCount.toString())
+    const claimCount = await onchainID.getClaimCount()
+try {
+// 4. Try to get claim count
+console.log("OnchainID code length:", await ethers.provider.getCode("0x7D877f9989bA14d570d891242889ab4A8A73283D"))
+// 3. Check if it's a valid contract
+const onchainID = Identity.attach("0x7D877f9989bA14d570d891242889ab4A8A73283D")
+// 2. Attach to the OnchainID
+const Identity = await ethers.getContractFactory("Identity")
+// 1. Get the Identity contract factory
+}
+    console.log("Could not check events:", e.message)
+} catch (e) {
+    })
+        console.log(`Event ${i}:`, event)
+    events.forEach((event, i) => {
+    console.log(`Found ${events.length} ClaimAdded events in last 100 blocks`)
+    const events = await onchainID.queryFilter("ClaimAdded", fromBlock, "latest")
+try {
+const fromBlock = Math.max(0, latestBlock - 100)
+const latestBlock = await ethers.provider.getBlockNumber()
+console.log("Checking recent events...")
+// 6. Check recent events
+}
+    }
+        // This is normal - most topics won't have claims
+    } catch (e) {
+        }
+            }
+                }
+                    console.log(`  Could not get claim ${claimId}:`, e.message)
+                } catch (e) {
+                    console.log(`  Claim ${claimId}:`, claim)
+                    const claim = await onchainID.getClaim(claimId)
+                try {
+            for (const claimId of claimIds) {
+            console.log(`Topic ${topic} claims:`, claimIds)
+        if (claimIds && claimIds.length > 0) {
+        const claimIds = await onchainID.getClaimIdsByTopic(topic)
+    try {
+for (let topic = 1; topic <= 8; topic++) {
+// 5. Try to get claims by topic
+}
+    console.log("getClaimCount failed:", e.message)
+} catch (e) {
+    }
+        }
+            }
+                console.log(`Could not get claim ${i}:`, e.message)
+            } catch (e) {
+                console.log(`Claim ${i}:`, claim)
+                const claim = await onchainID.getClaimByIndex(i)
+            try {
+        for (let i = 0; i < claimCount; i++) {
+        console.log("Claims found! Let's examine them:")
+    if (claimCount > 0) {
+    console.log("Total claims:", claimCount.toString())
+    const claimCount = await onchainID.getClaimCount()
+try {
+// 4. Try to get claim count
+console.log("OnchainID code length:", await ethers.provider.getCode("0x7D877f9989bA14d570d891242889ab4A8A73283D"))
+// 3. Check if it's a valid contract
+const onchainID = Identity.attach("0x7D877f9989bA14d570d891242889ab4A8A73283D")
+// 2. Attach to the OnchainID
+const Identity = await ethers.getContractFactory("Identity")
+// 1. Get the Identity contract factory
+}
+    console.log("Direct mapping access failed:", e.message)
+} catch (e) {
+    console.log("Claim data from mapping:", claimData)
+    const claimData = await investorOnchainID.claims(claimKey)
+    // This might not work depending on the contract structure
+    console.log("Claim key:", claimKey)
+    const claimKey = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256'], [claimIssuerAddress, 1]))
+try {
+// Try to access the claims mapping directly (if it's public)
+console.log("=== CHECKING CONTRACT STATE ===")
+// Check if the claim was stored in the contract
+console.log("Signature verification:", recoveredAddress.toLowerCase() === trustedIssuer.address.toLowerCase())
+console.log("Expected trusted issuer address:", trustedIssuer.address)
+console.log("Recovered signer address:", recoveredAddress)
+const recoveredAddress = ethers.verifyMessage(ethers.getBytes(dataHash), signature)
+// Recover the signer from the signature
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, 1, claimDataHex]))
+console.log("=== VERIFYING CLAIM SIGNATURE ===")
+// Method 5: Check if the claim exists by verifying the signature
+}
+    console.log("getClaimByIndex method doesn't exist")
+} catch (e) {
+    }
+        }
+            // No claim at this index
+        } catch (e) {
+            console.log(`Claim at index ${i}:`, claim)
+            const claim = await investorOnchainID.getClaimByIndex(i)
+        try {
+    for (let i = 0; i < 10; i++) {
+try {
+// Method 4: Try to get claim by index (if it's an array-based system)
+console.log("Transaction logs:", receipt.logs)
+const receipt = await ethers.provider.getTransactionReceipt(claimTx.hash)
+console.log("Checking transaction logs for claim addition...")
+// Method 3: Check if the claim was actually added by looking at events
+}
+    console.log("getClaimIdsByTopic failed:", e.message)
+} catch (e) {
+    console.log("Claims by topic 1:", claimsByTopic)
+    const claimsByTopic = await investorOnchainID.getClaimIdsByTopic(1)
+try {
+// Method 2: Try getting claims by topic (if this function exists)
+}
+    console.log("getClaim with bytes32 failed:", e.message)
+} catch (e) {
+    console.log("Claim found:", claim)
+    const claim = await investorOnchainID.getClaim(claimId)
+try {
+console.log("Claim ID (bytes32):", claimId)
+const claimId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256'], [claimIssuerAddress, 1]))
+// Method 1: Check if claim exists by trying to get it with bytes32 ID
+console.log("=== VERIFICATION METHODS ===")
+// Try different verification methods
+console.log("Claim 1:", claim)
+const claim = await investorOnchainID.getClaim(1)
+console.log("Total claim count:", claimCount)
+const claimCount = await investorOnchainID.getClaimCount()
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+console.log("Add claim transaction:", claimTx.hash)
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.connect(managementAccount).addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("Using management account:", managementAccount.address)
+const managementAccount = signers[3] // This account has management permissions
+const signers = await ethers.getSigners()
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+console.log("Claim 1:", claim)
+const claim = await investorOnchainID.getClaim(1)
+console.log("Total claim count:", claimCount)
+const claimCount = await investorOnchainID.getClaimCount()
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+console.log("Add claim transaction:", claimTx.hash)
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.connect(managementAccount).addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("Using management account:", managementAccount.address)
+const managementAccount = signers[3] // This account has management permissions
+const signers = await ethers.getSigners()
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+}
+    console.log(`Signer ${i} (${signers[i].address}) has management: ${hasManagement}`)
+    const hasManagement = await claimIssuerContract.keyHasPurpose(signerKeyHash, 1)
+    const signerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [signers[i].address]))
+for (let i = 0; i < signers.length; i++) {
+// Check if any of these accounts have management permissions on ClaimIssuer
+})
+    console.log(`Signer ${index}: ${signer.address}`)
+signers.forEach((signer, index) => {
+console.log("Available signers:")
+const signers = await ethers.getSigners()
+// Get all signers
+console.log("ClaimIssuer has management key on itself:", claimIssuerSelfHasManagement)
+const claimIssuerSelfHasManagement = await claimIssuerContract.keyHasPurpose(claimIssuerSelfKeyHash, 1)
+console.log("ClaimIssuer self key hash:", claimIssuerSelfKeyHash)
+const claimIssuerSelfKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+// Check if ClaimIssuer itself has management key (self-management)
+console.log("Trusted issuer has management key on ClaimIssuer:", trustedIssuerHasManagement)
+const trustedIssuerHasManagement = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 1)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+// Check if trusted issuer has management key
+console.log("Deployer has management key on ClaimIssuer:", deployerHasManagement)
+const deployerHasManagement = await claimIssuerContract.keyHasPurpose(deployerKeyHash, 1)
+console.log("Deployer key hash:", deployerKeyHash)
+const deployerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [deployer.address]))
+// Check if deployer has management key
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+// First, let's check who has management keys on the ClaimIssuer
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("ClaimIssuer contract attached:", claimIssuerContract.target)
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+console.log("ClaimIssuer factory created")
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+console.log("Claims for topic 1:", allClaims)
+}
+    }
+        console.log(`No claim at index ${i}`)
+    } catch (e) {
+        }
+            allClaims.push({id: i, claim: claim})
+        if (claim.topic == 1) {
+        const claim = await investorOnchainID.getClaim(i)
+    try {
+for (let i = 0; i < claimCount; i++) {
+const allClaims = []
+// Try getting claims by topic using loop
+console.log("Claim 1:", claim)
+const claim = await investorOnchainID.getClaim(1)
+// Try getting claim by ID
+console.log("Total claim count:", claimCount)
+const claimCount = await investorOnchainID.getClaimCount()
+// STEP 7: VERIFY CLAIM (USING ALTERNATIVE METHOD)
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+console.log("Add claim transaction:", claimTx.hash)
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+// STEP 6: ADD CLAIM
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+// STEP 5: CREATE SIGNATURE
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+// STEP 4: CREATE CLAIM DATA AND HASH
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.addKey(trustedIssuerKeyHash, 3, 1)
+// Use deployer (who has management permissions) to add the signing key
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("ClaimIssuer contract attached:", claimIssuerContract.target)
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+console.log("ClaimIssuer factory created")
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+// STEP 3: ADD TRUSTED ISSUER AS SIGNING KEY TO CLAIMISSUER (FIXED - USE DEPLOYER)
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+// STEP 2: ADD CLAIMISSUER AS MANAGEMENT KEY TO INVESTOR ONCHAINID
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+// STEP 1: SETUP
+console.log("Claim IDs for topic 1:", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(1)
+console.log("Claim IDs for topic 1:", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(1)
+console.log("Claim 1 added! Tx:", claimTx2.hash)
+await claimTx2.wait()
+console.log("Add claim transaction:", claimTx2.hash)
+const claimTx2 = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+console.log("Data hash:", dataHash)
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(claimData)
+console.log("Claim data (bytes):", claimData)
+const claimData = ethers.toUtf8Bytes("1")
+console.log("Topic:", topic)
+const topic = 1
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+console.log("Add signing key transaction:", addSigningKeyTx.hash)
+const addSigningKeyTx = await claimIssuerContract.addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Trusted issuer key hash:", trustedIssuerKeyHash)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("ClaimIssuer contract attached:", claimIssuerContract.target)
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+console.log("ClaimIssuer factory created")
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+console.log("Add management key transaction:", addManagementKeyTx.hash)
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+console.log("ClaimIssuer key hash:", claimIssuerKeyHash)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+console.log("Investor OnchainID attached:", investorOnchainID.target)
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+console.log("Identity factory created")
+const Identity = await ethers.getContractFactory("Identity")
+console.log("Claim 2 added! Tx:", claimTx3.hash)
+await claimTx3.wait()
+const claimTx3 = await investorOnchainID.addClaim(2, 1, claimIssuerAddress, signature2, claimDataHex2, "")
+const signature2 = await trustedIssuer.signMessage(ethers.getBytes(dataHash2))
+const dataHash2 = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic2, claimDataHex2]))
+const claimDataHex2 = ethers.hexlify(claimData2)
+const claimData2 = ethers.toUtf8Bytes("US")
+const topic2 = 2
+})
+    uri: claim1.uri
+    data: ethers.toUtf8String(claim1.data),
+    issuer: claim1.issuer,
+    scheme: claim1.scheme.toString(),
+    topic: claim1.topic.toString(),
+console.log("Claim 1 details:", {
+const claim1 = await investorOnchainID.getClaim(claimIds[0])
+console.log("Claim IDs for topic 1:", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(1)
+})
+    uri: claim1.uri
+    data: ethers.toUtf8String(claim1.data),
+    issuer: claim1.issuer,
+    scheme: claim1.scheme.toString(),
+    topic: claim1.topic.toString(),
+console.log("Claim 1 details:", {
+const claim1 = await investorOnchainID.getClaim(claimIds[0])
+console.log("Claim IDs for topic 1:", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(1)
+console.log("Claim 1 added! Tx:", claimTx2.hash)
+await claimTx2.wait()
+const claimTx2 = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Trusted issuer has signing key on ClaimIssuer now:", hasSigningKeyNow)
+const hasSigningKeyNow = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+console.log("Added trusted issuer as signing key to ClaimIssuer. Tx:", addSigningKeyTx.hash)
+await addSigningKeyTx.wait()
+const addSigningKeyTx = await claimIssuerContract.addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Available functions:", functionNames)
+const functionNames = claimIssuerContract.interface.fragments.map(f => f.name).filter(name => name)
+console.log("ClaimIssuer functions:", Object.keys(claimIssuerContract.interface.functions))
+// Let's check what functions are available
+// The ClaimIssuer contract should have a function to add claims
+console.log("Trusted issuer has signing key on ClaimIssuer:", hasSigningKey)
+const hasSigningKey = await claimIssuerContract.keyHasPurpose(trustedIssuerKeyHash, 3)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuer.address]))
+console.log("ClaimIssuer owner:", claimIssuerOwner)
+const claimIssuerOwner = await claimIssuerContract.owner()
+console.log("ClaimIssuer contract:", claimIssuerContract)
+const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Claim IDs for topic 1:", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(1)
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+const claimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Signature:", signature)
+console.log("Data hash:", dataHash)
+const signature = await trustedIssuer.signMessage(ethers.getBytes(dataHash))
+const dataHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [investorOnchainID.target, topic, claimDataHex]))
+const claimDataHex = ethers.hexlify(claimData)
+const claimData = ethers.toUtf8Bytes("1")
+const topic = 1
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Investor OnchainID target:", investorOnchainID.target)
+console.log("Trusted issuer address:", trustedIssuer.address)
+console.log("Deployer address:", deployer.address)
+const [deployer, trustedIssuer] = await ethers.getSigners()
+const investorOnchainID = Identity.attach("0xB6a4aa5d9e8caaEaF07D1594e756C96B40a714cC")
+const Identity = await ethers.getContractFactory("Identity")
+console.log("Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using ClaimIssuer address:", claimIssuerAddress)
+const claimIssuerAddress = "0x057ef64E23666F000b34aE31332854aCBd1c8544"
+console.log("Latest block:", latestBlock)
+const latestBlock = await ethers.provider.getBlockNumber()
+// For now, let's try to find it by checking recent transactions
+// We need to find the ClaimIssuer address from your TokenPlatform database
+// Let's check if there are any ClaimIssuer contracts deployed
+console.log("Deployer has management key:", hasManagementKey)
+const hasManagementKey = await investorOnchainID.keyHasPurpose(deployerKeyHash, 1)
+const deployerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [deployer.address]))
+console.log("Claim 1 added! Tx:", finalClaimTx.hash)
+await finalClaimTx.wait()
+const finalClaimTx = await investorOnchainID.addClaim(1, 1, claimIssuerAddress, signature, claimDataHex, "")
+console.log("Added claim issuer as management key. Tx:", addManagementKeyTx.hash)
+await addManagementKeyTx.wait()
+const addManagementKeyTx = await investorOnchainID.addKey(claimIssuerKeyHash, 1, 1)
+const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]))
+console.log("Using deployer as claim issuer:", claimIssuerAddress)
+const claimIssuerAddress = deployer.address
+// For now, let's try using the deployer (Account 0) as the claim issuer
+// We need to find the ClaimIssuer contract address from your TokenPlatform database
+console.log("ClaimIssuer factory:", ClaimIssuer)
+const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer")
+console.log("Claim 1 added! Tx:", claimTxFixed.hash)
+await claimTxFixed.wait()
+const claimTxFixed = await investorOnchainID.addClaim(1, 1, trustedIssuer.address, signature, claimDataHex, "")
+console.log("Claim data hex:", claimDataHex)
+const claimDataHex = ethers.hexlify(ethers.toUtf8Bytes("1"))
+console.log("Claim 1 added! Tx:", finalClaimTx.hash)
+await finalClaimTx.wait()
+const finalClaimTx = await investorOnchainID.addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Claim 1 added! Tx:", finalClaimTx.hash)
+await finalClaimTx.wait()
+const finalClaimTx = await investorOnchainID.addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Claim data:", claimData)
+console.log("Signature bytes length:", signatureBytes.length)
+console.log("Signature:", signature)
+console.log("Data hash:", dataHash)
+console.log("Trusted issuer has claim key now:", hasKeyNow)
+const hasKeyNow = await investorOnchainID.keyHasPurpose(correctTrustedIssuerKeyHash, 3)
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+const claimTx = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Claim IDs for topic 1:", claimIds)
+const claimIds = await investorOnchainID.getClaimIdsByTopic(1)
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+const claimTx = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Claim 1 added! Tx:", claimTx.hash)
+await claimTx.wait()
+const claimTx = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Claim 1 added! Tx:", addClaimTx.hash)
+await addClaimTx.wait()
+const addClaimTx = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+}
+    console.log("Added correct trusted issuer as claim signer. Tx:", addCorrectKeyTx.hash)
+    await addCorrectKeyTx.wait()
+    const addCorrectKeyTx = await investorOnchainID.addKey(correctTrustedIssuerKeyHash, 3, 1)
+if (!hasCorrectKey) {
+console.log("Has correct claim key:", hasCorrectKey)
+const hasCorrectKey = await investorOnchainID.keyHasPurpose(correctTrustedIssuerKeyHash, 3)
+console.log("Our previous key hash:", trustedIssuerKeyHash)
+console.log("Correct trusted issuer key hash:", correctTrustedIssuerKeyHash)
+const correctTrustedIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuerAddress]))
+console.log("Claim 1 added! Tx:", addClaimTx.hash)
+await addClaimTx.wait()
+const addClaimTx = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Added trusted issuer as claim signer. Tx:", addKeyTx.hash)
+await addKeyTx.wait()
+const addKeyTx = await investorOnchainID.addKey(trustedIssuerKeyHash, 3, 1)
+console.log("Deployer has key 2:", deployerHasKey2)
+console.log("Deployer has key 1:", deployerHasKey1)
+const deployerHasKey2 = managementKeys[1] === deployerKeyHash
+const deployerHasKey1 = managementKeys[0] === deployerKeyHash
+const deployerKeyHash = ethers.keccak256(ethers.toUtf8Bytes(deployerAddress))
+console.log("Management key 2:", managementKey2)
+console.log("Management key 1:", managementKey1)
+const managementKey2 = await investorOnchainID.getKey(managementKeys[1])
+const managementKey1 = await investorOnchainID.getKey(managementKeys[0])
+console.log("Claim 1 added! Tx:", tx2.hash)
+await tx2.wait()
+const tx2 = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Claim 1 added! Tx:", tx2.hash)
+await tx2.wait()
+const tx2 = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Added trusted issuer as claim signer. Tx:", tx.hash)
+await tx.wait()
+const tx = await investorOnchainID.addKey(trustedIssuerKeyHash, 3, 1)
+const trustedIssuerKeyHash = ethers.keccak256(ethers.toUtf8Bytes(trustedIssuerAddress))
+})
+    claim: investorHasClaim
+    action: investorHasAction,
+    management: investorHasManagement,
+console.log("Investor keys:", {
+const investorHasClaim = await investorOnchainID.keyHasPurpose(investorKeyHash, 3)
+const investorHasAction = await investorOnchainID.keyHasPurpose(investorKeyHash, 2)
+const investorHasManagement = await investorOnchainID.keyHasPurpose(investorKeyHash, 1)
+const investorKeyHash = ethers.keccak256(ethers.toUtf8Bytes(investorAddress))
+console.log("Claim keys:", claimKeys)
+console.log("Action keys:", actionKeys)
+console.log("Management keys:", managementKeys)
+const claimKeys = await investorOnchainID.getKeysByPurpose(3)
+const actionKeys = await investorOnchainID.getKeysByPurpose(2)
+const managementKeys = await investorOnchainID.getKeysByPurpose(1)
+Deployer has management key: false
+> console.log("Deployer has management key:", hasManagementKey)
+undefined
+> const hasManagementKey = await investorOnchainID.keyHasPurpose(ethers.keccak256(ethers.toUtf8Bytes(deployerAddress)), 1)
+undefined
+Trusted issuer has claim key: false
+> console.log("Trusted issuer has claim key:", hasClaimKey)
+undefined
+> const hasClaimKey = await investorOnchainID.keyHasPurpose(ethers.keccak256(ethers.toUtf8Bytes(trustedIssuerAddress)), 3)
+undefined
+Trusted issuer address: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+> console.log("Trusted issuer address:", trustedIssuerAddress)
+undefined
+Deployer address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+> console.log("Deployer address:", deployerAddress)
+undefined
+> const trustedIssuerAddress = trustedIssuer.address
+undefined
+> const deployerAddress = deployer.address
+undefined
+]
+  'version'
+  'removeClaim',         'removeKey',
+  'isClaimValid',        'keyHasPurpose',
+  'getRecoveredAddress', 'initialize',
+  'getKeyPurposes',      'getKeysByPurpose',
+  'getClaimIdsByTopic',  'getKey',
+  'execute',             'getClaim',
+  'addKey',              'approve',
+  'KeyRemoved',          'addClaim',
+  'ExecutionRequested',  'KeyAdded',
+  'Executed',            'ExecutionFailed',
+  'ClaimChanged',        'ClaimRemoved',
+  'Approved',            'ClaimAdded',
+Available functions: [
+> console.log("Available functions:", functionNames)
+console.log("Deployer has management key:", hasManagementKey)
+const hasManagementKey = await investorOnchainID.keyHasPurpose(ethers.keccak256(ethers.toUtf8Bytes(deployerAddress)), 1)
+console.log("Trusted issuer has claim key:", hasClaimKey)
+const hasClaimKey = await investorOnchainID.keyHasPurpose(ethers.keccak256(ethers.toUtf8Bytes(trustedIssuerAddress)), 3)
+console.log("Trusted issuer address:", trustedIssuerAddress)
+console.log("Deployer address:", deployerAddress)
+const trustedIssuerAddress = trustedIssuer.address
+const deployerAddress = deployer.address
+console.log("Available functions:", functionNames)
+const functionNames = investorOnchainID.interface.fragments.map(f => f.name).filter(name => name)
+console.log("Claim 1 added! Tx:", tx3.hash)
+await tx3.wait()
+const tx3 = await investorOnchainID.connect(deployer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Is investor the owner:", isInvestorOwner)
+const isInvestorOwner = onchainidOwner === investorAddress
+console.log("OnchainID owner:", onchainidOwner)
+const onchainidOwner = await investorOnchainID.owner()
+console.log("Investor address:", investorAddress)
+const investorAddress = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+console.log("Claim 1 added! Tx:", tx2.hash)
+await tx2.wait()
+const tx2 = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+console.log("Is trusted issuer the owner:", isOwner)
+const isOwner = await investorOnchainID.owner() === trustedIssuer.address
+console.log("Identity owner:", identityOwner)
+const identityOwner = await investorOnchainID.owner()
+console.log("Available functions:", Object.keys(investorOnchainID.interface.functions))
+> console.log("Available functions:", Object.keys(investorOnchainID.interface.functions))
+Uncaught TypeError: Cannot read properties of undefined (reading 'hash')
+> console.log("Claim 1 added! Tx:", tx.hash)
+    at REPL27:1:42
+Uncaught TypeError: Cannot read properties of undefined (reading 'wait')
+> await tx.wait()
+Uncaught SyntaxError: Identifier 'tx' has already been declared
+> const tx = await investorOnchainID.connect(trustedIssuer).addClaim(1, 1, trustedIssuer.address, signatureBytes, claimData, "")
+undefined
+Identity owner: undefined
+> console.log("Identity owner:", identityOwner)
+    at REPL24:1:81
+Uncaught TypeError: investorOnchainID.identityOwner is not a function
+> const identityOwner = await investorOnchainID.identityOwner()
+undefined
+Can trusted issuer add claims: undefined
+> console.log("Can trusted issuer add claims:", canAddClaim)
+}
+  shortMessage: 'incorrect data length'
+  value: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  argument: '_key',
+  code: 'INVALID_ARGUMENT',
+    at makeError (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/errors.ts:691:21) {
+    at assert (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/errors.ts:719:25)
+    at assertArgument (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/utils/errors.ts:731:5)
+    at FixedBytesCoder._throwError (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/abi/coders/abstract-coder.ts:389:23)
+    at FixedBytesCoder.encode (/mnt/ethnode/TokenPlatform/node_modules/ethers/src.ts/abi/coders/fixed-bytes.ts:30:47)entKey: undefined, actionKey: undefined, claimKey: undefined }
+... })
+...     claimKey: claimKey
+...     actionKey: actionKey,oder.ts:389:23)7)

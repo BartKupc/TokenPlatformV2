@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Trusted Issuer Registration{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="text-center">Trusted Issuer Registration</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="email" name="email" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Password</label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="wallet_address" class="form-label">Wallet Address</label>
+                                    <input type="text" class="form-control" id="wallet_address" name="wallet_address" 
+                                           placeholder="0x..." required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="private_key" class="form-label">Private Key *</label>
+                                    <input type="password" class="form-control" id="private_key" name="private_key" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{64}$" required>
+                                    <div class="form-text">Your Ethereum private key (66 characters including 0x)</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Claim Capabilities -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-certificate me-2"></i>Claim Capabilities
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Select the claims you want to be authorized to issue:</strong> These will be submitted for admin approval. You will only be able to issue claims that are approved by an admin.
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>KYC & Identity Claims</h6>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_kyc_approved" name="claim_capabilities" value="1:APPROVED">
+                                            <label class="form-check-label" for="cap_kyc_approved">
+                                                <i class="fas fa-check-circle text-success me-1"></i>KYC Status: APPROVED
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_nationality_us" name="claim_capabilities" value="2:US">
+                                            <label class="form-check-label" for="cap_nationality_us">
+                                                <i class="fas fa-flag text-info me-1"></i>Nationality: US
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_nationality_eu" name="claim_capabilities" value="2:EU">
+                                            <label class="form-check-label" for="cap_nationality_eu">
+                                                <i class="fas fa-flag text-info me-1"></i>Nationality: EU
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_age_18" name="claim_capabilities" value="3:18+">
+                                            <label class="form-check-label" for="cap_age_18">
+                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age: 18+
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_age_21" name="claim_capabilities" value="3:21+">
+                                            <label class="form-check-label" for="cap_age_21">
+                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age: 21+
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Investment & Compliance Claims</h6>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_accredited" name="claim_capabilities" value="4:ACCREDITED">
+                                            <label class="form-check-label" for="cap_accredited">
+                                                <i class="fas fa-star text-warning me-1"></i>Accredited Investor: ACCREDITED
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_compliance_pass" name="claim_capabilities" value="7:COMPLIANT">
+                                            <label class="form-check-label" for="cap_compliance_pass">
+                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance: COMPLIANT
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_whitelist" name="claim_capabilities" value="8:WHITELISTED">
+                                            <label class="form-check-label" for="cap_whitelist">
+                                                <i class="fas fa-list-check text-primary me-1"></i>Whitelist: WHITELISTED
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-warning mt-3">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Important:</strong> Only select claims you are qualified to verify and issue. 
+                                    You will be responsible for verifying the information before issuing claims.
+                                    <br><strong>Note:</strong> Your registration will be reviewed by an admin before approval.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Register as Trusted Issuer</button>
+                        </div>
+                    </form>
+                    <div class="mt-3 text-center">
+                        <p>Already have an account? <a href="{{ url_for('trusted_issuer_login') }}">Login here</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

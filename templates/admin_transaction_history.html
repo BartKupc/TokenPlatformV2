@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction History - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Admin Panel
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('admin.blockchain_verification', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Blockchain Verification
+                        </a>
+                        <a href="{{ url_for('admin.transaction_history', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action active">
+                            <i class="fas fa-history me-2"></i>
+                            Transaction History
+                        </a>
+                        <a href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-check me-2"></i>
+                            Trusted Issuer Approvals
+                        </a>
+                        <a href="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-id-card me-2"></i>
+                            OnchainID Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h1 class="mb-4">
+                <i class="fas fa-cubes me-2"></i>
+                Hardhat Block History
+            </h1>
+            
+            <div class="d-flex gap-2 mb-4">
+                <button class="btn btn-primary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                </button>
+            </div>
+
+            <!-- Debug Info -->
+            <div class="alert alert-info">
+                <strong>Debug Info:</strong><br>
+                Transaction Data Keys: {{ transaction_data.keys() if transaction_data else 'None' }}<br>
+                Summary Keys: {{ transaction_data.summary.keys() if transaction_data and transaction_data.summary else 'None' }}<br>
+                Blocks Count: {{ transaction_data.blocks|length if transaction_data and transaction_data.blocks else 'None' }}<br>
+                Current Block: {{ transaction_data.summary.current_block if transaction_data and transaction_data.summary else 'None' }}
+            </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 text-center">
+                            <div class="border-end">
+                                <h4 class="text-primary mb-1">{{ "{:,}".format(transaction_data.summary.current_block|default(0)|int) }}</h4>
+                                <small class="text-muted">Current Block</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="border-end">
+                                <h4 class="text-success mb-1">{{ "{:,}".format(transaction_data.summary.total_blocks|default(0)|int) }}</h4>
+                                <small class="text-muted">Blocks Shown</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="border-end">
+                                <h4 class="text-info mb-1">{{ "{:,}".format(transaction_data.summary.total_transactions|default(0)|int) }}</h4>
+                                <small class="text-muted">Total Transactions</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div>
+                                <h4 class="text-warning mb-1">{{ transaction_data.blocks|length }}</h4>
+                                <small class="text-muted">Recent Blocks</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Block List (like Hardhat) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-cubes me-2"></i>
+                        Recent Blocks ({{ transaction_data.blocks|length }})
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if transaction_data.blocks %}
+                        {% for block in transaction_data.blocks %}
+                        <div class="card mb-3">
+                            <div class="card-header {% if block.error %}bg-danger text-white{% else %}bg-light{% endif %}">
+                                <div class="row align-items-center">
+                                    <div class="col-md-3">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-cube me-2"></i>
+                                            Block #{{ block.number }}
+                                            {% if block.error %}
+                                                <span class="badge bg-warning text-dark ms-2">Error</span>
+                                            {% endif %}
+                                        </h6>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <small class="{% if block.error %}text-white-50{% else %}text-muted{% endif %}">
+                                            <i class="fas fa-clock me-1"></i>
+                                            {% if block.timestamp|int > 0 %}
+                                                {{ block.timestamp|int }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <small class="{% if block.error %}text-white-50{% else %}text-muted{% endif %}">
+                                            <i class="fas fa-exchange-alt me-1"></i>
+                                            {{ block.transaction_count }} transactions
+                                        </small>
+                                    </div>
+                                    <div class="col-md-3">
+                                        {% if block.error %}
+                                            <small class="text-white-50">{{ block.error }}</small>
+                                        {% else %}
+                                            <code class="text-break" style="font-size: 0.7em;">
+                                                {{ block.hash[:10] }}...{{ block.hash[-8:] }}
+                                            </code>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% if block.transactions %}
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Hash</th>
+                                                <th>Type</th>
+                                                <th>From</th>
+                                                <th>To</th>
+                                                <th>Value</th>
+                                                <th>Gas Details</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for tx in block.transactions %}
+                                            <tr>
+                                                <td>
+                                                    <code class="text-break" style="font-size: 0.7em;">{{ tx.hash[:8] }}...{{ tx.hash[-6:] }}</code>
+                                                </td>
+                                                <td>
+                                                    {% if tx.type == "Contract Creation" %}
+                                                        <span class="badge bg-primary">
+                                                            <i class="fas fa-plus-circle me-1"></i>Contract
+                                                        </span>
+                                                    {% elif tx.type == "ETH Transfer" %}
+                                                        <span class="badge bg-info">
+                                                            <i class="fas fa-ether me-1"></i>ETH
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">
+                                                            <i class="fas fa-cog me-1"></i>Call
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <code class="text-break" style="font-size: 0.7em;">{{ tx.from[:6] }}...{{ tx.from[-4:] }}</code>
+                                                </td>
+                                                <td>
+                                                    {% if tx.to %}
+                                                        <code class="text-break" style="font-size: 0.7em;">{{ tx.to[:6] }}...{{ tx.to[-4:] }}</code>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if tx.value and tx.value > 0 %}
+                                                        <strong>{{ "{:.6f}".format(tx.value) }}</strong>
+                                                        <br><small class="text-muted">ETH</small>
+                                                    {% else %}
+                                                        <span class="text-muted">0 ETH</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        <strong>Used:</strong> {{ "{:,}".format(tx.gas_used|default(0)|int) }}<br>
+                                                        <strong>Limit:</strong> {{ "{:,}".format(tx.gas_limit|default(0)|int) }}<br>
+                                                        <strong>Price:</strong> {{ "{:.2f}".format(tx.gas_price|default(0)|float) }} gwei<br>
+                                                        {% if tx.effective_gas_price %}
+                                                        <strong>Effective:</strong> {{ "{:.2f}".format(tx.effective_gas_price|default(0)|float) }} gwei<br>
+                                                        {% endif %}
+                                                        {% if tx.total_cost_eth %}
+                                                        <strong>Cost:</strong> {{ "{:.6f}".format(tx.total_cost_eth|default(0)|float) }} ETH
+                                                        {% endif %}
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    {% if tx.contract_address %}
+                                                        <small>
+                                                            <strong>Contract:</strong><br>
+                                                            <code class="text-break" style="font-size: 0.6em;">{{ tx.contract_address[:10] }}...</code>
+                                                        </small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if tx.status == 'success' %}
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-check me-1"></i>Success
+                                                        </span>
+                                                    {% elif tx.status == 'failed' %}
+                                                        <span class="badge bg-danger">
+                                                            <i class="fas fa-times me-1"></i>Failed
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-warning">
+                                                            <i class="fas fa-question me-1"></i>Unknown
+                                                        </span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="card-body text-center py-3">
+                                <span class="text-muted">No transactions in this block</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-cubes fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">No blocks found</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh every 30 seconds
+setTimeout(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

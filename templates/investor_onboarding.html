@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Investor Onboarding - Token Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-user-check me-2"></i>
+                        Investor KYC Onboarding
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>KYC Process:</strong> Complete this form to verify your identity and become eligible 
+                        to purchase security tokens. Your information will be reviewed manually.
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Username *</label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                    <div class="form-text">Choose a unique username</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email Address *</label>
+                                    <input type="email" class="form-control" id="email" name="email" 
+                                           placeholder="your@email.com" required>
+                                    <div class="form-text">For status updates</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Password *</label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                    <div class="form-text">Choose a secure password</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="wallet_address" class="form-label">Wallet Address *</label>
+                                    <input type="text" class="form-control" id="wallet_address" name="wallet_address" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{40}$" required>
+                                    <div class="form-text">Your Ethereum wallet address</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="full_name" class="form-label">Full Name *</label>
+                                    <input type="text" class="form-control" id="full_name" name="full_name" 
+                                           placeholder="John Doe" required>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="nationality" class="form-label">Nationality *</label>
+                                    <select class="form-control" id="nationality" name="nationality" required>
+                                        <option value="">Select your nationality</option>
+                                        <option value="US">United States</option>
+                                        <option value="EU">European Union</option>
+                                        <option value="UK">United Kingdom</option>
+                                        <option value="CA">Canada</option>
+                                        <option value="AU">Australia</option>
+                                        <option value="ASIA">Asia</option>
+                                        <option value="OTHER">Other</option>
+                                    </select>
+                                    <div class="form-text">Your region of citizenship</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="date_of_birth" class="form-label">Date of Birth *</label>
+                                    <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
+                                    <div class="form-text">Must be 18 or older</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Phone Number</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone" 
+                                           placeholder="+1 (555) 123-4567">
+                                    <div class="form-text">Optional</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Residential Address</label>
+                            <textarea class="form-control" id="address" name="address" rows="3" 
+                                      placeholder="Enter your full residential address"></textarea>
+                            <div class="form-text">Optional</div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Important:</strong> By submitting this form, you agree to provide accurate 
+                            information and understand that false statements may result in rejection of your application.
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-2"></i>Submit KYC Application
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Already submitted KYC?</p>
+                        <a href="{{ url_for('investor.status') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-search me-2"></i>Check Status
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

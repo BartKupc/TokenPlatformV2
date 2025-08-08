@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Request Purchase - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <nav class="nav flex-column">
+                <a class="nav-link" href="{{ url_for('investor.dashboard', tab_session=tab_session_id) }}">
+                    <i class="fas fa-tachometer-alt"></i>Dashboard
+                </a>
+                <a class="nav-link" href="{{ url_for('investor.purchase_requests', tab_session=tab_session_id) }}">
+                    <i class="fas fa-shopping-cart"></i>My Purchase Requests
+                </a>
+                <a class="nav-link" href="{{ url_for('investor.status', tab_session=tab_session_id) }}">
+                    <i class="fas fa-user-check"></i>KYC Status
+                </a>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10 main-content">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-shopping-cart me-2"></i>
+                        Request Purchase - {{ token.name }}
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Submit a purchase request for {{ token.symbol }} tokens
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('investor.dashboard', tab_session=tab_session_id) }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Token Information -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-coins me-2"></i>Token Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6">
+                                    <p><strong>Name:</strong></p>
+                                    <p><strong>Symbol:</strong></p>
+                                    <p><strong>Price:</strong></p>
+                                    <p><strong>Total Supply:</strong></p>
+                                    <p><strong>Issuer:</strong></p>
+                                </div>
+                                <div class="col-6">
+                                    <p>{{ token.name }}</p>
+                                    <p>{{ token.symbol }}</p>
+                                    <p>${{ "%.2f"|format(token.price_per_token) }}</p>
+                                    <p>{{ "{:,}".format(token.total_supply) }}</p>
+                                    <p><code>{{ token.issuer_address[:6] }}...{{ token.issuer_address[-4:] }}</code></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>Purchase Process
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-list-ol me-2"></i>Purchase Flow:</h6>
+                                <ol class="mb-0">
+                                    <li>Submit purchase request</li>
+                                    <li>Issuer verifies your OnchainID</li>
+                                    <li>Issuer approves/rejects request</li>
+                                    <li>Execute purchase (if approved)</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Purchase Request Form -->
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-edit me-2"></i>Purchase Request Form
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="mb-3">
+                                    <label for="amount_requested" class="form-label">
+                                        <i class="fas fa-coins me-2"></i>Amount of {{ token.symbol }} tokens to purchase:
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control" 
+                                           id="amount_requested" 
+                                           name="amount_requested" 
+                                           min="1" 
+                                           max="{{ token.total_supply }}"
+                                           required
+                                           data-price="{{ token.price_per_token }}"
+                                           onchange="updateTotal()">
+                                    <div class="form-text">
+                                        Enter the number of {{ token.symbol }} tokens you want to purchase
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        <i class="fas fa-dollar-sign me-2"></i>Total Value:
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="total_value" 
+                                               readonly 
+                                               value="0.00">
+                                    </div>
+                                    <div class="form-text">
+                                        Total cost: <span id="total_tokens">0</span> {{ token.symbol }} × ${{ "%.2f"|format(token.price_per_token) }}
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-warning">
+                                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Important:</h6>
+                                    <ul class="mb-0">
+                                        <li>Your purchase request will be reviewed by the token issuer</li>
+                                        <li>The issuer will verify your OnchainID and KYC status</li>
+                                        <li>You will be notified once the request is approved or rejected</li>
+                                        <li>Payment processing will be handled after approval</li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-paper-plane me-2"></i>Submit Purchase Request
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-user-check me-2"></i>Your Status
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">OnchainID Status:</label>
+                                {% if user.onchain_id %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>Registered
+                                    </span>
+                                    <small class="d-block text-muted mt-1">
+                                        <code>{{ user.onchain_id[:6] }}...{{ user.onchain_id[-4:] }}</code>
+                                    </small>
+                                {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>Not Registered
+                                    </span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">KYC Status:</label>
+                                {% if user.kyc_status == 'approved' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>Approved
+                                    </span>
+                                {% elif user.kyc_status == 'pending' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock me-1"></i>Pending
+                                    </span>
+                                {% elif user.kyc_status == 'rejected' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times me-1"></i>Rejected
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-question me-1"></i>Not Submitted
+                                    </span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if not user.onchain_id or user.kyc_status != 'approved' %}
+                                <div class="alert alert-warning">
+                                    <small>
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        You may need to complete OnchainID registration and KYC verification before your purchase request can be approved.
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateTotal() {
+    const amountInput = document.getElementById('amount_requested');
+    const amount = amountInput.value;
+    const price = parseFloat(amountInput.dataset.price);
+    const total = amount * price;
+    
+    document.getElementById('total_value').value = total.toFixed(2);
+    document.getElementById('total_tokens').textContent = amount || 0;
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateTotal();
+});
+</script>
+{% endblock %} 

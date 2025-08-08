@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Mint Tokens - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('issuer.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('issuer.manage_token', token_id=token.id) }}">Manage {{ token.name }}</a></li>
+                    <li class="breadcrumb-item active">Mint Tokens</li>
+                </ol>
+            </nav>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">
+                            <i class="fas fa-coins me-2"></i>
+                            Mint Tokens - {{ token.name }}
+                        </h3>
+                        <a href="{{ url_for('issuer.manage_token', token_id=token.id) }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Management
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Token Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-info-circle me-2"></i>Token Information
+                            </h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td class="fw-bold">Name:</td>
+                                    <td>{{ token.name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Symbol:</td>
+                                    <td><span class="badge bg-primary">{{ token.symbol }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Current Supply:</td>
+                                                                            <td>{{ "{:,.0f}".format(token.total_supply|int) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Contract Address:</td>
+                                    <td><code class="text-break">{{ token.token_address }}</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Important Notes
+                            </h5>
+                            <div class="alert alert-warning">
+                                <ul class="mb-0">
+                                    <li>Only token agents can mint tokens</li>
+                                    <li>Minted tokens will be added to the total supply</li>
+                                    <li>Recipient must be a valid Ethereum address</li>
+                                    <li>Compliance rules will apply to the recipient</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mint Form -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-plus-circle me-2"></i>Mint New Tokens
+                            </h5>
+                            
+                            <div class="card">
+                                <div class="card-body">
+                                    <form method="POST" data-token-supply="{{ token.total_supply }}">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label for="recipient_address" class="form-label">
+                                                    <i class="fas fa-user me-1"></i>Recipient Address
+                                                </label>
+                                                <input type="text" 
+                                                       class="form-control" 
+                                                       id="recipient_address" 
+                                                       name="recipient_address" 
+                                                       placeholder="0x..." 
+                                                       required>
+                                                <div class="form-text">Enter the Ethereum address that will receive the tokens</div>
+                                            </div>
+                                            
+                                            <div class="col-md-6 mb-3">
+                                                <label for="amount" class="form-label">
+                                                    <i class="fas fa-coins me-1"></i>Amount to Mint
+                                                </label>
+                                                <div class="input-group">
+                                                    <input type="number" 
+                                                           class="form-control" 
+                                                           id="amount" 
+                                                           name="amount" 
+                                                           placeholder="1000" 
+                                                           min="1" 
+                                                           required>
+                                                    <span class="input-group-text">{{ token.symbol }}</span>
+                                                </div>
+                                                <div class="form-text">Enter the number of tokens to mint</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-12 mb-3">
+                                                <label for="reason" class="form-label">
+                                                    <i class="fas fa-comment me-1"></i>Reason (Optional)
+                                                </label>
+                                                <textarea class="form-control" 
+                                                          id="reason" 
+                                                          name="reason" 
+                                                          rows="3" 
+                                                          placeholder="e.g., Investor allocation, team tokens, etc."></textarea>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="d-flex gap-2">
+                                                    <button type="submit" class="btn btn-warning">
+                                                        <i class="fas fa-coins me-2"></i>Mint Tokens
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-secondary" onclick="previewMint()">
+                                                        <i class="fas fa-eye me-2"></i>Preview
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mint History -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-history me-2"></i>Recent Minting History
+                            </h5>
+                            
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                                        <p class="text-muted">No minting history available</p>
+                                        <small class="text-muted">Minting transactions will appear here</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Mint Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <h6>Transaction Preview:</h6>
+                    <p><strong>Token:</strong> {{ token.name }} ({{ token.symbol }})</p>
+                    <p><strong>Recipient:</strong> <span id="previewRecipient"></span></p>
+                    <p><strong>Amount:</strong> <span id="previewAmount"></span> {{ token.symbol }}</p>
+                    <p><strong>New Total Supply:</strong> <span id="previewNewSupply"></span> {{ token.symbol }}</p>
+                </div>
+                <div class="alert alert-warning">
+                    <small>
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        This is a preview. No tokens will be minted until you confirm the transaction.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmMint()">
+                    <i class="fas fa-coins me-1"></i>Confirm Mint
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function previewMint() {
+    const recipient = document.getElementById('recipient_address').value;
+    const amount = document.getElementById('amount').value;
+    
+    if (!recipient || !amount) {
+        alert('Please fill in both recipient address and amount');
+        return;
+    }
+    
+    // Get current token supply from form data attribute
+    const currentSupply = parseInt(document.querySelector('form').getAttribute('data-token-supply'));
+    const newSupply = currentSupply + parseInt(amount);
+    
+    // Update preview modal
+    document.getElementById('previewRecipient').textContent = recipient;
+    document.getElementById('previewAmount').textContent = amount;
+    document.getElementById('previewNewSupply').textContent = newSupply.toLocaleString();
+    
+    // Show modal
+    new bootstrap.Modal(document.getElementById('previewModal')).show();
+}
+
+function confirmMint() {
+    // Submit the form
+    document.querySelector('form').submit();
+}
+</script>
+{% endblock %} 

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Issuer Registration - Token Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Issuer Registration
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Username *</label>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                    <div class="form-text">Choose a unique username</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email Address *</label>
+                                    <input type="email" class="form-control" id="email" name="email" 
+                                           placeholder="your@email.com" required>
+                                    <div class="form-text">Required for account management</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Password *</label>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                    <div class="form-text">Choose a secure password</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="wallet_address" class="form-label">Wallet Address *</label>
+                                    <input type="text" class="form-control" id="wallet_address" name="wallet_address" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{40}$" required>
+                                    <div class="form-text">Enter your Ethereum wallet address</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="private_key" class="form-label">Private Key *</label>
+                                    <input type="password" class="form-control" id="private_key" name="private_key" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{64}$" required>
+                                    <div class="form-text">Your Ethereum private key (66 characters including 0x)</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Issuer Benefits:</strong> As an issuer, you can deploy compliant security tokens 
+                            and manage your fundraising campaigns.
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus me-2"></i>Register as Issuer
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-0">Already have an issuer account?</p>
+                        <a href="{{ url_for('issuer_login') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

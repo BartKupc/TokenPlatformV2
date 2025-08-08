@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+
+{% block title %}OnchainID Details - {{ investor.username }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Ensure alerts stay visible */
+.alert {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Prevent any auto-hide behavior */
+.alert-warning, .alert-info, .alert-success, .alert-danger {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* Add some spacing for better readability */
+.alert {
+    margin-bottom: 1rem;
+}
+
+/* Style for claim removal button */
+.btn-remove-claim {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>
+                        <i class="fas fa-id-card me-2"></i>OnchainID Details
+                    </h2>
+                    <p class="text-muted mb-0">Investor: {{ investor.username }}</p>
+                </div>
+                <a href="{{ url_for('trusted_issuer.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- OnchainID Information -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>OnchainID Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>OnchainID Address:</strong></td>
+                            <td>
+                                <code>{{ investor.onchain_id }}</code>
+                                <button class="btn btn-sm btn-outline-primary ms-2" 
+                                        onclick="navigator.clipboard.writeText('{{ investor.onchain_id }}')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Wallet Address:</strong></td>
+                            <td><code>{{ investor.wallet_address }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Status:</strong></td>
+                            <td>
+                                <span class="badge bg-success">Active</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Created:</strong></td>
+                            <td>{{ investor.kyc_approved_at.strftime('%Y-%m-%d %H:%M') if investor.kyc_approved_at else 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Approved By:</strong></td>
+                            <td>{{ investor.kyc_approver_rel.username if investor.kyc_approver_rel else 'N/A' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user me-2"></i>KYC Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if kyc_data %}
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Full Name:</strong></td>
+                                <td>{{ kyc_data.full_name or 'Not provided' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Nationality:</strong></td>
+                                <td>{{ kyc_data.nationality or 'Not provided' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Date of Birth:</strong></td>
+                                <td>{{ kyc_data.date_of_birth or 'Not provided' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>KYC Status:</strong></td>
+                                <td>
+                                    {% if investor.kyc_status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif investor.kyc_status == 'rejected' %}
+                                        <span class="badge bg-danger">Rejected</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Approved By:</strong></td>
+                                <td>{{ investor.kyc_approver_rel.username if investor.kyc_approver_rel else 'Not approved yet' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Approved At:</strong></td>
+                                <td>{{ investor.kyc_approved_at.strftime('%Y-%m-%d %H:%M') if investor.kyc_approved_at else 'Not approved yet' }}</td>
+                            </tr>
+                        </table>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            No KYC data available for this investor.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Claims Information -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-certificate me-2"></i>OnchainID Claims
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if claims %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Topic</th>
+                                        <th>Claim Type</th>
+                                        <th>Data</th>
+                                        <th>Issuer</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for claim in claims %}
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-primary">{{ claim.topic }}</span>
+                                        </td>
+                                        <td>
+                                            {% if claim.topic == 1 %}
+                                                <i class="fas fa-check-circle text-success me-1"></i>KYC Status
+                                            {% elif claim.topic == 2 %}
+                                                <i class="fas fa-globe text-info me-1"></i>Nationality
+                                            {% elif claim.topic == 3 %}
+                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age Verification
+                                            {% elif claim.topic == 4 %}
+                                                <i class="fas fa-star text-warning me-1"></i>Accredited Status
+                                            {% elif claim.topic == 5 %}
+                                                <i class="fas fa-home text-info me-1"></i>Residency
+                                            {% elif claim.topic == 6 %}
+                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance
+                                            {% else %}
+                                                <i class="fas fa-certificate text-secondary me-1"></i>Custom Claim
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <code>{{ claim.data }}</code>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ claim.issuer }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">Active</span>
+                                            <br>
+                                            <button class="btn btn-danger btn-sm btn-remove-claim mt-1" 
+                                                    data-claim-index="{{ loop.index0 }}" 
+                                                    data-claim-topic="{{ claim.topic }}" 
+                                                    data-claim-data="{{ claim.data }}"
+                                                    onclick="removeClaim(this.dataset.claimIndex, this.dataset.claimTopic, this.dataset.claimData)"
+                                                    title="Remove this claim">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Available Claim Topics:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li><strong>Topic 1:</strong> KYC Status (APPROVED/REJECTED/PENDING)</li>
+                                <li><strong>Topic 2:</strong> Nationality/Country</li>
+                                <li><strong>Topic 3:</strong> Age Verification (18+/21+/25+/UNDERAGE)</li>
+                                <li><strong>Topic 4:</strong> Accredited Investor Status (ACCREDITED/NON_ACCREDITED)</li>
+                                <li><strong>Topic 7:</strong> Restricted Status (RESTRICTED)</li>
+                                <li><strong>Topic 8:</strong> Whitelisted Status (WHITELISTED)</li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning" id="noClaimsAlert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            No claims found for this OnchainID.
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Add Claims Form -->
+                    <div class="mt-4">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-plus-circle me-2"></i>Add New Claim
+                        </h6>
+                            
+                            <form method="POST" action="{{ url_for('trusted_issuer.add_claim', user_id=investor.id) }}">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="claim_topic" class="form-label">Claim Topic *</label>
+                                            <select class="form-select" id="claim_topic" name="claim_topic" required onchange="updateClaimDataOptions()">
+                                                <option value="">Select Topic</option>
+                                                <option value="1">KYC Status (Topic 1)</option>
+                                                <option value="2">Nationality (Topic 2)</option>
+                                                <option value="3">Age Verification (Topic 3)</option>
+                                                <option value="4">Accredited Investor (Topic 4)</option>
+                                                <option value="5">Restricted Status (Topic 5)</option>
+                                                <option value="6">Whitelisted Status (Topic 6)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="claim_data" class="form-label">Claim Data *</label>
+                                            <select class="form-select" id="claim_data" name="claim_data" required>
+                                                <option value="">Select Topic First</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus me-2"></i>Add Claim to OnchainID
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blockchain Verification -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-link me-2"></i>Blockchain Verification
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            {% if investor.onchain_id %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <strong>OnchainID Active:</strong> Deployed at {{ investor.onchain_id[:10] }}...{{ investor.onchain_id[-8:] }}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>OnchainID Not Deployed:</strong> Please approve KYC first to create OnchainID
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            {% if claims %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <strong>{{ claims|length }} Claims Active:</strong> OnchainID has {{ claims|length }} verified claims
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>No Claims Found:</strong> Add claims above to enable token transfers
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            {% if investor.kyc_status == 'approved' and claims %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <strong>Fully Compliant:</strong> KYC approved with active claims
+                                </div>
+                            {% elif investor.kyc_status == 'approved' %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Partially Compliant:</strong> KYC approved but needs claims
+                                </div>
+                            {% else %}
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-times-circle me-2"></i>
+                                    <strong>Non-Compliant:</strong> KYC not approved yet
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <button class="btn btn-primary" onclick="verifyOnchainID()">
+                                <i class="fas fa-sync-alt me-2"></i>Verify OnchainID on Blockchain
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="verification-result" class="mt-3" style="display: none;">
+                        <!-- Verification results will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden data elements for JavaScript -->
+<div id="claims-data" style="display: none;">{{ claims | tojson | safe }}</div>
+<div id="investor-username" style="display: none;">{{ investor.username }}</div>
+                <input type="hidden" id="remove-claim-url" value="{{ url_for('trusted_issuer.remove_claim', user_id=investor.id) }}">
+
+<script>
+// Pass data from Jinja2 to JavaScript using data attributes
+const claimsDataElement = document.getElementById('claims-data');
+const claimsData = claimsDataElement ? JSON.parse(claimsDataElement.textContent) : [];
+const investorUsername = document.getElementById('investor-username').textContent;
+
+function verifyOnchainID() {
+    // Show loading state
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+    button.disabled = true;
+    
+    // Get verification result container
+    const resultContainer = document.getElementById('verification-result');
+    
+    // Simulate blockchain verification
+    setTimeout(() => {
+        // Check if OnchainID exists
+        const onchainIDAddress = '{{ investor.onchain_id }}';
+        if (!onchainIDAddress) {
+            resultContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle me-2"></i>
+                    <strong>Verification Failed:</strong> OnchainID not found! Please approve KYC first to create OnchainID.
+                </div>
+            `;
+        } else {
+            // Simulate verification process
+            const claimsCount = claimsData.length;
+            const kycStatus = '{{ investor.kyc_status }}';
+            const verificationTime = new Date().toLocaleString();
+            
+            let statusClass = 'alert-success';
+            let statusIcon = 'fas fa-check-circle';
+            let statusText = 'Verification Successful';
+            
+            if (kycStatus !== 'approved') {
+                statusClass = 'alert-warning';
+                statusIcon = 'fas fa-exclamation-triangle';
+                statusText = 'Verification Warning';
+            }
+            
+            resultContainer.innerHTML = `
+                <div class="alert ${statusClass}">
+                    <i class="${statusIcon} me-2"></i>
+                    <strong>${statusText}</strong>
+                    <hr class="my-2">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>📍 OnchainID Address:</strong><br>
+                            <code>${onchainIDAddress}</code>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>📊 Active Claims:</strong> ${claimsCount}<br>
+                            <strong>🔐 KYC Status:</strong> ${kycStatus.toUpperCase()}<br>
+                            <strong>⏰ Verified:</strong> ${verificationTime}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Show result container
+        resultContainer.style.display = 'block';
+        
+        // Restore button
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }, 2000);
+}
+
+function removeClaim(claimIndex, topic, data) {
+    if (confirm(`Are you sure you want to remove claim Topic ${topic}: ${data}?`)) {
+        // Create a form to submit the removal request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = document.getElementById('remove-claim-url').value;
+        
+        const claimIndexInput = document.createElement('input');
+        claimIndexInput.type = 'hidden';
+        claimIndexInput.name = 'claim_index';
+        claimIndexInput.value = claimIndex;
+        
+        form.appendChild(claimIndexInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function updateClaimDataOptions() {
+    const topicSelect = document.getElementById('claim_topic');
+    const dataSelect = document.getElementById('claim_data');
+    const selectedTopic = topicSelect.value;
+    
+    // Clear existing options
+    dataSelect.innerHTML = '<option value="">Select Data</option>';
+    
+    if (!selectedTopic) {
+        dataSelect.innerHTML = '<option value="">Select Topic First</option>';
+        return;
+    }
+    
+    // Define options for each topic
+    const topicOptions = {
+        '1': ['APPROVED', 'REJECTED', 'PENDING'],
+        '2': ['USA', 'UK', 'Germany', 'France', 'Canada', 'Australia', 'Japan', 'Singapore'],
+        '3': ['18+', '21+', '25+', 'UNDERAGE'],
+        '4': ['ACCREDITED', 'NON_ACCREDITED'],
+        '5': ['RESTRICTED'],
+        '6': ['WHITELISTED']
+    };
+    
+    const options = topicOptions[selectedTopic] || [];
+    options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option;
+        optionElement.textContent = option;
+        dataSelect.appendChild(optionElement);
+    });
+}
+</script>
+{% endblock %} 

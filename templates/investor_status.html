@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Investor Status - Token Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-user-check me-2"></i>
+                        Investor Status Check
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if user %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Investor Information</h5>
+                                <p><strong>Wallet:</strong> <span class="wallet-address">{{ user.wallet_address }}</span></p>
+                                <p><strong>Email:</strong> {{ user.email or 'Not provided' }}</p>
+                                <p><strong>Registration Date:</strong> {{ user.created_at.strftime('%B %d, %Y') }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>KYC Status</h5>
+                                {% if user.kyc_status == 'approved' %}
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        <strong>Approved!</strong> You can now purchase tokens.
+                                    </div>
+                                {% elif user.kyc_status == 'pending' %}
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-clock me-2"></i>
+                                        <strong>Pending Review</strong> Your KYC application is being reviewed.
+                                    </div>
+                                {% elif user.kyc_status == 'not_submitted' %}
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Not Submitted</strong> You have not submitted your KYC information yet.
+                                    </div>
+                                {% elif user.kyc_status == 'rejected' %}
+                                    <div class="alert alert-danger">
+                                        <i class="fas fa-times-circle me-2"></i>
+                                        <strong>Rejected</strong> Your KYC application was not approved.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if user.kyc_status == 'approved' %}
+                            <div class="text-center mt-4">
+                                <a href="{{ url_for('main.home') }}" class="btn btn-primary">
+                                    <i class="fas fa-coins me-2"></i>Browse Available Tokens
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center">
+                            <h5>Check Your KYC Status</h5>
+                            <p class="text-muted">Enter your wallet address to check your KYC status</p>
+                            
+                            <form method="GET" class="d-inline-block">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" name="wallet_address" 
+                                           placeholder="0x..." pattern="^0x[a-fA-F0-9]{40}$" required>
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="fas fa-search me-2"></i>Check Status
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

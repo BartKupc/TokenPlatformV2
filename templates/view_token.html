@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Token Details - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.home') }}">Home</a></li>
+                    <li class="breadcrumb-item active">Token Details</li>
+                </ol>
+            </nav>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">
+                            <i class="fas fa-coins me-2"></i>
+                            {{ token.name }} ({{ token.symbol }})
+                        </h3>
+                        <a href="{{ url_for('main.home') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Home
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Token Overview -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-info-circle me-2"></i>Token Overview
+                            </h5>
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td class="fw-bold">Name:</td>
+                                    <td>{{ token.name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Symbol:</td>
+                                    <td><span class="badge bg-primary">{{ token.symbol }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Total Supply:</td>
+                                                                            <td>{{ "{:,.0f}".format(token.total_supply|int) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Price per Token:</td>
+                                    <td>${{ "%.2f"|format(token.price_per_token) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Issuer:</td>
+                                    <td><span class="wallet-address">{{ token.issuer_address }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Deployed:</td>
+                                    <td>{{ token.deployed_at.strftime('%B %d, %Y at %I:%M %p') }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-link me-2"></i>Contract Address
+                            </h5>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <code class="text-break">{{ token.token_address }}</code>
+                                    <button class="btn btn-sm btn-outline-primary ms-2" data-address="{{ token.token_address }}" onclick="navigator.clipboard.writeText(this.dataset.address)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {% if token.description %}
+                            <div class="mt-3">
+                                <h6 class="text-muted">Description:</h6>
+                                <p class="text-muted">{{ token.description }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Agent and Claim Configuration -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-users-cog me-2"></i>Agent Configuration
+                            </h5>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td class="fw-bold">Identity Registry Agent:</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ token.ir_agent.title() }}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Token Agent:</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ token.token_agent.title() }}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Claim Issuer Type:</td>
+                                    <td>
+                                        <span class="badge bg-warning">{{ token.claim_issuer_type.replace('_', ' ').title() }}</span>
+                                    </td>
+                                </tr>
+                                {% if claim_issuer %}
+                                <tr>
+                                    <td class="fw-bold">Trusted Issuer:</td>
+                                    <td>
+                                        <span class="badge bg-info">{{ claim_issuer.username }}</span>
+                                        <br><small class="text-muted">{{ claim_issuer.wallet_address[:10] }}...{{ claim_issuer.wallet_address[-8:] }}</small>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-certificate me-2"></i>Required Claim Topics
+                            </h5>
+                            {% if token.claim_topics %}
+                                {% set claim_topics = token.claim_topics | from_json %}
+                                <div class="row">
+                                    {% for topic in claim_topics %}
+                                    <div class="col-6 mb-2">
+                                        {% if topic == "1" %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle me-1"></i>KYC Status (Topic 1)
+                                            </span>
+                                        {% elif topic == "2" %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-globe me-1"></i>Nationality (Topic 2)
+                                            </span>
+                                        {% elif topic == "3" %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-birthday-cake me-1"></i>Age Verification (Topic 3)
+                                            </span>
+                                        {% elif topic == "4" %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-star me-1"></i>Accredited Investor (Topic 4)
+                                            </span>
+                                        {% elif topic == "5" %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-home me-1"></i>Residency (Topic 5)
+                                            </span>
+                                        {% elif topic == "6" %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-shield-alt me-1"></i>Compliance (Topic 6)
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-certificate me-1"></i>Custom Topic {{ topic }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    No claim topics configured
+                                </div>
+                            {% endif %}
+                        </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Token Summary -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-chart-bar me-2"></i>Token Summary
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-3 text-center">
+                                            <div class="border-end">
+                                                <h4 class="text-primary mb-1">{{ "{:,.0f}".format(token.total_supply|int) }}</h4>
+                                                <small class="text-muted">Total Supply</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 text-center">
+                                            <div class="border-end">
+                                                <h4 class="text-success mb-1">${{ "%.2f"|format(token.price_per_token) }}</h4>
+                                                <small class="text-muted">Price per Token</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 text-center">
+                                            <div class="border-end">
+                                                <h4 class="text-info mb-1">{{ claim_topics|length }}</h4>
+                                                <small class="text-muted">Required Claims</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 text-center">
+                                            <div>
+                                                <h4 class="text-warning mb-1">{{ token.claim_issuer_type.replace('_', ' ').title() }}</h4>
+                                                <small class="text-muted">Claim Issuer</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- On-Chain Verification -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-shield-alt me-2"></i>On-Chain Verification
+                            </h5>
+                            
+                            {% if onchain_data.error %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Verification Error:</strong> {{ onchain_data.error }}
+                                    <br><small class="text-muted">This might be because the token is a mock deployment for testing purposes.</small>
+                                </div>
+                            {% elif onchain_data.exists %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <strong>✅ Token Verified on Blockchain!</strong>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-success">On-Chain Data:</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td class="fw-bold">Name:</td>
+                                                <td>{{ onchain_data.name }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Symbol:</td>
+                                                <td>{{ onchain_data.symbol }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Total Supply:</td>
+                                                <td>{{ "{:,.0f}".format(onchain_data.total_supply|int) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Decimals:</td>
+                                                <td>{{ onchain_data.decimals }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Owner:</td>
+                                                <td><span class="wallet-address">{{ onchain_data.owner }}</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Current Block:</td>
+                                                <td>{{ "{:,}".format(onchain_data.block_number|int) }}</td>
+                                            </tr>
+                                            {% if onchain_data.compliance_address %}
+                                            <tr>
+                                                <td class="fw-bold">Compliance Address:</td>
+                                                <td><span class="wallet-address">{{ onchain_data.compliance_address }}</span></td>
+                                            </tr>
+                                            {% endif %}
+                                            {% if onchain_data.identity_registry %}
+                                            <tr>
+                                                <td class="fw-bold">Identity Registry:</td>
+                                                <td><span class="wallet-address">{{ onchain_data.identity_registry }}</span></td>
+                                            </tr>
+                                            {% endif %}
+                                        </table>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <h6 class="text-info">Data Comparison:</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td class="fw-bold">Name Match:</td>
+                                                <td>
+                                                    {% if token.name == onchain_data.name %}
+                                                        <span class="badge bg-success">✅ Match</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">❌ Mismatch</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Symbol Match:</td>
+                                                <td>
+                                                    {% if token.symbol == onchain_data.symbol %}
+                                                        <span class="badge bg-success">✅ Match</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">❌ Mismatch</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Supply Match:</td>
+                                                <td>
+                                                    {% if token.total_supply|int == onchain_data.total_supply|int %}
+                                                        <span class="badge bg-success">✅ Match</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">❌ Mismatch</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="fw-bold">Claim Topics:</td>
+                                                <td>
+                                                    {% if onchain_data.claim_topics %}
+                                                        <span class="badge bg-success">{{ onchain_data.claim_topics|length }} Topics</span>
+                                                    {% else %}
+                                                        <span class="badge bg-warning">No Topics</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Mock Token:</strong> This appears to be a test token that hasn't been deployed to the blockchain yet.
+                                    <br><small class="text-muted">Real token deployment will be implemented in the next phase.</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="d-flex gap-2">
+                                <a href="{{ url_for('investor.onboarding') }}" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-2"></i>Complete KYC to Invest
+                                </a>
+                                {% if session.get('user_type') == 'issuer' and session.get('wallet_address') == token.issuer_address %}
+                                <a href="{{ url_for('issuer.dashboard') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-cog me-2"></i>Manage Token
+                                </a>
+                                {% endif %}
+                                <button class="btn btn-outline-info" onclick="location.reload()">
+                                    <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Copy to clipboard functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Add any additional JavaScript here
+});
+</script>
+{% endblock %} 

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Test Token Platform - ERC-3643 Compliant Security Tokens{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Hero Section -->
+    <div class="row bg-primary text-white py-5">
+        <div class="col-12 text-center">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-coins me-3"></i>
+                Test Token Platform
+            </h1>
+            <div class="mb-3">
+                <a href="/" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-plus me-1"></i>New Tab Session
+                </a>
+                {% if current_user %}
+                    <span class="badge bg-light text-dark ms-2">
+                        <i class="fas fa-user me-1"></i>{{ current_user.username }} ({{ current_user.user_type }})
+                    </span>
+                {% endif %}
+            </div>
+            <p class="lead mb-4">ERC-3643 Compliant Security Token Platform</p>
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <p class="mb-4">
+                        A comprehensive platform for deploying, managing, and trading compliant security tokens 
+                        built on the ERC-3643 (T-REX) standard. Complete with KYC verification, compliance management, 
+                        and investor onboarding.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Role Selection Section -->
+    <div class="row py-5">
+        <div class="col-12 text-center mb-5">
+            <h2>Choose Your Role</h2>
+            <p class="text-muted">Select your role to access the appropriate platform features</p>
+        </div>
+        
+        <!-- Admin Role -->
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 text-center role-card">
+                <div class="card-body">
+                    <i class="fas fa-crown fa-3x text-warning mb-3"></i>
+                    <h5 class="card-title">Admin</h5>
+                    <p class="card-text">Platform oversight, user management, and compliance monitoring.</p>
+                    <ul class="list-unstyled text-start small">
+                        <li><i class="fas fa-check text-success me-2"></i>User role management</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Platform compliance</li>
+                        <li><i class="fas fa-check text-success me-2"></i>System monitoring</li>
+                    </ul>
+                    <a href="{{ url_for('admin.login', tab_session=tab_session_id) }}" class="btn btn-warning">
+                        <i class="fas fa-sign-in-alt me-2"></i>Login as Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Issuer Role -->
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 text-center role-card">
+                <div class="card-body">
+                    <i class="fas fa-building fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Issuer</h5>
+                    <p class="card-text">Deploy and manage security tokens, approve investor requests.</p>
+                    <ul class="list-unstyled text-start small">
+                        <li><i class="fas fa-check text-success me-2"></i>Token deployment</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Investor approval</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Token operations</li>
+                    </ul>
+                    <a href="{{ url_for('issuer.login', tab_session=tab_session_id) }}" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt me-2"></i>Login as Issuer
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trusted Issuer Role -->
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 text-center role-card">
+                <div class="card-body">
+                    <i class="fas fa-user-shield fa-3x text-info mb-3"></i>
+                    <h5 class="card-title">Trusted Issuer</h5>
+                    <p class="card-text">KYC verification and OnchainID creation for investors.</p>
+                    <ul class="list-unstyled text-start small">
+                        <li><i class="fas fa-check text-success me-2"></i>KYC approval</li>
+                        <li><i class="fas fa-check text-success me-2"></i>OnchainID creation</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Investor verification</li>
+                    </ul>
+                    <a href="{{ url_for('trusted_issuer.login', tab_session=tab_session_id) }}" class="btn btn-info">
+                        <i class="fas fa-sign-in-alt me-2"></i>Login as Trusted Issuer
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Investor Role -->
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card h-100 text-center role-card">
+                <div class="card-body">
+                    <i class="fas fa-user fa-3x text-success mb-3"></i>
+                    <h5 class="card-title">Investor</h5>
+                    <p class="card-text">Browse tokens, complete KYC, and express investment interest.</p>
+                    <ul class="list-unstyled text-start small">
+                        <li><i class="fas fa-check text-success me-2"></i>KYC onboarding</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Token browsing</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Investment requests</li>
+                    </ul>
+                    <a href="{{ url_for('investor.login', tab_session=tab_session_id) }}" class="btn btn-success">
+                        <i class="fas fa-sign-in-alt me-2"></i>Login as Investor
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registration CTA -->
+    <div class="row py-5 bg-light">
+        <div class="col-12 text-center">
+            <h3>New to the Platform?</h3>
+            <p class="lead mb-4">Register for an account to get started with your chosen role.</p>
+                            <a href="{{ url_for('auth.register') }}" class="btn btn-lg btn-primary">
+                <i class="fas fa-user-plus me-2"></i>Register Now
+            </a>
+        </div>
+    </div>
+
+    <!-- Available Tokens Section -->
+    <div class="row py-5">
+        <div class="col-12">
+            <h2 class="text-center mb-5">Available Tokens</h2>
+            {% if tokens %}
+                <div class="row">
+                    {% for token in tokens %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card token-card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ token.name }} ({{ token.symbol }})</h5>
+                                <p class="card-text">{{ token.description[:100] }}{% if token.description|length > 100 %}...{% endif %}</p>
+                                <ul class="list-unstyled">
+                                    <li><strong>Total Supply:</strong> <span class="fw-bold">{{ "{:,.0f}".format(token.total_supply|int) }}</span></li>
+                                    <li><strong>Price:</strong> ${{ "%.2f"|format(token.price_per_token) }}</li>
+                                    <li><strong>Deployed:</strong> {{ token.deployed_at.strftime('%Y-%m-%d') }}</li>
+                                </ul>
+                                <div class="d-flex gap-2">
+                                    <a href="{{ url_for('token.view', token_id=token.id) }}" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-eye me-1"></i>View Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center">
+                    <i class="fas fa-coins fa-3x text-muted mb-3"></i>
+                    <h5>No Tokens Available</h5>
+                    <p class="text-muted">Tokens will appear here once deployed by issuers.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Function to add tab session to all internal links
+function addTabSessionToLinks() {
+    const tabSessionId = '{{ tab_session_id }}';
+    if (tabSessionId) {
+        // Add tab_session parameter to all internal links
+        document.querySelectorAll('a[href^="/"]').forEach(link => {
+            const url = new URL(link.href, window.location.origin);
+            if (!url.searchParams.has('tab_session')) {
+                url.searchParams.set('tab_session', tabSessionId);
+                link.href = url.toString();
+            }
+        });
+    }
+}
+
+// Run when page loads
+document.addEventListener('DOMContentLoaded', addTabSessionToLinks);
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.role-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid transparent;
+}
+
+.role-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border-color: #007bff;
+}
+
+.role-card .card-body {
+    padding: 2rem 1.5rem;
+}
+
+.role-card .btn {
+    margin-top: 1rem;
+    width: 100%;
+}
+</style>
+{% endblock %} 

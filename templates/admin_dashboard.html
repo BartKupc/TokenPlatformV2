@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Token Platform{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Admin Panel
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action active">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('admin.blockchain_verification', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Blockchain Verification
+                        </a>
+                        <a href="{{ url_for('admin.transaction_history', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-history me-2"></i>
+                            Transaction History
+                        </a>
+                        <a href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-check me-2"></i>
+                            Trusted Issuer Approvals
+                        </a>
+                        <a href="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-id-card me-2"></i>
+                            OnchainID Dashboard
+                        </a>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h1 class="mb-4">
+                <i class="fas fa-tachometer-alt me-2"></i>
+                Admin Dashboard
+            </h1>
+    
+    <!-- Pending KYC Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-clock me-2"></i>
+                        Claims Pending Verification ({{ pending_kyc|length }})
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if pending_kyc %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>User Type</th>
+                                        <th>Wallet Address</th>
+                                        <th>Email</th>
+                                        <th>Registration Date</th>
+                                        <th>Claim Type</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for user in pending_kyc %}
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-{% if user.user_type == 'investor' %}success{% elif user.user_type == 'trusted_issuer' %}info{% else %}primary{% endif %}">
+                                                {{ user.user_type.title() }}
+                                            </span>
+                                        </td>
+                                        <td><span class="wallet-address">{{ user.wallet_address }}</span></td>
+                                        <td>{{ user.email or 'Not provided' }}</td>
+                                        <td>{{ user.created_at.strftime('%B %d, %Y') }}</td>
+                                        <td>
+                                            {% if user.user_type == 'investor' %}
+                                                <span class="badge bg-warning">KYC Verification</span>
+                                            {% elif user.user_type == 'trusted_issuer' %}
+                                                <span class="badge bg-info">Claim Capabilities</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">General</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if user.user_type == 'investor' %}
+                                                <a href="{{ url_for('admin.onchain_claims_check', user_id=user.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-primary btn-sm me-1">
+                                                    <i class="fas fa-link me-1"></i>On-Chain Check
+                                                </a>
+                                                <a href="{{ url_for('admin.approve_kyc', user_id=user.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-success btn-sm">
+                                                    <i class="fas fa-check me-1"></i>Approve KYC
+                                                </a>
+                                            {% elif user.user_type == 'trusted_issuer' %}
+                                                <a href="{{ url_for('admin.onchain_claims_check', user_id=user.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-primary btn-sm me-1">
+                                                    <i class="fas fa-link me-1"></i>On-Chain Check
+                                                </a>
+                                                <a href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}" 
+                                                   class="btn btn-info btn-sm">
+                                                    <i class="fas fa-certificate me-1"></i>Review Claims
+                                                </a>
+                                            {% else %}
+                                                <a href="{{ url_for('admin.onchain_claims_check', user_id=user.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-primary btn-sm me-1">
+                                                    <i class="fas fa-link me-1"></i>On-Chain Check
+                                                </a>
+                                                <a href="{{ url_for('admin.approve_kyc', user_id=user.id, tab_session=tab_session_id) }}" 
+                                                   class="btn btn-success btn-sm">
+                                                    <i class="fas fa-check me-1"></i>Approve
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                            <p class="text-muted">No claims pending verification</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tokens Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-coins me-2"></i>
+                        Deployed Tokens ({{ tokens|length }})
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if tokens %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Token Name</th>
+                                        <th>Symbol</th>
+                                        <th>Total Supply</th>
+                                        <th>Issuer</th>
+                                        <th>Deployed Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for token in tokens %}
+                                    <tr>
+                                        <td>{{ token.name }}</td>
+                                        <td><span class="badge bg-primary">{{ token.symbol }}</span></td>
+                                        <td>{{ "{:,.0f}".format(token.total_supply|int) }}</td>
+                                        <td><span class="wallet-address">{{ token.issuer_address[:6] }}...{{ token.issuer_address[-4:] }}</span></td>
+                                        <td>{{ token.deployed_at.strftime('%B %d, %Y') }}</td>
+                                        <td>
+                                            <a href="{{ url_for('token.view', token_id=token.id, tab_session=tab_session_id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-coins fa-2x text-muted mb-2"></i>
+                            <p class="text-muted">No tokens deployed yet</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

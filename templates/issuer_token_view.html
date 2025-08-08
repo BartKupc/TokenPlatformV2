@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}View Token - {{ token.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <nav class="nav flex-column">
+                <!-- Dashboard -->
+                <a class="nav-link" href="{{ url_for('issuer.dashboard') }}">
+                    <i class="fas fa-tachometer-alt"></i>Dashboard
+                </a>
+                
+                <!-- Back to Dashboard -->
+                <div class="mt-3">
+                    <a class="nav-link" href="{{ url_for('issuer.dashboard') }}">
+                        <i class="fas fa-arrow-left"></i>Back to Dashboard
+                    </a>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10 main-content">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-eye me-2"></i>
+                        View Token: {{ token.name }} ({{ token.symbol }})
+                    </h1>
+                    <p class="text-muted mb-0">
+                        Token Details
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('issuer.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Token Overview -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-coins me-2"></i>
+                                Token Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Basic Information</h6>
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Name:</strong></td>
+                                            <td>{{ token.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Symbol:</strong></td>
+                                            <td><span class="badge bg-primary">{{ token.symbol }}</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Total Supply:</strong></td>
+                                            <td>{{ "{:,.0f}".format(token.total_supply|int) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Price per Token:</strong></td>
+                                            <td>${{ "%.2f"|format(token.price_per_token) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Description:</strong></td>
+                                            <td>{{ token.description or 'No description provided' }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Contract Information</h6>
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Token Address:</strong></td>
+                                            <td><code>{{ token.token_address or 'Not deployed yet' }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Identity Registry:</strong></td>
+                                            <td><code>{{ token.identity_registry_address or 'Not available' }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Compliance:</strong></td>
+                                            <td><code>{{ token.compliance_address or 'Not available' }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Claim Topics Registry:</strong></td>
+                                            <td><code>{{ token.claim_topics_registry_address or 'Not available' }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Trusted Issuers Registry:</strong></td>
+                                            <td><code>{{ token.trusted_issuers_registry_address or 'Not available' }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Issuer Address:</strong></td>
+                                            <td><code>{{ token.issuer_address[:6] }}...{{ token.issuer_address[-4:] }}</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Deployed At:</strong></td>
+                                            <td>{{ token.deployed_at.strftime('%B %d, %Y at %I:%M %p') if token.deployed_at else 'Not deployed yet' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>IR Agent:</strong></td>
+                                            <td>{{ token.ir_agent }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Token Agent:</strong></td>
+                                            <td>{{ token.token_agent }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- Claim Topics -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h6>Required Claims</h6>
+                                    {% if token.claim_topics %}
+                                        <div class="d-flex flex-wrap gap-2">
+                                            {% for topic in token.claim_topics.split(',') %}
+                                                <span class="badge bg-info">{{ topic.strip() }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">No claims configured</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-flex gap-2">
+                        {% if token.issuer_address == user.wallet_address %}
+                            <a href="{{ url_for('issuer.dashboard') }}?token_id={{ token.id }}" class="btn btn-primary">
+                                <i class="fas fa-cog me-2"></i>Manage Token
+                            </a>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>View Only:</strong> This token is owned by another issuer. 
+                                You can view the details but cannot manage it.
+                            </div>
+                        {% endif %}
+                        <a href="{{ url_for('issuer.dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

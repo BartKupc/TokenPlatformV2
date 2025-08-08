@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Trusted Issuer Approvals{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="list-group">
+                <a href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                </a>
+                <a href="{{ url_for('admin.blockchain_verification', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-link me-2"></i>Blockchain Verification
+                </a>
+                <a href="{{ url_for('admin.transaction_history', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-history me-2"></i>Transaction History
+                </a>
+                <a href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action active">
+                    <i class="fas fa-user-check me-2"></i>Trusted Issuer Approvals
+                </a>
+                <a href="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                    <i class="fas fa-id-card me-2"></i>OnchainID Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-user-check me-2"></i>Trusted Issuer Approvals</h2>
+            </div>
+
+            <!-- Pending Approvals -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock text-warning me-2"></i>Pending Approvals ({{ pending_approvals|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_approvals %}
+                        {% for approval in pending_approvals %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6>{{ approval.trusted_issuer.username }}</h6>
+                                    <p class="text-muted mb-2">
+                                        <strong>Wallet:</strong> {{ approval.trusted_issuer.wallet_address }}<br>
+                                        <strong>Requested:</strong> {{ approval.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                    </p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <button type="button" class="btn btn-success btn-sm me-2" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#approvalModal{{ approval.id }}">
+                                        <i class="fas fa-check me-1"></i>Review & Approve
+                                    </button>
+                                    <form method="POST" action="{{ url_for('admin.reject_trusted_issuer', approval_id=approval.id, tab_session=tab_session_id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to reject this trusted issuer?')">
+                                            <i class="fas fa-times me-1"></i>Reject
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No pending approval requests.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approved Trusted Issuers -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle text-success me-2"></i>Approved Trusted Issuers ({{ approved_approvals|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if approved_approvals %}
+                        {% for approval in approved_approvals %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6>{{ approval.trusted_issuer.username }}</h6>
+                                    <p class="text-muted mb-2">
+                                        <strong>Email:</strong> {{ approval.trusted_issuer.email }}<br>
+                                        <strong>Wallet:</strong> {{ approval.trusted_issuer.wallet_address }}<br>
+                                        <strong>Approved:</strong> {{ approval.approved_at.strftime('%Y-%m-%d %H:%M') if approval.approved_at else 'N/A' }}<br>
+                                        <strong>By:</strong> {{ approval.approver.username if approval.approver else 'N/A' }}
+                                    </p>
+                                    
+                                    <div class="mt-3">
+                                        <h6>Approved Capabilities:</h6>
+                                        <div class="row">
+                                            {% set capabilities_data = approval.requested_capabilities|from_json %}
+                                            {% if capabilities_data is mapping and capabilities_data.approved_capabilities %}
+                                                {% for capability in capabilities_data.approved_capabilities %}
+                                                    {% set topic, data = capability.split(':') %}
+                                                    <div class="col-md-6">
+                                                        <span class="badge bg-success me-2 mb-1">
+                                                            Topic {{ topic }}: {{ data }}
+                                                        </span>
+                                                    </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <div class="col-12">
+                                                    <span class="text-muted">No approved capabilities recorded</span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <span class="badge bg-success">Approved</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No approved trusted issuers.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Rejected Trusted Issuers -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-times-circle text-danger me-2"></i>Rejected Trusted Issuers ({{ rejected_approvals|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if rejected_approvals %}
+                        {% for approval in rejected_approvals %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6>{{ approval.trusted_issuer.username }}</h6>
+                                    <p class="text-muted mb-2">
+                                        <strong>Email:</strong> {{ approval.trusted_issuer.email }}<br>
+                                        <strong>Wallet:</strong> {{ approval.trusted_issuer.wallet_address }}<br>
+                                        <strong>Rejected:</strong> {{ approval.approved_at.strftime('%Y-%m-%d %H:%M') if approval.approved_at else 'N/A' }}<br>
+                                        <strong>By:</strong> {{ approval.approver.username if approval.approver else 'N/A' }}
+                                    </p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <span class="badge bg-danger">Rejected</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No rejected trusted issuers.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approval Modals -->
+{% for approval in pending_approvals %}
+<div class="modal fade" id="approvalModal{{ approval.id }}" tabindex="-1" aria-labelledby="approvalModalLabel{{ approval.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="approvalModalLabel{{ approval.id }}">
+                    <i class="fas fa-user-check me-2"></i>Review & Approve Trusted Issuer
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.approve_trusted_issuer', approval_id=approval.id, tab_session=tab_session_id) }}">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6>Trusted Issuer Information</h6>
+                            <p><strong>Username:</strong> {{ approval.trusted_issuer.username }}</p>
+                            <p><strong>Wallet:</strong> {{ approval.trusted_issuer.wallet_address }}</p>
+                            <p><strong>Requested:</strong> {{ approval.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Additional Capabilities</h6>
+                        <p class="text-muted">Select claim capabilities to grant:</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="1:KYC_STATUS" id="additional_kyc{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_kyc{{ approval.id }}">
+                                        <strong>Topic 1:</strong> KYC Status
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="2:NATIONALITY" id="additional_nationality{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_nationality{{ approval.id }}">
+                                        <strong>Topic 2:</strong> Nationality
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="3:AGE_VERIFICATION" id="additional_age{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_age{{ approval.id }}">
+                                        <strong>Topic 3:</strong> Age Verification
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="4:ACCREDITED" id="additional_accredited{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_accredited{{ approval.id }}">
+                                        <strong>Topic 4:</strong> Accredited Investor
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="5:RESTRICTED_STATUS" id="additional_restricted{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_restricted{{ approval.id }}">
+                                        <strong>Topic 5:</strong> Restricted Status
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="6:WHITELISTED_STATUS" id="additional_whitelisted{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_whitelisted{{ approval.id }}">
+                                        <strong>Topic 6:</strong> Whitelisted Status
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-2"></i>Approve Selected Capabilities
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %} 
