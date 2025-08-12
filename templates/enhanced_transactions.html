@@ -39,7 +39,11 @@
                                     <tr>
                                         <td>
                                             <small class="text-muted">
-                                                {{ transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                                {% if transaction.created_at is number %}
+                                                    {{ (transaction.created_at | int) | datetime }}
+                                                {% else %}
+                                                    {{ transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                                {% endif %}
                                             </small>
                                         </td>
                                         <td>

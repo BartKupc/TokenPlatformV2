@@ -267,7 +267,7 @@ class TREXDeployment:
             
             # Add claim topics to ClaimTopicsRegistry
             print("🔧 Adding claim topics to ClaimTopicsRegistry...")
-            claim_topics_to_add = [1, 2, 3, 4, 7, 8]  # Common claim topics
+            claim_topics_to_add = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]  # All T-REX standard claim topics
             for topic in claim_topics_to_add:
                 try:
                     self.send_contract_transaction(claim_topics_registry, 

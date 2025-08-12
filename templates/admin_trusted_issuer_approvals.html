@@ -191,46 +191,74 @@
                             <div class="col-md-6">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="additional_capabilities" 
-                                           value="1:KYC_STATUS" id="additional_kyc{{ approval.id }}">
+                                           value="1:APPROVED" id="additional_kyc{{ approval.id }}">
                                     <label class="form-check-label" for="additional_kyc{{ approval.id }}">
-                                        <strong>Topic 1:</strong> KYC Status
+                                        <strong>Topic 1:</strong> KYC (Know Your Customer)
                                     </label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="additional_capabilities" 
-                                           value="2:NATIONALITY" id="additional_nationality{{ approval.id }}">
+                                           value="2:COMPLIANT" id="additional_nationality{{ approval.id }}">
                                     <label class="form-check-label" for="additional_nationality{{ approval.id }}">
-                                        <strong>Topic 2:</strong> Nationality
+                                        <strong>Topic 2:</strong> AML (Anti-Money Laundering)
                                     </label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="additional_capabilities" 
-                                           value="3:AGE_VERIFICATION" id="additional_age{{ approval.id }}">
+                                           value="3:ACCREDITED" id="additional_age{{ approval.id }}">
                                     <label class="form-check-label" for="additional_age{{ approval.id }}">
-                                        <strong>Topic 3:</strong> Age Verification
+                                        <strong>Topic 3:</strong> Accredited Investor
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="4:CONFIRMED" id="additional_accredited{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_accredited{{ approval.id }}">
+                                        <strong>Topic 4:</strong> EU Nationality Confirmed
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="5:CONFIRMED" id="additional_restricted{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_restricted{{ approval.id }}">
+                                        <strong>Topic 5:</strong> US Nationality Confirmed
                                     </label>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="additional_capabilities" 
-                                           value="4:ACCREDITED" id="additional_accredited{{ approval.id }}">
-                                    <label class="form-check-label" for="additional_accredited{{ approval.id }}">
-                                        <strong>Topic 4:</strong> Accredited Investor
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
-                                           value="5:RESTRICTED_STATUS" id="additional_restricted{{ approval.id }}">
-                                    <label class="form-check-label" for="additional_restricted{{ approval.id }}">
-                                        <strong>Topic 5:</strong> Restricted Status
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
-                                           value="6:WHITELISTED_STATUS" id="additional_whitelisted{{ approval.id }}">
+                                           value="6:CLEAN" id="additional_whitelisted{{ approval.id }}">
                                     <label class="form-check-label" for="additional_whitelisted{{ approval.id }}">
-                                        <strong>Topic 6:</strong> Whitelisted Status
+                                        <strong>Topic 6:</strong> Blacklist
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="7:NON_RESIDENT" id="additional_residency{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_residency{{ approval.id }}">
+                                        <strong>Topic 7:</strong> Residency
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="8:COMPLIANT" id="additional_compliance_status{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_compliance_status{{ approval.id }}">
+                                        <strong>Topic 8:</strong> Compliance Status
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="9:UNRESTRICTED" id="additional_restricted_status{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_restricted_status{{ approval.id }}">
+                                        <strong>Topic 9:</strong> Restricted Status
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="additional_capabilities" 
+                                           value="10:NOT_WHITELISTED" id="additional_whitelisted_status{{ approval.id }}">
+                                    <label class="form-check-label" for="additional_whitelisted_status{{ approval.id }}">
+                                        <strong>Topic 10:</strong> Whitelisted Status
                                     </label>
                                 </div>
                             </div>

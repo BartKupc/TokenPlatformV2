@@ -31,6 +31,7 @@ from routes.trusted_issuer import trusted_issuer_bp
 from routes.investor import investor_bp
 from routes.token import token_bp
 from routes.onchainid import onchainid_bp
+from routes.kyc_system import kyc_system_bp
 
 # Create Flask app
 app = Flask(__name__)
@@ -50,6 +51,7 @@ app.register_blueprint(trusted_issuer_bp)
 app.register_blueprint(investor_bp)
 app.register_blueprint(token_bp)
 app.register_blueprint(onchainid_bp)
+app.register_blueprint(kyc_system_bp)
 
 # Jinja2 filters
 @app.template_filter('datetime')

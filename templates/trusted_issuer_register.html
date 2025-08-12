@@ -72,52 +72,64 @@
                                         <div class="form-check mb-2">
                                             <input class="form-check-input" type="checkbox" id="cap_kyc_approved" name="claim_capabilities" value="1:APPROVED">
                                             <label class="form-check-label" for="cap_kyc_approved">
-                                                <i class="fas fa-check-circle text-success me-1"></i>KYC Status: APPROVED
+                                                <i class="fas fa-check-circle text-success me-1"></i>KYC (Know Your Customer): APPROVED
                                             </label>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_nationality_us" name="claim_capabilities" value="2:US">
-                                            <label class="form-check-label" for="cap_nationality_us">
-                                                <i class="fas fa-flag text-info me-1"></i>Nationality: US
+                                            <input class="form-check-input" type="checkbox" id="cap_aml_compliant" name="claim_capabilities" value="2:COMPLIANT">
+                                            <label class="form-check-label" for="cap_aml_compliant">
+                                                <i class="fas fa-shield-alt text-info me-1"></i>AML (Anti-Money Laundering): COMPLIANT
                                             </label>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_nationality_eu" name="claim_capabilities" value="2:EU">
-                                            <label class="form-check-label" for="cap_nationality_eu">
-                                                <i class="fas fa-flag text-info me-1"></i>Nationality: EU
+                                            <input class="form-check-input" type="checkbox" id="cap_accredited" name="claim_capabilities" value="3:ACCREDITED">
+                                            <label class="form-check-label" for="cap_accredited">
+                                                <i class="fas fa-star text-warning me-1"></i>Accredited Investor: ACCREDITED
                                             </label>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_age_18" name="claim_capabilities" value="3:18+">
-                                            <label class="form-check-label" for="cap_age_18">
-                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age: 18+
+                                            <input class="form-check-input" type="checkbox" id="cap_eu_nationality" name="claim_capabilities" value="4:CONFIRMED">
+                                            <label class="form-check-label" for="cap_eu_nationality">
+                                                <i class="fas fa-globe-europe text-info me-1"></i>EU Nationality: CONFIRMED
                                             </label>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_age_21" name="claim_capabilities" value="3:21+">
-                                            <label class="form-check-label" for="cap_age_21">
-                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age: 21+
+                                            <input class="form-check-input" type="checkbox" id="cap_us_nationality" name="claim_capabilities" value="5:CONFIRMED">
+                                            <label class="form-check-label" for="cap_us_nationality">
+                                                <i class="fas fa-flag-usa text-info me-1"></i>US Nationality: CONFIRMED
                                             </label>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <h6>Investment & Compliance Claims</h6>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_accredited" name="claim_capabilities" value="4:ACCREDITED">
-                                            <label class="form-check-label" for="cap_accredited">
-                                                <i class="fas fa-star text-warning me-1"></i>Accredited Investor: ACCREDITED
+                                            <input class="form-check-input" type="checkbox" id="cap_blacklist_clean" name="claim_capabilities" value="6:CLEAN">
+                                            <label class="form-check-label" for="cap_blacklist_clean">
+                                                <i class="fas fa-ban text-danger me-1"></i>Blacklist: CLEAN
                                             </label>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_compliance_pass" name="claim_capabilities" value="7:COMPLIANT">
-                                            <label class="form-check-label" for="cap_compliance_pass">
-                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance: COMPLIANT
+                                            <input class="form-check-input" type="checkbox" id="cap_residency" name="claim_capabilities" value="7:RESIDENT">
+                                            <label class="form-check-label" for="cap_residency">
+                                                <i class="fas fa-home text-info me-1"></i>Residency: RESIDENT
                                             </label>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="cap_whitelist" name="claim_capabilities" value="8:WHITELISTED">
+                                            <input class="form-check-input" type="checkbox" id="cap_compliance" name="claim_capabilities" value="8:COMPLIANT">
+                                            <label class="form-check-label" for="cap_compliance">
+                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance Status: COMPLIANT
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_restricted" name="claim_capabilities" value="9:UNRESTRICTED">
+                                            <label class="form-check-label" for="cap_restricted">
+                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>Restricted Status: UNRESTRICTED
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="cap_whitelist" name="claim_capabilities" value="10:WHITELISTED">
                                             <label class="form-check-label" for="cap_whitelist">
-                                                <i class="fas fa-list-check text-primary me-1"></i>Whitelist: WHITELISTED
+                                                <i class="fas fa-list-check text-primary me-1"></i>Whitelisted Status: WHITELISTED
                                             </label>
                                         </div>
                                     </div>

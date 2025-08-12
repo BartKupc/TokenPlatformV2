@@ -497,15 +497,9 @@ class TREXService:
             
             claim_topics = token_info['token_info'].get('claim_topics', [])
             
-            # Map claim topics to human-readable names
-            claim_topic_names = {
-                1: 'KYC Status',
-                2: 'Nationality',
-                3: 'Residency',
-                4: 'Accreditation',
-                7: 'Compliance Status',
-                8: 'Transfer Restrictions'
-            }
+            # Import centralized claim topics configuration
+            from config.claim_topics import CLAIM_TOPICS
+            claim_topic_names = CLAIM_TOPICS
             
             required_claims = []
             for topic in claim_topics:
@@ -917,23 +911,49 @@ class TREXService:
                 # Get the created identity address
                 onchain_id_address = identity_factory.functions.getIdentity(wallet_address).call()
                 
-                # Index the initial management key (Account 0)
+                # Index the initial management key (the deployer's key hash)
                 try:
-                    from services.transaction_indexer import TransactionIndexer
-                    transaction_indexer = TransactionIndexer(self.web3_service)
+                    from services.onchainid_key_manager import OnchainIDKeyManager
+                    # Pass the Web3Service object, not the raw Web3 object
+                    key_manager = OnchainIDKeyManager(self.web3)
                     
-                    # Account 0 (deployer) is the initial management key
-                    transaction_indexer.index_onchainid_key(
+                    # The initial management key is the deployer's key hash (as set in createIdentityWithManagementKeys)
+                    # This is what gets stored on the blockchain
+                    deployer_key_hash = self.w3.keccak(
+                        self.w3.codec.encode(['address'], [deployer_address])
+                    ).hex()
+                    
+                    print(f"🔍 Indexing initial management key (deployer) for OnchainID {onchain_id_address}")
+                    print(f"🔍 Deployer address: {deployer_address}")
+                    print(f"🔍 Deployer key hash: {deployer_key_hash}")
+                    print(f"🔍 User getting OnchainID: {wallet_address}")
+                    
+                    # The management key owner is the deployer (Account 0), not the user who got the OnchainID
+                    # For the initial management key, the owner is always the deployer
+                    owner_type = 'Account 0'  # This represents the deployer who owns the management key
+                    owner_id = None  # No specific user ID for the deployer
+                    
+                    indexed_key_id = key_manager.index_management_key(
                         onchainid_address=onchain_id_address,
-                        wallet_address=deployer_address,  # Account 0
-                        key_hash=self.w3.keccak(self.w3.codec.encode(['address'], [deployer_address])).hex(),
-                        key_type='management',
-                        owner_type='admin'  # Account 0 is admin
+                        wallet_address=deployer_address,  # The deployer's wallet (initial management key)
+                        owner_type=owner_type,
+                        owner_id=owner_id,
+                        transaction_hash=tx_hash.hex(),
+                        key_hash=deployer_key_hash  # The deployer's key hash
                     )
                     
-                    print(f"✅ Indexed initial management key: {deployer_address} -> {onchain_id_address}")
+                    if indexed_key_id:
+                        print(f"✅ Successfully indexed initial management key (Account 0) for OnchainID {wallet_address}")
+                        print(f"✅ Deployer key hash: {deployer_key_hash}")
+                        print(f"✅ Database ID: {indexed_key_id}")
+                        print(f"✅ Management key owner: {owner_type} ({deployer_address})")
+                    else:
+                        print(f"❌ Failed to index initial management key (Account 0)")
+                        
                 except Exception as e:
                     print(f"⚠️ Error indexing initial management key: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
                 return {
                     'success': True,
@@ -1044,4 +1064,535 @@ class TREXService:
             return {
                 'success': False,
                 'error': str(e)
-            } 
+            }
+
+    def get_token_transactions(self, token_address, from_address=None, to_address=None, limit=50):
+        """
+        Get token transactions from blockchain using Transfer events
+        
+        Args:
+            token_address (str): Token contract address
+            from_address (str, optional): Filter by sender address
+            to_address (str, optional): Filter by recipient address
+            limit (int): Maximum number of transactions to return
+            
+        Returns:
+            list: List of transaction dictionaries
+        """
+        try:
+            print(f"🔍 Getting token transactions for: {token_address}")
+            
+            # Get token contract
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                print(f"❌ Token contract ABI not found for: {token_address}")
+                return []
+            
+            # Get Transfer events
+            transfer_filter = token_contract.events.Transfer.create_filter(
+                fromBlock=0,
+                toBlock='latest'
+            )
+            
+            events = transfer_filter.get_all_entries()
+            print(f"📊 Found {len(events)} Transfer events")
+            
+            transactions = []
+            for event in events[-limit:]:  # Get most recent events
+                try:
+                    # Get transaction details
+                    tx_hash = event['transactionHash'].hex()
+                    tx_receipt = self.w3.eth.get_transaction_receipt(tx_hash)
+                    tx = self.w3.eth.get_transaction(tx_hash)
+                    
+                    # Get block timestamp
+                    block = self.w3.eth.get_block(event['blockNumber'])
+                    
+                    # Determine transaction type
+                    tx_type = 'transfer'
+                    if event['args']['from'] == '0x0000000000000000000000000000000000000000':
+                        tx_type = 'mint'
+                    elif event['args']['to'] == '0x0000000000000000000000000000000000000000':
+                        tx_type = 'burn'
+                    
+                    # Format amount
+                    decimals = 18  # Default to 18
+                    try:
+                        decimals = token_contract.functions.decimals().call()
+                    except:
+                        pass
+                    
+                    amount_formatted = float(event['args']['value']) / (10 ** decimals)
+                    
+                    transaction = {
+                        'transaction_hash': tx_hash,
+                        'transaction_type': tx_type,
+                        'from_address': event['args']['from'],
+                        'to_address': event['args']['to'],
+                        'amount': event['args']['value'],
+                        'amount_formatted': amount_formatted,
+                        'executed_by_address': tx['from'],
+                        'block_number': event['blockNumber'],
+                        'timestamp': block.timestamp,
+                        'created_at': block.timestamp,  # For compatibility with template
+                        'notes': f"Block {event['blockNumber']}"
+                    }
+                    
+                    # Apply filters if specified
+                    if from_address and event['args']['from'].lower() != from_address.lower():
+                        continue
+                    if to_address and event['args']['to'].lower() != to_address.lower():
+                        continue
+                    
+                    transactions.append(transaction)
+                    
+                except Exception as e:
+                    print(f"⚠️ Error processing transaction {event['transactionHash'].hex()}: {e}")
+                    continue
+            
+            # Sort by timestamp (newest first)
+            transactions.sort(key=lambda x: x['timestamp'], reverse=True)
+            
+            print(f"✅ Returned {len(transactions)} token transactions")
+            return transactions
+            
+        except Exception as e:
+            print(f"❌ Error getting token transactions: {e}")
+            return []
+
+    def add_trusted_issuer_to_token(self, token_address, trusted_issuer_address, claim_topics):
+        """
+        Add a trusted issuer to a token's Identity Registry (TIR)
+        
+        This is equivalent to calling: tirAdmin.addTrustedIssuer(issuer2, [7])
+        
+        Args:
+            token_address (str): Token contract address
+            trusted_issuer_address (str): Trusted issuer wallet address
+            claim_topics (list): List of claim topic IDs this issuer can verify
+            
+        Returns:
+            dict: Success status and transaction details
+        """
+        try:
+            print(f"🔗 Adding trusted issuer {trusted_issuer_address} to token {token_address}")
+            print(f"   Claim topics: {claim_topics}")
+            
+            # Get the token's Identity Registry contract
+            # First, we need to get the Identity Registry address from the token
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Get the Identity Registry address from the token
+            try:
+                identity_registry_address = token_contract.functions.identityRegistry().call()
+                print(f"🔍 Found Identity Registry at: {identity_registry_address}")
+            except Exception as e:
+                print(f"❌ Error getting Identity Registry address: {e}")
+                return {'success': False, 'error': f'Could not get Identity Registry address: {str(e)}'}
+            
+            # Get the Identity Registry contract
+            identity_registry_contract = self.w3.eth.contract(
+                address=identity_registry_address,
+                abi=self.web3.contract_abis.get('IdentityRegistry', [])
+            )
+            
+            if not identity_registry_contract:
+                return {'success': False, 'error': 'Identity Registry ABI not found'}
+            
+            # Get the Trusted Issuers Registry address from the Identity Registry
+            try:
+                trusted_issuers_registry_address = identity_registry_contract.functions.issuersRegistry().call()
+                print(f"🔍 Found Trusted Issuers Registry at: {trusted_issuers_registry_address}")
+            except Exception as e:
+                print(f"❌ Error getting Trusted Issuers Registry address: {e}")
+                return {'success': False, 'error': f'Could not get Trusted Issuers Registry address: {str(e)}'}
+            
+            # Get the Trusted Issuers Registry contract
+            trusted_issuers_registry_contract = self.w3.eth.contract(
+                address=trusted_issuers_registry_address,
+                abi=self.web3.contract_abis.get('TrustedIssuersRegistry', [])
+            )
+            
+            if not trusted_issuers_registry_contract:
+                return {'success': False, 'error': 'Trusted Issuers Registry ABI not found'}
+            
+            # Convert claim topics to integers and ensure they're in the right format
+            claim_topics_int = [int(topic) for topic in claim_topics]
+            
+            # Check if trusted issuer already exists before adding
+            try:
+                # Check if the trusted issuer is already registered
+                existing_topics = trusted_issuers_registry_contract.functions.getTrustedIssuerClaimTopics(trusted_issuer_address).call()
+                if existing_topics and len(existing_topics) > 0:
+                    return {
+                        'success': False, 
+                        'error': f'Trusted issuer {trusted_issuer_address} already exists with topics {existing_topics}'
+                    }
+            except Exception as e:
+                print(f"🔍 Error checking existing trusted issuer: {e}")
+                # Continue anyway
+            
+            # Call addTrustedIssuer on the Trusted Issuers Registry
+            # This is the equivalent of: tirAdmin.addTrustedIssuer(issuer2, [7])
+            
+            # Use the current account from Web3Service (which should be the correct key after switching)
+            current_account = self.web3.default_account
+            
+            # Build the transaction
+            transaction = trusted_issuers_registry_contract.functions.addTrustedIssuer(
+                trusted_issuer_address,
+                claim_topics_int
+            ).build_transaction({
+                'from': current_account,
+                'nonce': self.w3.eth.get_transaction_count(current_account),
+                'gas': 500000,  # Increased gas limit
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send the transaction using the current private key
+            # This will be either Account 0's key or the issuer's key depending on ownership
+            print(f"🔧 Building transaction with gas: 500000, from: {current_account}")
+            print(f"🔧 Transaction data: {transaction}")
+            
+            # DEBUG: Check the exact function call
+            print(f"🔍 DEBUG: Function call details:")
+            print(f"   Function: addTrustedIssuer")
+            print(f"   Parameters: {trusted_issuer_address}, {claim_topics_int}")
+            print(f"   Contract: {trusted_issuers_registry_address}")
+            print(f"   Caller: {current_account}")
+            
+            # DEBUG: Try to estimate gas first
+            try:
+                estimated_gas = trusted_issuers_registry_contract.functions.addTrustedIssuer(
+                    trusted_issuer_address,
+                    claim_topics_int
+                ).estimate_gas({'from': current_account})
+                print(f"🔍 DEBUG: Estimated gas: {estimated_gas}")
+            except Exception as gas_error:
+                print(f"🔍 DEBUG: Gas estimation failed: {gas_error}")
+            
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            
+            # Wait for transaction confirmation
+            print(f"📤 Transaction sent with hash: {tx_hash.hex()}")
+            
+            # Wait for transaction confirmation
+            print(f"⏳ Waiting for transaction confirmation...")
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            print(f"📋 Transaction receipt: status={tx_receipt.status}, gasUsed={tx_receipt.gasUsed}")
+            
+            if tx_receipt.status == 1:
+                print(f"✅ Successfully added trusted issuer to Identity Registry")
+                print(f"   Transaction hash: {tx_hash.hex()}")
+                print(f"   Block number: {tx_receipt.blockNumber}")
+                
+                return {
+                    'success': True,
+                    'transaction_hash': tx_hash.hex(),
+                    'block_number': tx_receipt.blockNumber,
+                    'message': f'Trusted issuer {trusted_issuer_address} added successfully with topics {claim_topics_int}'
+                }
+            else:
+                print(f"❌ Transaction failed with status: {tx_receipt.status}")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"❌ Error adding trusted issuer to token: {str(e)}")
+            return {'success': False, 'error': f'Failed to add trusted issuer: {str(e)}'}
+
+    def remove_trusted_issuer_from_token(self, token_address, trusted_issuer_address):
+        """
+        Remove a trusted issuer from a token's Identity Registry (TIR)
+        
+        Args:
+            token_address (str): Token contract address
+            trusted_issuer_address (str): Trusted issuer wallet address to remove
+            
+        Returns:
+            dict: Success status and transaction details
+        """
+        try:
+            print(f"🔗 Removing trusted issuer {trusted_issuer_address} from token {token_address}")
+            
+            # Get the token's Identity Registry contract
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Get the Identity Registry address from the token
+            try:
+                identity_registry_address = token_contract.functions.identityRegistry().call()
+                print(f"🔍 Found Identity Registry at: {identity_registry_address}")
+            except Exception as e:
+                print(f"❌ Error getting Identity Registry address: {e}")
+                return {'success': False, 'error': f'Could not get Identity Registry address: {str(e)}'}
+            
+            # Get the Identity Registry contract
+            identity_registry_contract = self.w3.eth.contract(
+                address=identity_registry_address,
+                abi=self.web3.contract_abis.get('IdentityRegistry', [])
+            )
+            
+            if not identity_registry_contract:
+                return {'success': False, 'error': 'Identity Registry ABI not found'}
+            
+            # Get the Trusted Issuers Registry address from the Identity Registry
+            try:
+                trusted_issuers_registry_address = identity_registry_contract.functions.issuersRegistry().call()
+                print(f"🔍 Found Trusted Issuers Registry at: {trusted_issuers_registry_address}")
+            except Exception as e:
+                print(f"❌ Error getting Trusted Issuers Registry address: {e}")
+                return {'success': False, 'error': f'Could not get Trusted Issuers Registry address: {str(e)}'}
+            
+            # Get the Trusted Issuers Registry contract
+            trusted_issuers_registry_contract = self.w3.eth.contract(
+                address=trusted_issuers_registry_address,
+                abi=self.web3.contract_abis.get('TrustedIssuersRegistry', [])
+            )
+            
+            if not trusted_issuers_registry_contract:
+                return {'success': False, 'error': 'Trusted Issuers Registry ABI not found'}
+            
+            # Call removeTrustedIssuer on the Trusted Issuers Registry
+            print(f"🚀 Calling removeTrustedIssuer({trusted_issuer_address})")
+            
+            # IMPORTANT: The caller must be the OWNER of the TrustedIssuersRegistry
+            # This is typically the platform (Account 0), not the issuer
+            # We need to use the platform's account for this call
+            
+            # Use the current account from Web3Service (which should be the correct key after switching)
+            current_account = self.web3.default_account
+            print(f"🔑 Using current account: {current_account}")
+            
+            # Build the transaction
+            transaction = trusted_issuers_registry_contract.functions.removeTrustedIssuer(
+                trusted_issuer_address
+            ).build_transaction({
+                'from': current_account,
+                'nonce': self.w3.eth.get_transaction_count(current_account),
+                'gas': 100000,  # Adjust gas as needed
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send the transaction using the current private key
+            # This will be either Account 0's key or the issuer's key depending on ownership
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            
+            # Wait for transaction confirmation
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            if tx_receipt.status == 1:
+                print(f"✅ Successfully removed trusted issuer from Identity Registry")
+                print(f"   Transaction hash: {tx_hash.hex()}")
+                print(f"   Block number: {tx_receipt.blockNumber}")
+                
+                return {
+                    'success': True,
+                    'transaction_hash': tx_hash.hex(),
+                    'block_number': tx_receipt.blockNumber,
+                    'message': f'Trusted issuer {trusted_issuer_address} removed successfully'
+                }
+            else:
+                print(f"❌ Transaction failed")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"❌ Error removing trusted issuer from token: {str(e)}")
+            return {'success': False, 'error': f'Failed to remove trusted issuer: {str(e)}'}
+
+    def add_agent_to_token(self, token_address, agent_address, agent_type):
+        """
+        Add an agent to a token's smart contracts
+        
+        Args:
+            token_address (str): Token contract address
+            agent_address (str): Agent wallet address to add
+            agent_type (str): Type of agent ('ir_agent' or 'token_agent')
+            
+        Returns:
+            dict: Success status and transaction details
+        """
+        try:
+            print(f"🔗 Adding agent {agent_address} as {agent_type} to token {token_address}")
+            
+            # Get the token contract
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Get the Identity Registry address from the token
+            try:
+                identity_registry_address = token_contract.functions.identityRegistry().call()
+                print(f"🔍 Found Identity Registry at: {identity_registry_address}")
+            except Exception as e:
+                print(f"❌ Error getting Identity Registry address: {e}")
+                return {'success': False, 'error': f'Could not get Identity Registry address: {str(e)}'}
+            
+            # Add agent to the appropriate contract based on type
+            if agent_type == 'ir_agent':
+                # Add agent to Identity Registry
+                print(f"🚀 Adding agent to Identity Registry...")
+                contract = self.w3.eth.contract(
+                    address=identity_registry_address,
+                    abi=self.web3.contract_abis.get('IdentityRegistry', [])
+                )
+                
+            elif agent_type == 'token_agent':
+                # Add agent to Token contract
+                print(f"🚀 Adding agent to Token contract...")
+                contract = token_contract
+                
+            else:
+                return {'success': False, 'error': f'Invalid agent type: {agent_type}'}
+            
+            # Build the transaction
+            # IMPORTANT: The caller must have the appropriate permissions on the contract
+            # For agents, this is typically the platform (Account 0) or an existing agent
+            # In our current architecture, Account 0 represents the platform
+            platform_address = self.web3.default_account
+            print(f"🔑 Using platform account (Account 0): {platform_address}")
+            
+            transaction = contract.functions.addAgent(agent_address).build_transaction({
+                'from': platform_address,
+                'nonce': self.w3.eth.get_transaction_count(platform_address),
+                'gas': 150000,  # Adjust gas as needed
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send the transaction using the platform's private key
+            # This represents the platform acting on behalf of the issuer
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            
+            # Wait for transaction confirmation
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            if tx_receipt.status == 1:
+                print(f"✅ Successfully added agent to {agent_type}")
+                print(f"   Transaction hash: {tx_hash.hex()}")
+                print(f"   Block number: {tx_receipt.blockNumber}")
+                
+                return {
+                    'success': True,
+                    'transaction_hash': tx_hash.hex(),
+                    'block_number': tx_receipt.blockNumber,
+                    'message': f'Agent {agent_address} added successfully as {agent_type}'
+                }
+            else:
+                print(f"❌ Transaction failed")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"❌ Error adding agent to token: {str(e)}")
+            return {'success': False, 'error': f'Failed to add agent: {str(e)}'}
+
+    def remove_agent_from_token(self, token_address, agent_address, agent_type):
+        """
+        Remove an agent from a token's smart contracts
+        
+        Args:
+            token_address (str): Token contract address
+            agent_address (str): Agent wallet address to remove
+            agent_type (str): Type of agent ('ir_agent' or 'token_agent')
+            
+        Returns:
+            dict: Success status and transaction details
+        """
+        try:
+            print(f"🔗 Removing agent {agent_address} as {agent_type} from token {token_address}")
+            
+            # Get the token contract
+            token_contract = self.w3.eth.contract(
+                address=token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Get the Identity Registry address from the token
+            try:
+                identity_registry_address = token_contract.functions.identityRegistry().call()
+                print(f"🔍 Found Identity Registry at: {identity_registry_address}")
+            except Exception as e:
+                print(f"❌ Error getting Identity Registry address: {e}")
+                return {'success': False, 'error': f'Could not get Identity Registry address: {str(e)}'}
+            
+            # Remove agent from the appropriate contract based on type
+            if agent_type == 'ir_agent':
+                # Remove agent from Identity Registry
+                print(f"🚀 Removing agent from Identity Registry...")
+                contract = self.w3.eth.contract(
+                    address=identity_registry_address,
+                    abi=self.web3.contract_abis.get('IdentityRegistry', [])
+                )
+                
+            elif agent_type == 'token_agent':
+                # Remove agent from Token contract
+                print(f"🚀 Removing agent from Token contract...")
+                contract = token_contract
+                
+            else:
+                return {'success': False, 'error': f'Invalid agent type: {agent_type}'}
+            
+            # Build the transaction
+            # IMPORTANT: The caller must have the appropriate permissions on the contract
+            # For agents, this is typically the platform (Account 0) or an existing agent
+            # In our current architecture, Account 0 represents the platform
+            platform_address = self.web3.default_account
+            print(f"🔑 Using platform account (Account 0): {platform_address}")
+            
+            transaction = contract.functions.removeAgent(agent_address).build_transaction({
+                'from': platform_address,
+                'nonce': self.w3.eth.get_transaction_count(platform_address),
+                'gas': 150000,  # Adjust gas as needed
+                'gasPrice': self.w3.eth.gas_price
+            })
+            
+            # Sign and send the transaction using the platform's private key
+            # This represents the platform acting on behalf of the issuer
+            signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            
+            # Wait for transaction confirmation
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            if tx_receipt.status == 1:
+                print(f"✅ Successfully removed agent from {agent_type}")
+                print(f"   Transaction hash: {tx_hash.hex()}")
+                print(f"   Block number: {tx_receipt.blockNumber}")
+                
+                return {
+                    'success': True,
+                    'transaction_hash': tx_hash.hex(),
+                    'block_number': tx_receipt.blockNumber,
+                    'message': f'Agent {agent_address} removed successfully from {agent_type}'
+                }
+            else:
+                print(f"❌ Transaction failed")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"❌ Error removing agent from token: {str(e)}")
+            return {'success': False, 'error': f'Failed to remove agent: {str(e)}'} 

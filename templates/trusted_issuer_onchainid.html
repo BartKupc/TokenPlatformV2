@@ -187,6 +187,14 @@
                                                 <i class="fas fa-home text-info me-1"></i>Residency
                                             {% elif claim.topic == 6 %}
                                                 <i class="fas fa-shield-alt text-success me-1"></i>Compliance
+                                            {% elif claim.topic == 7 %}
+                                                <i class="fas fa-home text-info me-1"></i>Residency
+                                            {% elif claim.topic == 8 %}
+                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance Status
+                                            {% elif claim.topic == 9 %}
+                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>Restricted Status
+                                            {% elif claim.topic == 10 %}
+                                                <i class="fas fa-check-circle text-primary me-1"></i>Whitelisted Status
                                             {% else %}
                                                 <i class="fas fa-certificate text-secondary me-1"></i>Custom Claim
                                             {% endif %}
@@ -219,12 +227,16 @@
                             <i class="fas fa-info-circle me-2"></i>
                             <strong>Available Claim Topics:</strong>
                             <ul class="mb-0 mt-2">
-                                <li><strong>Topic 1:</strong> KYC Status (APPROVED/REJECTED/PENDING)</li>
-                                <li><strong>Topic 2:</strong> Nationality/Country</li>
-                                <li><strong>Topic 3:</strong> Age Verification (18+/21+/25+/UNDERAGE)</li>
-                                <li><strong>Topic 4:</strong> Accredited Investor Status (ACCREDITED/NON_ACCREDITED)</li>
-                                <li><strong>Topic 7:</strong> Restricted Status (RESTRICTED)</li>
-                                <li><strong>Topic 8:</strong> Whitelisted Status (WHITELISTED)</li>
+                                <li><strong>Topic 1:</strong> KYC (Know Your Customer) - APPROVED/REJECTED/PENDING</li>
+                                <li><strong>Topic 2:</strong> AML (Anti-Money Laundering) - COMPLIANT/NON_COMPLIANT/PENDING</li>
+                                <li><strong>Topic 3:</strong> Accredited Investor - ACCREDITED/NON_ACCREDITED</li>
+                                <li><strong>Topic 4:</strong> EU Nationality Confirmed - CONFIRMED/NOT_CONFIRMED</li>
+                                <li><strong>Topic 5:</strong> US Nationality Confirmed - CONFIRMED/NOT_CONFIRMED</li>
+                                <li><strong>Topic 6:</strong> Blacklist - CLEAN/BLACKLISTED</li>
+                                <li><strong>Topic 7:</strong> Residency - RESIDENT/NON_RESIDENT/PENDING</li>
+                                <li><strong>Topic 8:</strong> Compliance Status - COMPLIANT/NON_COMPLIANT/PENDING</li>
+                                <li><strong>Topic 9:</strong> Restricted Status - RESTRICTED/UNRESTRICTED</li>
+                                <li><strong>Topic 10:</strong> Whitelisted Status - WHITELISTED/NOT_WHITELISTED</li>
                             </ul>
                         </div>
                     {% else %}
@@ -247,12 +259,9 @@
                                             <label for="claim_topic" class="form-label">Claim Topic *</label>
                                             <select class="form-select" id="claim_topic" name="claim_topic" required onchange="updateClaimDataOptions()">
                                                 <option value="">Select Topic</option>
-                                                <option value="1">KYC Status (Topic 1)</option>
-                                                <option value="2">Nationality (Topic 2)</option>
-                                                <option value="3">Age Verification (Topic 3)</option>
-                                                <option value="4">Accredited Investor (Topic 4)</option>
-                                                <option value="5">Restricted Status (Topic 5)</option>
-                                                <option value="6">Whitelisted Status (Topic 6)</option>
+                                                {% for topic_id, topic_name in claim_topics %}
+                                                <option value="{{ topic_id }}">{{ topic_name }} - Topic {{ topic_id }}</option>
+                                                {% endfor %}
                                             </select>
                                         </div>
                                     </div>

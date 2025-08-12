@@ -98,48 +98,76 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="claim_kyc" name="claim_topics" value="1" checked>
+                                            <input class="form-check-input" type="checkbox" id="claim_kyc" name="claim_topics" value="1">
                                             <label class="form-check-label" for="claim_kyc">
-                                                <i class="fas fa-check-circle text-success me-1"></i>KYC Status (Topic 1)
+                                                <i class="fas fa-check-circle text-success me-1"></i>KYC (Know Your Customer) (Topic 1)
                                             </label>
                                             <small class="form-text text-muted d-block">Required: APPROVED</small>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="claim_nationality" name="claim_topics" value="2">
-                                            <label class="form-check-label" for="claim_nationality">
-                                                <i class="fas fa-globe text-info me-1"></i>Nationality (Topic 2)
+                                            <input class="form-check-input" type="checkbox" id="claim_aml" name="claim_topics" value="2">
+                                            <label class="form-check-label" for="claim_aml">
+                                                <i class="fas fa-shield-alt text-info me-1"></i>AML (Anti-Money Laundering) (Topic 2)
                                             </label>
-                                            <small class="form-text text-muted d-block">Required: Specific countries</small>
+                                            <small class="form-text text-muted d-block">Required: COMPLIANT</small>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="claim_age" name="claim_topics" value="3">
-                                            <label class="form-check-label" for="claim_age">
-                                                <i class="fas fa-birthday-cake text-warning me-1"></i>Age Verification (Topic 3)
+                                            <input class="form-check-input" type="checkbox" id="claim_accredited" name="claim_topics" value="3">
+                                            <label class="form-check-label" for="claim_accredited">
+                                                <i class="fas fa-star text-warning me-1"></i>Accredited Investor (Topic 3)
                                             </label>
-                                            <small class="form-text text-muted d-block">Required: Minimum age</small>
+                                            <small class="form-text text-muted d-block">Required: ACCREDITED status</small>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="claim_accredited" name="claim_topics" value="4">
-                                            <label class="form-check-label" for="claim_accredited">
-                                                <i class="fas fa-star text-warning me-1"></i>Accredited Investor (Topic 4)
+                                            <input class="form-check-input" type="checkbox" id="claim_eu_nationality" name="claim_topics" value="4">
+                                            <label class="form-check-label" for="claim_eu_nationality">
+                                                <i class="fas fa-globe-europe text-info me-1"></i>EU Nationality Confirmed (Topic 4)
                                             </label>
-                                            <small class="form-text text-muted d-block">Required: ACCREDITED status</small>
+                                            <small class="form-text text-muted d-block">Required: CONFIRMED</small>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="claim_residency" name="claim_topics" value="5">
+                                            <input class="form-check-input" type="checkbox" id="claim_us_nationality" name="claim_topics" value="5">
+                                            <label class="form-check-label" for="claim_us_nationality">
+                                                <i class="fas fa-flag-usa text-info me-1"></i>US Nationality Confirmed (Topic 5)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: CONFIRMED</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_blacklist" name="claim_topics" value="6">
+                                            <label class="form-check-label" for="claim_blacklist">
+                                                <i class="fas fa-ban text-danger me-1"></i>Blacklist (Topic 6)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: CLEAN</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_residency" name="claim_topics" value="7">
                                             <label class="form-check-label" for="claim_residency">
-                                                <i class="fas fa-home text-info me-1"></i>Residency (Topic 5)
+                                                <i class="fas fa-home text-info me-1"></i>Residency (Topic 7)
                                             </label>
-                                            <small class="form-text text-muted d-block">Required: Specific jurisdictions</small>
+                                            <small class="form-text text-muted d-block">Required: RESIDENT</small>
                                         </div>
                                         <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="claim_compliance" name="claim_topics" value="6" checked>
+                                            <input class="form-check-input" type="checkbox" id="claim_compliance" name="claim_topics" value="8">
                                             <label class="form-check-label" for="claim_compliance">
-                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance (Topic 6)
+                                                <i class="fas fa-shield-alt text-success me-1"></i>Compliance Status (Topic 8)
                                             </label>
                                             <small class="form-text text-muted d-block">Required: COMPLIANT status</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_restricted" name="claim_topics" value="9">
+                                            <label class="form-check-label" for="claim_restricted">
+                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>Restricted Status (Topic 9)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: UNRESTRICTED</small>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="claim_whitelisted" name="claim_topics" value="10">
+                                            <label class="form-check-label" for="claim_whitelisted">
+                                                <i class="fas fa-check-circle text-primary me-1"></i>Whitelisted Status (Topic 10)
+                                            </label>
+                                            <small class="form-text text-muted d-block">Required: WHITELISTED</small>
                                         </div>
                                     </div>
                                 </div>

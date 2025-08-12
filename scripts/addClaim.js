@@ -1,4 +1,9 @@
-// addClaim.js - Working Hardhat solution for adding claims
+// addClaim.js - CORRECT T-REX Architecture for adding claims
+// This script follows the SECURE architecture where:
+// - Investor OnchainID has ONLY Account 0 (deployer) as management key
+// - Trusted issuer keys are ONLY on ClaimIssuer contract
+// - Platform (Account 0) adds claims using its existing management key
+// - NO third-party management keys are added to investor OnchainID
 // This can be called as a subprocess from Python
 
 const { ethers } = require("hardhat");
@@ -19,22 +24,42 @@ async function addClaim(investorOnchainID, trustedIssuerAddress, claimIssuerAddr
         console.log("✅ Trusted issuer address:", trustedIssuerAddress);
         console.log("✅ Using ClaimIssuer address:", claimIssuerAddress);
 
-        // STEP 2: VERIFY PERMISSIONS
-        console.log("🔐 Verifying permissions...");
+        // STEP 2: VERIFY PERMISSIONS (NO KEY ADDITIONS TO INVESTOR ONCHAINID!)
+        console.log("🔐 Verifying permissions (CORRECT T-REX architecture)...");
         
-        // Check ClaimIssuer management key on investor OnchainID
+        // CRITICAL: Verify Account 0 (deployer) has management key on investor OnchainID
+        const deployerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [deployer.address]));
+        const hasDeployerManagementKey = await investorOnchainIDContract.keyHasPurpose(deployerKeyHash, 1);
+        console.log("✅ Account 0 (deployer) has management key on investor OnchainID:", hasDeployerManagementKey);
+        
+        if (!hasDeployerManagementKey) {
+            throw new Error("SECURITY VIOLATION: Account 0 (deployer) must have management key on investor OnchainID!");
+        }
+        
+        // CRITICAL: Verify NO third-party management keys exist on investor OnchainID
+        console.log("🔒 Verifying NO third-party management keys on investor OnchainID...");
+        
+        // Check ClaimIssuer does NOT have management key (should not be added)
         const claimIssuerKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerAddress]));
         const hasClaimIssuerManagementKey = await investorOnchainIDContract.keyHasPurpose(claimIssuerKeyHash, 1);
         console.log("✅ ClaimIssuer management key on investor OnchainID:", hasClaimIssuerManagementKey);
-
-        if (!hasClaimIssuerManagementKey) {
-            console.log("🔧 Adding ClaimIssuer as management key...");
-            const addManagementKeyTx = await investorOnchainIDContract.addKey(claimIssuerKeyHash, 1, 1);
-            await addManagementKeyTx.wait();
-            console.log("✅ Added ClaimIssuer as management key. Tx:", addManagementKeyTx.hash);
+        
+        if (hasClaimIssuerManagementKey) {
+            console.log("⚠️ WARNING: ClaimIssuer has management key on investor OnchainID (this should not happen in production)");
         }
+        
+        // Check trusted issuer does NOT have management key (should not be added)
+        const trustedIssuerManagementKeyHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [trustedIssuerAddress]));
+        const hasTrustedIssuerManagementKey = await investorOnchainIDContract.keyHasPurpose(trustedIssuerManagementKeyHash, 1);
+        console.log("✅ Trusted issuer management key on investor OnchainID:", hasTrustedIssuerManagementKey);
+        
+        if (hasTrustedIssuerManagementKey) {
+            console.log("⚠️ WARNING: Trusted issuer has management key on investor OnchainID (this should not happen in production)");
+        }
+        
+        console.log("🔒 SECURITY: Investor OnchainID should ONLY have Account 0 as management key");
 
-        // Check trusted issuer signing key on ClaimIssuer
+        // Check trusted issuer signing key on ClaimIssuer (for claim verification)
         const ClaimIssuer = await ethers.getContractFactory("ClaimIssuer");
         const claimIssuerContract = ClaimIssuer.attach(claimIssuerAddress);
 

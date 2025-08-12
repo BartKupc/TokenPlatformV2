@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from models import db
-from models.user import User
+from models.user import User, TrustedIssuerCapability
 from models.token import Token, TokenInterest, TokenPurchaseRequest, TokenTransaction, InvestorVerification
 from utils.session_utils import get_or_create_tab_session, get_current_user_from_tab_session
 from utils.auth_utils import hash_password, encrypt_private_key, decrypt_private_key
@@ -144,9 +144,9 @@ def deploy_token():
             description = request.form.get('description', '')
             price_per_token = request.form.get('price_per_token', '1.00')
             
-            # Set agents to "issuer" (the current user)
-            ir_agent = "issuer"
-            token_agent = "issuer"
+            # Set initial agents to the issuer's wallet address
+            ir_agent = user.wallet_address
+            token_agent = user.wallet_address
             
             # Validation
             if not all([token_name, token_symbol, total_supply, claim_issuer_id]):
@@ -217,7 +217,12 @@ def deploy_token():
                     identity_registry_address=result['identity_registry'],
                     compliance_address=result['compliance'],
                     claim_topics_registry_address=result['claim_topics_registry'],
-                    trusted_issuers_registry_address=result['trusted_issuers_registry']
+                    trusted_issuers_registry_address=result['trusted_issuers_registry'],
+                    agents=json.dumps({
+                        'identity_agents': [ir_agent],
+                        'token_agents': [token_agent],
+                        'compliance_agents': []
+                    })
                 )
                 db.session.add(token)
                 db.session.commit()
@@ -334,17 +339,768 @@ def token_agents(token_id):
         flash('Access denied. You can only manage your own tokens.', 'error')
         return redirect(url_for('issuer.dashboard', tab_session=tab_session.session_id))
     
-    # For now, create empty agents list (you can populate this later)
-    agents = []
+    # Get current agents from token configuration
+    # Parse agents from JSON if they exist, otherwise use legacy single agent fields
+    raw_agents = {
+        'identity_agents': [],
+        'token_agents': [],
+        'compliance_agents': []  # Not implemented yet
+    }
+    
+    # Check if token has the new JSON agents field
+    if hasattr(token, 'agents') and token.agents:
+        try:
+            agents_data = json.loads(token.agents)
+            raw_agents['identity_agents'] = agents_data.get('identity_agents', [])
+            raw_agents['token_agents'] = agents_data.get('token_agents', [])
+            raw_agents['compliance_agents'] = agents_data.get('compliance_agents', [])
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to legacy single agent fields
+            if token.ir_agent:
+                raw_agents['identity_agents'] = [token.ir_agent]
+            if token.token_agent:
+                raw_agents['token_agents'] = [token.token_agent]
+    else:
+        # Legacy: use single agent fields
+        if token.ir_agent:
+            raw_agents['identity_agents'] = [token.ir_agent]
+        if token.token_agent:
+            raw_agents['token_agents'] = [token.token_agent]
+    
+    # Convert agent addresses to user information
+    agents = {
+        'identity_agents': [],
+        'token_agents': [],
+        'compliance_agents': []
+    }
+    
+    # Helper function to get agent info
+    def get_agent_info(agent_address):
+        if not agent_address:
+            return None
+        
+        # Check if it's a wallet address
+        user = User.query.filter_by(wallet_address=agent_address).first()
+        if user:
+            return {
+                'address': agent_address,
+                'username': user.username,
+                'role': user.user_type,
+                'wallet_address': user.wallet_address
+            }
+        
+        # Check if it's a role string (legacy)
+        if agent_address in ['issuer', 'admin']:
+            return {
+                'address': agent_address,
+                'username': f'{agent_address.title()} Account',
+                'role': agent_address,
+                'wallet_address': 'Role-based permission'
+            }
+        
+        # Fallback
+        return {
+            'address': agent_address,
+            'username': 'Unknown',
+            'role': 'Unknown',
+            'wallet_address': agent_address
+        }
+    
+    # Convert each agent list
+    for agent_type in ['identity_agents', 'token_agents', 'compliance_agents']:
+        for agent_address in raw_agents[agent_type]:
+            agent_info = get_agent_info(agent_address)
+            if agent_info:
+                agents[agent_type].append(agent_info)
+    
+    # Get trusted issuers already assigned to this token with their capabilities
+    trusted_issuers = []
+    if token.trusted_issuers:
+        try:
+            trusted_issuer_ids = json.loads(token.trusted_issuers)
+            # Get trusted issuers with their capabilities
+            trusted_issuers_data = db.session.query(
+                User, 
+                db.func.group_concat(TrustedIssuerCapability.claim_topic).label('claim_topics')
+            ).outerjoin(
+                TrustedIssuerCapability, 
+                User.id == TrustedIssuerCapability.trusted_issuer_id
+            ).filter(
+                User.id.in_(trusted_issuer_ids),
+                User.user_type == 'trusted_issuer'
+            ).group_by(User.id).all()
+            
+            # Convert to list of dicts for template
+            for user, claim_topics in trusted_issuers_data:
+                trusted_issuers.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'wallet_address': user.wallet_address,
+                    'claim_topics': [int(topic) for topic in claim_topics.split(',')] if claim_topics else []
+                })
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error parsing trusted_issuers: {e}")
+            trusted_issuers = []
+    
+    # Get all available trusted issuers for selection with their capabilities
+    available_trusted_issuers_data = db.session.query(
+        User, 
+        db.func.group_concat(TrustedIssuerCapability.claim_topic).label('claim_topics')
+    ).outerjoin(
+        TrustedIssuerCapability, 
+        User.id == TrustedIssuerCapability.trusted_issuer_id
+    ).filter(
+        User.user_type == 'trusted_issuer'
+    ).group_by(User.id).all()
+    
+    # Convert to list of dicts for template
+    available_trusted_issuers = []
+    for user, claim_topics in available_trusted_issuers_data:
+        available_trusted_issuers.append({
+            'id': user.id,
+            'username': user.username,
+            'wallet_address': user.wallet_address,
+            'claim_issuer_address': user.claim_issuer_address,  # ← Add ClaimIssuer contract address!
+            'capabilities_json': json.dumps([int(topic) for topic in claim_topics.split(',')] if claim_topics else [])
+        })
     
     # Get all user's tokens for the dropdown
     tokens = Token.query.filter_by(issuer_address=user.wallet_address).all()
+    
+    
     
     return render_template('issuer_token_agents.html',
                          token=token,
                          agents=agents,
                          tokens=tokens,
+                         trusted_issuers=trusted_issuers,
+                         available_trusted_issuers=available_trusted_issuers,
                          tab_session_id=tab_session.session_id)
+
+@issuer_bp.route('/token/<int:token_id>/add-trusted-issuer', methods=['POST'])
+def add_trusted_issuer_to_token(token_id):
+    """Add a trusted issuer to a token's Identity Registry"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        trusted_issuer_id = data.get('trusted_issuer_id')
+        trusted_issuer_address = data.get('trusted_issuer_address')
+        claim_topics = data.get('claim_topics', [])
+        
+        # DEBUG: Show exactly what we received from frontend
+        print(f"🔍 DEBUG: Frontend form data received:")
+        print(f"  trusted_issuer_id: {trusted_issuer_id}")
+        print(f"  trusted_issuer_address: {trusted_issuer_address}")
+        print(f"  claim_topics: {claim_topics}")
+        print(f"  Full data: {data}")
+        
+        if not trusted_issuer_id or not trusted_issuer_address or not claim_topics:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Get tab session ID from request
+        tab_session_id = data.get('tab_session')
+        if not tab_session_id:
+            return jsonify({'success': False, 'error': 'No tab session provided'}), 400
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get_or_404(token_id)
+        
+        # Verify ownership
+        if token.issuer_address != user.wallet_address:
+            return jsonify({'success': False, 'error': 'Access denied. You can only manage your own tokens.'}), 403
+        
+        # Get trusted issuer
+        trusted_issuer = User.query.get_or_404(trusted_issuer_id)
+        if trusted_issuer.user_type != 'trusted_issuer':
+            return jsonify({'success': False, 'error': 'Selected user is not a trusted issuer'}), 400
+        
+        # Verify trusted issuer has ClaimIssuer contract
+        if not trusted_issuer.claim_issuer_address:
+            return jsonify({'success': False, 'error': 'Selected trusted issuer does not have a ClaimIssuer contract'}), 400
+        
+        # CRITICAL FIX: Use ClaimIssuer contract address, not wallet address!
+        claim_issuer_address = trusted_issuer.claim_issuer_address
+        
+        # DEBUG: Show what we received vs what we're using
+        print(f"🔍 DEBUG: Form data received:")
+        print(f"   trusted_issuer_address (from form): {trusted_issuer_address}")
+        print(f"   claim_issuer_address (from DB): {claim_issuer_address}")
+        
+        print(f"🔗 Adding trusted issuer {trusted_issuer.username} to token {token.name}")
+        print(f"   Trusted Issuer Wallet: {trusted_issuer.wallet_address}")
+        print(f"   ClaimIssuer Contract: {claim_issuer_address}")
+        print(f"   Claim Topics: {claim_topics}")
+        print(f"   Token Address: {token.token_address}")
+        
+        # Add trusted issuer to token's Identity Registry via blockchain
+        try:
+            from services.trex_service import TREXService
+            from services.web3_service import Web3Service
+            
+            # Initialize services
+            # IMPORTANT: For trusted issuer management, we need to use Account 0 (platform)
+            # because Account 0 owns the TrustedIssuersRegistry
+            account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+            web3_service = Web3Service(private_key=account_0_private_key)
+            trex_service = TREXService(web3_service)
+            
+            # Call the token's Identity Registry to add trusted issuer
+            print(f"🚀 Calling blockchain to add trusted issuer to TIR...")
+            
+            # DEBUG: Check who owns the TrustedIssuersRegistry
+            print(f"🔍 DEBUG: Checking TIR ownership...")
+            try:
+                # Get the token's Identity Registry address first
+                token_info = trex_service.get_token_info(token.token_address)
+                if token_info.get('success') and token_info.get('token_info'):
+                    identity_registry_address = token_info['token_info'].get('identity_registry')
+                    print(f"🔍 DEBUG: Identity Registry address: {identity_registry_address}")
+                    
+                    if identity_registry_address:
+                        # Get the TrustedIssuersRegistry address
+                        trusted_issuers_registry_address = web3_service.call_contract_function(
+                            'IdentityRegistry', 
+                            identity_registry_address, 
+                            'issuersRegistry'
+                        )
+                        print(f"🔍 DEBUG: TrustedIssuersRegistry address: {trusted_issuers_registry_address}")
+                        
+                        # Check who owns the TrustedIssuersRegistry
+                        tir_owner = web3_service.call_contract_function(
+                            'TrustedIssuersRegistry', 
+                            trusted_issuers_registry_address, 
+                            'owner'
+                        )
+                        print(f"🔍 DEBUG: TIR owner: {tir_owner}")
+                        print(f"🔍 DEBUG: Account 0 address: {web3_service.account.address}")
+                        print(f"🔍 DEBUG: Owner match: {tir_owner.lower() == web3_service.account.address.lower()}")
+                        
+                        # Also check if the issuer has any special permissions
+                        print(f"🔍 DEBUG: Issuer address: {user.wallet_address}")
+                        
+                        # Check if issuer is the owner
+                        if tir_owner.lower() == user.wallet_address.lower():
+                            print(f"🔍 DEBUG: ISSUER is the owner of TIR!")
+                            # Use issuer's private key since they own the TIR
+                            print(f"🔑 Using ISSUER's private key for TIR management")
+                            web3_service = Web3Service(private_key=user.private_key)
+                            trex_service = TREXService(web3_service)
+                        elif tir_owner.lower() == web3_service.account.address.lower():
+                            print(f"🔍 DEBUG: ACCOUNT 0 is the owner of TIR!")
+                            # Already using Account 0's key, no need to change
+                            print(f"🔑 Using ACCOUNT 0's private key for TIR management")
+                        else:
+                            print(f"🔍 DEBUG: Neither issuer nor Account 0 owns TIR. Owner: {tir_owner}")
+                            # Fallback to issuer's key
+                            print(f"🔑 Using ISSUER's private key as fallback")
+                            web3_service = Web3Service(private_key=user.private_key)
+                            trex_service = TREXService(web3_service)
+                            
+            except Exception as debug_error:
+                print(f"🔍 DEBUG: Error checking ownership: {debug_error}")
+                # Fallback to issuer's key
+                print(f"🔑 Using ISSUER's private key as fallback")
+                web3_service = Web3Service(private_key=user.private_key)
+                trex_service = TREXService(web3_service)
+            
+            # CRITICAL FIX: Pass ClaimIssuer contract address, not wallet address!
+            result = trex_service.add_trusted_issuer_to_token(
+                token_address=token.token_address,
+                trusted_issuer_address=claim_issuer_address,  # ← Use ClaimIssuer contract address!
+                claim_topics=claim_topics
+            )
+            
+            if result['success']:
+                print(f"✅ Successfully added trusted issuer to blockchain")
+                
+                # Update token in database to include this trusted issuer
+                current_trusted_issuers = []
+                if token.trusted_issuers:
+                    try:
+                        current_trusted_issuers = json.loads(token.trusted_issuers)
+                    except (json.JSONDecodeError, TypeError):
+                        current_trusted_issuers = []
+                
+                if trusted_issuer_id not in current_trusted_issuers:
+                    current_trusted_issuers.append(trusted_issuer_id)
+                    token.trusted_issuers = json.dumps(current_trusted_issuers)
+                    db.session.commit()
+                    print(f"✅ Updated token database with trusted issuer")
+                
+                return jsonify({
+                    'success': True, 
+                    'message': f'Trusted issuer {trusted_issuer.username} added successfully to token {token.name}'
+                })
+            else:
+                print(f"❌ Blockchain call failed: {result['error']}")
+                return jsonify({'success': False, 'error': f'Blockchain integration failed: {result["error"]}'}), 500
+                
+        except Exception as e:
+            print(f"❌ Error adding trusted issuer to blockchain: {str(e)}")
+            return jsonify({'success': False, 'error': f'Blockchain integration error: {str(e)}'}), 500
+        
+    except Exception as e:
+        print(f"❌ Error in add_trusted_issuer_to_token: {str(e)}")
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
+
+@issuer_bp.route('/token/<int:token_id>/add-agent', methods=['POST'])
+def add_agent_to_token(token_id):
+    """Add an agent to a token"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        agent_type = data.get('agent_type')  # 'ir_agent' or 'token_agent'
+        agent_role = data.get('agent_role')  # 'issuer', 'admin', etc.
+        
+        if not agent_type or not agent_role:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Get tab session ID from request
+        tab_session_id = data.get('tab_session')
+        if not tab_session_id:
+            return jsonify({'success': False, 'error': 'No tab session provided'}), 400
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get_or_404(token_id)
+        
+        # Verify ownership
+        if token.issuer_address != user.wallet_address:
+            return jsonify({'success': False, 'error': 'Access denied. You can only manage your own tokens.'}), 403
+        
+        # Add or remove agent via blockchain
+        try:
+            from services.trex_service import TREXService
+            from services.web3_service import Web3Service
+            
+            # Initialize services
+            # IMPORTANT: For agent management, we need to use Account 0 (platform)
+            # because Account 0 has the necessary permissions on the contracts
+            account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+            web3_service = Web3Service(private_key=account_0_private_key)
+            trex_service = TREXService(web3_service)
+            
+            if agent_role:
+                # Adding agent
+                print(f"🚀 Calling blockchain to add agent to {agent_type}...")
+                
+                # DEBUG: Check who has permissions on the token contracts
+                print(f"🔍 DEBUG: Checking token contract permissions...")
+                try:
+                    # Get the token's Identity Registry address first
+                    token_info = trex_service.get_token_info(token.token_address)
+                    if token_info.get('success') and token_info.get('token_info'):
+                        identity_registry_address = token_info['token_info'].get('identity_registry')
+                        print(f"🔍 DEBUG: Identity Registry address: {identity_registry_address}")
+                        
+                        if identity_registry_address:
+                            # Check who owns the Identity Registry
+                            ir_owner = web3_service.call_contract_function(
+                                'IdentityRegistry', 
+                                identity_registry_address, 
+                                'owner'
+                            )
+                            print(f"🔍 DEBUG: Identity Registry owner: {ir_owner}")
+                            print(f"🔍 DEBUG: Account 0 address: {web3_service.account.address}")
+                            print(f"🔍 DEBUG: Owner match: {ir_owner.lower() == web3_service.account.address.lower()}")
+                            
+                            # Also check if the issuer has any special permissions
+                            print(f"🔍 DEBUG: Issuer address: {user.wallet_address}")
+                            
+                            # Check if issuer is the owner
+                            if ir_owner.lower() == user.wallet_address.lower():
+                                print(f"🔍 DEBUG: ISSUER is the owner of Identity Registry!")
+                                # Use issuer's private key since they own the Identity Registry
+                                print(f"🔑 Using ISSUER's private key for Identity Registry management")
+                                web3_service = Web3Service(private_key=user.private_key)
+                                trex_service = TREXService(web3_service)
+                            elif ir_owner.lower() == web3_service.account.address.lower():
+                                print(f"🔍 DEBUG: ACCOUNT 0 is the owner of Identity Registry!")
+                                # Already using Account 0's key, no need to change
+                                print(f"🔑 Using ACCOUNT 0's private key for Identity Registry management")
+                            else:
+                                print(f"🔍 DEBUG: Neither issuer nor Account 0 owns Identity Registry. Owner: {ir_owner}")
+                                # Fallback to issuer's key
+                                print(f"🔑 Using ISSUER's private key as fallback")
+                                web3_service = Web3Service(private_key=user.private_key)
+                                trex_service = TREXService(web3_service)
+                                
+                except Exception as debug_error:
+                    print(f"🔍 DEBUG: Error checking permissions: {debug_error}")
+                    # Fallback to issuer's key
+                    print(f"🔑 Using ISSUER's private key as fallback")
+                    web3_service = Web3Service(private_key=user.private_key)
+                    trex_service = TREXService(web3_service)
+                
+                # Map agent_type to the format expected by TREXService
+                trex_agent_type = agent_type
+                
+                result = trex_service.add_agent_to_token(
+                    token_address=token.token_address,
+                    agent_address=agent_role,
+                    agent_type=trex_agent_type
+                )
+                
+                if result['success']:
+                    print(f"✅ Successfully added agent to blockchain")
+                    
+                    # Update database only after successful blockchain call
+                    # Initialize agents JSON field if it doesn't exist
+                    if not hasattr(token, 'agents') or not token.agents:
+                        token.agents = json.dumps({
+                            'identity_agents': [],
+                            'token_agents': [],
+                            'compliance_agents': []
+                        })
+                    
+                    # Parse existing agents
+                    try:
+                        agents_data = json.loads(token.agents)
+                    except (json.JSONDecodeError, TypeError):
+                        agents_data = {
+                            'identity_agents': [],
+                            'token_agents': [],
+                            'compliance_agents': []
+                        }
+                    
+                    # Add new agent to the appropriate list
+                    if agent_type == 'ir_agent':
+                        if agent_role not in agents_data['identity_agents']:
+                            agents_data['identity_agents'].append(agent_role)
+                        # Keep legacy field for backward compatibility
+                        token.ir_agent = agent_role
+                    elif agent_type == 'token_agent':
+                        if agent_role not in agents_data['token_agents']:
+                            agents_data['token_agents'].append(agent_role)
+                        # Keep legacy field for backward compatibility
+                        token.token_agent = agent_role
+                    
+                    # Update the JSON field
+                    token.agents = json.dumps(agents_data)
+                    
+                    db.session.commit()
+                    print(f"✅ Updated token database with new agent")
+                    
+                    message = f'Agent {agent_role} added successfully as {agent_type} for {token.symbol}'
+                else:
+                    print(f"❌ Blockchain call failed: {result['error']}")
+                    return jsonify({'success': False, 'error': f'Blockchain integration failed: {result["error"]}'}), 500
+                    
+            else:
+                # Removing agent
+                print(f"🚀 Calling blockchain to remove agent from {agent_type}...")
+                
+                # Get current agent address to remove
+                current_agent = None
+                if agent_type == 'ir_agent':
+                    current_agent = token.ir_agent
+                elif agent_type == 'token_agent':
+                    current_agent = token.token_agent
+                
+                if not current_agent:
+                    return jsonify({'success': False, 'error': f'No agent currently assigned to {agent_type}'}), 400
+                
+                result = trex_service.remove_agent_from_token(
+                    token_address=token.token_address,
+                    agent_address=current_agent,
+                    agent_type=agent_type
+                )
+                
+                if result['success']:
+                    print(f"✅ Successfully removed agent from blockchain")
+                    
+                    # Update database only after successful blockchain call
+                    # Update agents JSON field
+                    if hasattr(token, 'agents') and token.agents:
+                        try:
+                            agents_data = json.loads(token.agents)
+                            if agent_type == 'ir_agent' and current_agent in agents_data['identity_agents']:
+                                agents_data['identity_agents'].remove(current_agent)
+                            elif agent_type == 'token_agent' and current_agent in agents_data['token_agents']:
+                                agents_data['token_agents'].remove(current_agent)
+                            token.agents = json.dumps(agents_data)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    
+                    # Update legacy fields
+                    if agent_type == 'ir_agent':
+                        token.ir_agent = None
+                    elif agent_type == 'token_agent':
+                        token.token_agent = None
+                    
+                    db.session.commit()
+                    print(f"✅ Updated token database - removed agent")
+                    
+                    message = f'Agent removed successfully from {agent_type} for {token.symbol}'
+                else:
+                    print(f"❌ Blockchain call failed: {result['error']}")
+                    return jsonify({'success': False, 'error': f'Blockchain integration failed: {result["error"]}'}), 500
+            
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+            
+        except Exception as e:
+            print(f"❌ Error in blockchain agent management: {str(e)}")
+            return jsonify({'success': False, 'error': f'Blockchain integration error: {str(e)}'}), 500
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error adding agent to token: {e}")
+        return jsonify({'success': False, 'error': f'Failed to add agent: {str(e)}'}), 500
+
+@issuer_bp.route('/token/<int:token_id>/debug-ownership')
+def debug_token_ownership(token_id):
+    """Debug route to check who owns the token's contracts"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get_or_404(token_id)
+        
+        # Verify ownership
+        if token.issuer_address != user.wallet_address:
+            return jsonify({'success': False, 'error': 'Access denied. You can only manage your own tokens.'}), 403
+        
+        # Initialize services with Account 0
+        account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(private_key=account_0_private_key)
+        trex_service = TREXService(web3_service)
+        
+        debug_info = {
+            'token_address': token.token_address,
+            'issuer_address': user.wallet_address,
+            'account_0_address': web3_service.account.address,
+            'contracts': {}
+        }
+        
+        try:
+            # Get token info
+            token_info = trex_service.get_token_info(token.token_address)
+            if token_info.get('success') and token_info.get('token_info'):
+                debug_info['contracts']['token_info'] = token_info['token_info']
+                
+                # Check Identity Registry ownership
+                if token_info['token_info'].get('identity_registry'):
+                    ir_address = token_info['token_info']['identity_registry']
+                    debug_info['contracts']['identity_registry'] = {
+                        'address': ir_address,
+                        'owner': web3_service.call_contract_function('IdentityRegistry', ir_address, 'owner')
+                    }
+                    
+                    # Check TrustedIssuersRegistry ownership
+                    try:
+                        tir_address = web3_service.call_contract_function('IdentityRegistry', ir_address, 'issuersRegistry')
+                        debug_info['contracts']['trusted_issuers_registry'] = {
+                            'address': tir_address,
+                            'owner': web3_service.call_contract_function('TrustedIssuersRegistry', tir_address, 'owner')
+                        }
+                    except Exception as e:
+                        debug_info['contracts']['trusted_issuers_registry'] = {'error': str(e)}
+                
+                # Check Token contract ownership
+                if token_info['token_info'].get('token'):
+                    token_contract_address = token_info['token_info']['token']
+                    debug_info['contracts']['token_contract'] = {
+                        'address': token_contract_address,
+                        'owner': web3_service.call_contract_function('Token', token_contract_address, 'owner')
+                    }
+                    
+        except Exception as e:
+            debug_info['error'] = str(e)
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@issuer_bp.route('/token/<int:token_id>/remove-trusted-issuer', methods=['POST'])
+def remove_trusted_issuer_from_token(token_id):
+    """Remove a trusted issuer from a token's Identity Registry"""
+    try:
+        # Get JSON data from request
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        trusted_issuer_id = data.get('trusted_issuer_id')
+        
+        if not trusted_issuer_id:
+            return jsonify({'success': False, 'error': 'Missing trusted issuer ID'}), 400
+        
+        # Get tab session ID from request
+        tab_session_id = data.get('tab_session')
+        if not tab_session_id:
+            return jsonify({'success': False, 'error': 'No tab session provided'}), 400
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get_or_404(token_id)
+        
+        # Verify ownership
+        if token.issuer_address != user.wallet_address:
+            return jsonify({'success': False, 'error': 'Access denied. You can only manage your own tokens.'}), 403
+        
+        # Get trusted issuer
+        trusted_issuer = User.query.get_or_404(trusted_issuer_id)
+        
+        # CRITICAL FIX: Use ClaimIssuer contract address, not wallet address!
+        claim_issuer_address = trusted_issuer.claim_issuer_address
+        print(f"🔗 Removing trusted issuer {trusted_issuer.username} from token {token.name}")
+        print(f"   Trusted Issuer Wallet: {trusted_issuer.wallet_address}")
+        print(f"🔗 ClaimIssuer Contract: {claim_issuer_address}")
+        
+        # Remove trusted issuer from token's Identity Registry via blockchain
+        try:
+            from services.trex_service import TREXService
+            from services.web3_service import Web3Service
+            
+            # Initialize services
+            # IMPORTANT: For trusted issuer management, we need to use Account 0 (platform)
+            # because Account 0 owns the TrustedIssuersRegistry
+            account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+            web3_service = Web3Service(private_key=account_0_private_key)
+            trex_service = TREXService(web3_service)
+            
+            # Call the token's Identity Registry to remove trusted issuer
+            print(f"🚀 Calling blockchain to remove trusted issuer from TIR...")
+            
+            # DEBUG: Check who owns the TrustedIssuersRegistry
+            print(f"🔍 DEBUG: Checking TIR ownership for removal...")
+            try:
+                # Get the token's Identity Registry address first
+                token_info = trex_service.get_token_info(token.token_address)
+                if token_info.get('success') and token_info.get('token_info'):
+                    identity_registry_address = token_info['token_info'].get('identity_registry')
+                    print(f"🔍 DEBUG: Identity Registry address: {identity_registry_address}")
+                    
+                    if identity_registry_address:
+                        # Get the TrustedIssuersRegistry address
+                        trusted_issuers_registry_address = web3_service.call_contract_function(
+                            'IdentityRegistry', 
+                            identity_registry_address, 
+                            'issuersRegistry'
+                        )
+                        print(f"🔍 DEBUG: TrustedIssuersRegistry address: {trusted_issuers_registry_address}")
+                        
+                        # Check who owns the TrustedIssuersRegistry
+                        tir_owner = web3_service.call_contract_function(
+                            'TrustedIssuersRegistry', 
+                            trusted_issuers_registry_address, 
+                            'owner'
+                        )
+                        print(f"🔍 DEBUG: TIR owner: {tir_owner}")
+                        print(f"🔍 DEBUG: Account 0 address: {web3_service.account.address}")
+                        print(f"🔍 DEBUG: Owner match: {tir_owner.lower() == web3_service.account.address.lower()}")
+                        
+                        # Also check if the issuer has any special permissions
+                        print(f"🔍 DEBUG: Issuer address: {user.wallet_address}")
+                        
+                        # Check if issuer is the owner
+                        if tir_owner.lower() == user.wallet_address.lower():
+                            print(f"🔍 DEBUG: ISSUER is the owner of TIR!")
+                            # Use issuer's private key since they own the TIR
+                            print(f"🔑 Using ISSUER's private key for TIR management")
+                            web3_service = Web3Service(private_key=user.private_key)
+                            trex_service = TREXService(web3_service)
+                        elif tir_owner.lower() == web3_service.account.address.lower():
+                            print(f"🔍 DEBUG: ACCOUNT 0 is the owner of TIR!")
+                            # Already using Account 0's key, no need to change
+                            print(f"🔑 Using ACCOUNT 0's private key for TIR management")
+                        else:
+                            print(f"🔍 DEBUG: Neither issuer nor Account 0 owns TIR. Owner: {tir_owner}")
+                            # Fallback to issuer's key
+                            print(f"🔑 Using ISSUER's private key as fallback")
+                            web3_service = Web3Service(private_key=user.private_key)
+                            trex_service = TREXService(web3_service)
+                            
+            except Exception as debug_error:
+                print(f"🔍 DEBUG: Error checking ownership: {debug_error}")
+                # Fallback to issuer's key
+                print(f"🔑 Using ISSUER's private key as fallback")
+                web3_service = Web3Service(private_key=user.private_key)
+                trex_service = TREXService(web3_service)
+            
+            # CRITICAL FIX: Pass ClaimIssuer contract address, not wallet address!
+            result = trex_service.remove_trusted_issuer_from_token(
+                token_address=token.token_address,
+                trusted_issuer_address=claim_issuer_address  # ← Use ClaimIssuer contract address!
+            )
+            
+            if result['success']:
+                print(f"✅ Successfully removed trusted issuer from blockchain")
+                
+                # Update token in database to remove this trusted issuer
+                current_trusted_issuers = []
+                if token.trusted_issuers:
+                    try:
+                        current_trusted_issuers = json.loads(token.trusted_issuers)
+                    except (json.JSONDecodeError, TypeError):
+                        current_trusted_issuers = []
+                
+                if trusted_issuer_id in current_trusted_issuers:
+                    current_trusted_issuers.remove(trusted_issuer_id)
+                    token.trusted_issuers = json.dumps(current_trusted_issuers)
+                    db.session.commit()
+                    print(f"✅ Updated token database - removed trusted issuer")
+                
+                return jsonify({
+                    'success': True, 
+                    'message': f'Trusted issuer {trusted_issuer.username} removed successfully from token {token.name}'
+                })
+            else:
+                print(f"❌ Blockchain call failed: {result['error']}")
+                return jsonify({'success': False, 'error': f'Blockchain integration failed: {result["error"]}'}), 500
+                
+        except Exception as e:
+            print(f"❌ Error removing trusted issuer from blockchain: {str(e)}")
+            return jsonify({'success': False, 'error': f'Blockchain integration error: {str(e)}'}), 500
+        
+    except Exception as e:
+        print(f"❌ Error in remove_trusted_issuer_from_token: {str(e)}")
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
 
 @issuer_bp.route('/token/<int:token_id>/transactions')
 def token_transactions(token_id):
@@ -373,9 +1129,41 @@ def token_transactions(token_id):
     # Get all user's tokens for the dropdown
     tokens = Token.query.filter_by(issuer_address=user.wallet_address).all()
     
+    # Get blockchain transactions
+    try:
+        from services.trex_service import TREXService
+        from services.web3_service import Web3Service
+        
+        # Initialize services
+        web3_service = Web3Service()
+        trex_service = TREXService(web3_service)
+        
+        # Get all transactions from blockchain
+        print(f"🔍 Getting transactions for token: {token.token_address}")
+        all_transactions = trex_service.get_token_transactions(
+            token_address=token.token_address,
+            limit=100  # Get more transactions for pagination
+        )
+        
+        if all_transactions['success']:
+            transactions = all_transactions['transactions']
+            print(f"✅ Found {len(transactions)} blockchain transactions")
+        else:
+            print(f"❌ Error getting blockchain transactions: {all_transactions['error']}")
+            transactions = []
+            
+    except Exception as e:
+        print(f"❌ Error initializing services: {str(e)}")
+        transactions = []
+    
+    # Get database transactions as fallback
+    db_transactions = TokenTransaction.query.filter_by(token_id=token_id).order_by(TokenTransaction.created_at.desc()).all()
+    
     return render_template('issuer_token_transactions.html',
                          token=token,
                          tokens=tokens,
+                         transactions=transactions,
+                         db_transactions=db_transactions,
                          tab_session_id=tab_session.session_id)
 
 @issuer_bp.route('/token/<int:token_id>/requests')
@@ -1792,28 +2580,35 @@ def enhanced_transactions(token_id):
         flash('Access denied. You can only view your own tokens.', 'error')
         return redirect(url_for('issuer.dashboard', tab_session=tab_session.session_id))
     
-    # Get enhanced transactions
-    from services.transaction_indexer import TransactionIndexer
+    # Get blockchain transactions using hybrid approach
+    from services.trex_service import TREXService
     from services.web3_service import Web3Service
     
     web3_service = Web3Service()
-    transaction_indexer = TransactionIndexer(web3_service)
+    trex_service = TREXService(web3_service)
     
     # Get pagination parameters
     page = request.args.get('page', 1, type=int)
     per_page = 20
-    offset = (page - 1) * per_page
     
-    # Get transactions
-    transactions = transaction_indexer.get_token_transactions(
-        token_id=token_id,
-        limit=per_page,
-        offset=offset
+    # Get all transactions from blockchain
+    print(f"🔍 Getting transactions for token: {token.token_address}")
+    all_transactions = trex_service.get_token_transactions(
+        token_address=token.token_address,
+        limit=100  # Get more transactions for pagination
     )
     
-    # Get total count for pagination
-    from models.enhanced_models import TokenTransactionEnhanced
-    total_transactions = TokenTransactionEnhanced.query.filter_by(token_id=token_id).count()
+    print(f"📊 Found {len(all_transactions)} transactions from blockchain")
+    
+    # Apply pagination
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    transactions = all_transactions[start_idx:end_idx]
+    
+    print(f"📄 Showing transactions {start_idx+1}-{min(end_idx, len(all_transactions))} of {len(all_transactions)}")
+    
+    # Calculate pagination info
+    total_transactions = len(all_transactions)
     total_pages = (total_transactions + per_page - 1) // per_page
     
     return render_template('enhanced_transactions.html',

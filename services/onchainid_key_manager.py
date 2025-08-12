@@ -181,4 +181,108 @@ class OnchainIDKeyManager:
             
         except Exception as e:
             logger.error(f"Error getting key details: {e}")
+            return None
+    
+    def index_management_key(self, onchainid_address, wallet_address, owner_type, owner_id, transaction_hash, key_hash=None):
+        """Index an existing management key in the database"""
+        try:
+            print(f"🔍 index_management_key called with:")
+            print(f"  - onchainid_address: {onchainid_address}")
+            print(f"  - wallet_address: {wallet_address}")
+            print(f"  - owner_type: {owner_type}")
+            print(f"  - owner_id: {owner_id}")
+            print(f"  - transaction_hash: {transaction_hash}")
+            print(f"  - key_hash: {key_hash}")
+            
+            # If no key_hash provided, use the wallet address hash
+            if not key_hash:
+                print(f"🔍 No key_hash provided, calculating from wallet address...")
+                if self.web3_service and self.web3_service.web3:
+                    key_hash = self.web3_service.web3.keccak(text=wallet_address).hex()
+                    print(f"🔍 Calculated key_hash: {key_hash}")
+                else:
+                    print(f"❌ ERROR: No web3_service available to calculate key_hash")
+                    return None
+            
+            print(f"🔍 Using key_hash: {key_hash}")
+            
+            # Check if key already exists
+            print(f"🔍 Checking if key already exists in database...")
+            existing_key = OnchainIDKey.query.filter_by(
+                onchainid_address=onchainid_address,
+                key_hash=key_hash
+            ).first()
+            
+            if existing_key:
+                print(f"🔍 Key {key_hash} already indexed for {onchainid_address}")
+                return existing_key.id
+            
+            print(f"🔍 Key does not exist, creating new entry...")
+            
+            # Create new indexed key
+            indexed_key = OnchainIDKey(
+                onchainid_address=onchainid_address,
+                wallet_address=wallet_address,
+                key_hash=key_hash,
+                key_type='management',
+                owner_type=owner_type,
+                owner_id=owner_id,  # Can be None for deployer account
+                transaction_hash=transaction_hash
+            )
+            
+            print(f"🔍 Adding key to database session...")
+            db.session.add(indexed_key)
+            
+            print(f"🔍 Committing to database...")
+            db.session.commit()
+            
+            print(f"✅ Successfully indexed management key {key_hash} for {onchainid_address}")
+            print(f"✅ Database ID: {indexed_key.id}")
+            return indexed_key.id
+            
+        except Exception as e:
+            print(f"❌ ERROR in index_management_key: {e}")
+            import traceback
+            traceback.print_exc()
+            logger.error(f"Error indexing management key: {e}")
+            db.session.rollback()
+            return None
+    
+    def index_claim_signer_key(self, onchainid_address, wallet_address, owner_type, owner_id, transaction_hash, key_hash=None):
+        """Index an existing claim signer key in the database"""
+        try:
+            # If no key_hash provided, use the wallet address hash
+            if not key_hash:
+                key_hash = self.web3_service.web3.keccak(text=wallet_address).hex()
+            
+            # Check if key already exists
+            existing_key = OnchainIDKey.query.filter_by(
+                onchainid_address=onchainid_address,
+                key_hash=key_hash
+            ).first()
+            
+            if existing_key:
+                logger.info(f"Key {key_hash} already indexed for {onchainid_address}")
+                return existing_key.id
+            
+            # Create new indexed key
+            indexed_key = OnchainIDKey(
+                onchainid_address=onchainid_address,
+                wallet_address=wallet_address,
+                key_hash=key_hash,
+                key_type='claim_signer',
+                owner_type=owner_type,
+                owner_id=owner_id,
+                transaction_hash=transaction_hash
+            )
+            
+            db.session.add(indexed_key)
+            db.session.commit()
+            
+            logger.info(f"Successfully indexed claim signer key {key_hash} for {onchainid_address}")
+            return indexed_key.id
+            
+        except Exception as e:
+            logger.error(f"Error indexing claim signer key: {e}")
+            db.session.rollback()
             return None 

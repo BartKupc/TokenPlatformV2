@@ -113,6 +113,47 @@
         </div>
     </div>
 
+    <!-- New Multi-Lane KYC System -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-network-wired me-2"></i>New Multi-Lane KYC System
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6 class="text-primary">What's New:</h6>
+                            <ul class="mb-3">
+                                <li><strong>Investor-Initiated:</strong> Investors now select trusted issuers and specific claims</li>
+                                <li><strong>Multiple Requests:</strong> Investors can submit requests to different trusted issuers</li>
+                                <li><strong>Claim-Specific:</strong> Each request focuses on specific T-REX standard claims</li>
+                                <li><strong>Better Tracking:</strong> Improved request management and status tracking</li>
+                            </ul>
+                            <p class="text-muted mb-0">
+                                <strong>Your Role:</strong> Review and approve/reject KYC requests from investors
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="d-grid gap-2">
+                                <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-primary">
+                                    <i class="fas fa-list me-2"></i>View KYC Requests
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> The new system runs alongside the existing legacy system. You can review requests from both systems.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Pending KYC Applications -->
     <div class="row mt-4">
         <div class="col-12">
@@ -396,47 +437,75 @@
                             <div class="col-md-6">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="claims_to_add" 
-                                           value="1:1" id="kyc_claim{{ investor.id }}">
+                                           value="1:APPROVED" id="kyc_claim{{ investor.id }}">
                                     <label class="form-check-label" for="kyc_claim{{ investor.id }}">
-                                        <strong>Topic 1:</strong> KYC Status (Approved)
+                                        <strong>Topic 1:</strong> KYC (Know Your Customer) - Approved
                                     </label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="claims_to_add" 
-                                           value="2:{{ investor.standardized_nationality }}" 
+                                           value="2:COMPLIANT" 
                                            id="nationality_claim{{ investor.id }}">
                                     <label class="form-check-label" for="nationality_claim{{ investor.id }}">
-                                        <strong>Topic 2:</strong> Nationality ({{ investor.standardized_nationality }})
+                                        <strong>Topic 2:</strong> AML (Anti-Money Laundering) - Compliant
                                     </label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="claims_to_add" 
-                                           value="3:INDIVIDUAL" id="investor_type_claim{{ investor.id }}">
+                                           value="3:NON_ACCREDITED" id="investor_type_claim{{ investor.id }}">
                                     <label class="form-check-label" for="investor_type_claim{{ investor.id }}">
-                                        <strong>Topic 3:</strong> Investor Type (Individual)
+                                        <strong>Topic 3:</strong> Accredited Investor - Non-Accredited
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
+                                           value="4:NOT_CONFIRMED" id="accredited_claim{{ investor.id }}">
+                                    <label class="form-check-label" for="accredited_claim{{ investor.id }}">
+                                        <strong>Topic 4:</strong> EU Nationality Confirmed - Not Confirmed
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
+                                           value="5:NOT_CONFIRMED" id="compliance_claim{{ investor.id }}">
+                                    <label class="form-check-label" for="compliance_claim{{ investor.id }}">
+                                        <strong>Topic 5:</strong> US Nationality Confirmed - Not Confirmed
                                     </label>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="claims_to_add" 
-                                           value="4:0" id="accredited_claim{{ investor.id }}">
-                                    <label class="form-check-label" for="accredited_claim{{ investor.id }}">
-                                        <strong>Topic 4:</strong> Accredited Investor (No)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
-                                           value="7:COMPLIANT" id="compliance_claim{{ investor.id }}">
-                                    <label class="form-check-label" for="compliance_claim{{ investor.id }}">
-                                        <strong>Topic 7:</strong> Compliance (Compliant)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
-                                           value="8:NONE" id="transfer_claim{{ investor.id }}">
+                                           value="6:CLEAN" id="transfer_claim{{ investor.id }}">
                                     <label class="form-check-label" for="transfer_claim{{ investor.id }}">
-                                        <strong>Topic 8:</strong> Transfer Restriction (None)
+                                        <strong>Topic 6:</strong> Blacklist - Clean
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
+                                           value="7:NON_RESIDENT" id="residency_claim{{ investor.id }}">
+                                    <label class="form-check-label" for="residency_claim{{ investor.id }}">
+                                        <strong>Topic 7:</strong> Residency - Non-Resident
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
+                                           value="8:COMPLIANT" id="compliance_status_claim{{ investor.id }}">
+                                    <label class="form-check-label" for="compliance_status_claim{{ investor.id }}">
+                                        <strong>Topic 8:</strong> Compliance Status - Compliant
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
+                                           value="9:UNRESTRICTED" id="restricted_status_claim{{ investor.id }}">
+                                    <label class="form-check-label" for="restricted_status_claim{{ investor.id }}">
+                                        <strong>Topic 9:</strong> Restricted Status - Unrestricted
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="claims_to_add" 
+                                           value="10:NOT_WHITELISTED" id="whitelisted_status_claim{{ investor.id }}">
+                                    <label class="form-check-label" for="whitelisted_status_claim{{ investor.id }}">
+                                        <strong>Topic 10:</strong> Whitelisted Status - Not Whitelisted
                                     </label>
                                 </div>
                             </div>

@@ -24,7 +24,7 @@ class TrustedIssuerCapability(db.Model):
     """Model to track what claims a trusted issuer can issue"""
     id = db.Column(db.Integer, primary_key=True)
     trusted_issuer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    claim_topic = db.Column(db.Integer, nullable=False)  # Claim topic number (1, 2, 3, 4, 7, 8)
+    claim_topic = db.Column(db.Integer, nullable=False)  # Claim topic number (1-10 for T-REX standard)
     claim_data = db.Column(db.String(100), nullable=False)  # Specific claim data value
     description = db.Column(db.String(200))  # Human readable description
     is_active = db.Column(db.Boolean, default=True)
@@ -65,7 +65,7 @@ class UserClaim(db.Model):
     """Model to track claims issued to users by trusted issuers"""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    claim_topic = db.Column(db.Integer, nullable=False)  # Claim topic number (1, 2, 3, 4, 7, 8)
+    claim_topic = db.Column(db.Integer, nullable=False)  # Claim topic number (1-10 for T-REX standard)
     claim_data = db.Column(db.String(100), nullable=False)  # Specific claim data value
     issued_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # Trusted issuer who issued the claim
     issued_at = db.Column(db.DateTime, default=datetime.utcnow)

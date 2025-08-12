@@ -103,10 +103,7 @@
                     <i class="fas fa-tachometer-alt"></i>Dashboard
                 </a>
                 
-                <!-- OnchainID Management -->
-                <a class="nav-link" href="{{ url_for('issuer.onchainid_keys', tab_session=tab_session_id) }}">
-                    <i class="fas fa-key"></i>OnchainID Keys
-                </a>
+                <!-- OnchainID Management link removed (already available in top nav) -->
                 
                 {% if selected_token %}
                     {% if selected_token.issuer_address == user.wallet_address %}
@@ -118,7 +115,7 @@
                                     <i class="fas fa-cogs"></i>Actions
                                 </a>
                                 <a class="nav-link" href="{{ url_for('issuer.token_agents', token_id=selected_token.id, tab_session=tab_session_id) }}">
-                                    <i class="fas fa-users-cog"></i>Agents
+                                    <i class="fas fa-users-cog"></i>Agents & TI
                                 </a>
                                 <a class="nav-link" href="{{ url_for('issuer.token_transactions', token_id=selected_token.id, tab_session=tab_session_id) }}">
                                     <i class="fas fa-exchange-alt"></i>Transactions

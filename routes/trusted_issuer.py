@@ -5,8 +5,12 @@ from utils.session_utils import get_or_create_tab_session, get_current_user_from
 from utils.auth_utils import hash_password, decrypt_private_key
 from services.onchainid_service import OnchainIDService
 from services.web3_service import Web3Service
+from config.claim_topics import get_all_topics
 import json
 from datetime import datetime
+from services.onchainid_key_manager import OnchainIDKeyManager
+from services.transaction_indexer import TransactionIndexer
+from models.enhanced_models import OnchainIDKey
 
 def standardize_nationality(nationality_input):
     """Standardize nationality input to blockchain-compatible values"""
@@ -116,7 +120,14 @@ def dashboard():
 
 @trusted_issuer_bp.route('/kyc-approve/<int:user_id>', methods=['POST'])
 def approve_kyc(user_id):
-    """Approve investor KYC and create OnchainID"""
+    """Approve investor KYC - CORRECT T-REX Architecture
+    
+    This function now follows the SECURE architecture where:
+    - Investor OnchainID has ONLY Account 0 (deployer) as management key
+    - Trusted issuer keys are ONLY on ClaimIssuer contract
+    - NO third-party management keys are added to investor OnchainID
+    - Redirects to new multi-lane KYC system for claim addition
+    """
     print(f"🚀 KYC approval function called for user_id: {user_id}")
     with open("/tmp/tokenplatform_debug.log", "a") as f:
         f.write(f"🚀 KYC approval function called for user_id: {user_id}\n")
@@ -484,11 +495,12 @@ def step1_add_issuer(user_id):
         # Create OnchainIDService
         onchainid_service = OnchainIDService(web3_service)
         
-        # Step 1: Add Claim Issuer keys to investor's OnchainID (following T-REX pattern)
-        print(f"🔧 Step 1: Adding Claim Issuer keys to investor's OnchainID...")
+        # CORRECT T-REX ARCHITECTURE: NO MANAGEMENT KEYS ADDED TO INVESTOR ONCHAINID
+        print(f"🔒 CORRECT T-REX Architecture: No management keys added to investor OnchainID")
+        print(f"🔒 Only Account 0 (deployer) has management key - this is SECURE!")
         
-        # 1. First ensure Account 0 (deployer) has management key on investor's OnchainID
-        print(f"🔧 Ensuring Account 0 has management key on investor's OnchainID...")
+        # Verify Account 0 has management key (should exist from OnchainID creation)
+        print(f"🔍 Verifying Account 0 has management key on investor's OnchainID...")
         signer_key_hash = web3_service.w3.keccak(
             web3_service.w3.codec.encode(['address'], [account_0_wallet.address])
         )
@@ -503,120 +515,33 @@ def step1_add_issuer(user_id):
             )
             purposes = signer_key[0] if isinstance(signer_key[0], list) else [signer_key[0]]
             has_management_key = 1 in purposes
-            print(f"🔍 Account 0 already has management key: {has_management_key}")
+            print(f"🔍 Account 0 has management key: {has_management_key}")
             
             if not has_management_key:
-                print(f"🔧 Adding management key for Account 0...")
-                add_management_key_tx = web3_service.transact_contract_function(
-                    'Identity',
-                    investor.onchain_id,
-                    'addKey',
-                    signer_key_hash,
-                    1,  # purpose (1 for management)
-                    1   # keyType (1 for ECDSA)
-                )
-                print(f"✅ Added management key for Account 0: {add_management_key_tx}")
+                error_msg = f"❌ SECURITY VIOLATION: Account 0 (deployer) must have management key on investor OnchainID!"
+                print(error_msg)
+                flash('Security violation: Account 0 must have management key on investor OnchainID.', 'error')
+                return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
             else:
-                print(f"✅ Account 0 already has management key")
+                print(f"✅ Account 0 has management key - SECURE!")
                 
         except Exception as e:
-            print(f"🔧 Adding management key for Account 0 (key didn't exist)...")
-            add_management_key_tx = web3_service.transact_contract_function(
-                'Identity',
-                investor.onchain_id,
-                'addKey',
-                signer_key_hash,
-                1,  # purpose (1 for management)
-                1   # keyType (1 for ECDSA)
-            )
-            print(f"✅ Added management key for Account 0: {add_management_key_tx}")
+            error_msg = f"❌ Error verifying Account 0 management key: {e}"
+            print(error_msg)
+            flash('Error verifying Account 0 management key.', 'error')
+            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
         
-        # 2. Add trusted issuer's keys to investor's OnchainID (BOTH management AND claim signer)
-        print(f"🔧 Adding trusted issuer {trusted_issuer.wallet_address} keys to investor's OnchainID...")
+        # CORRECT T-REX ARCHITECTURE: NO MANAGEMENT KEYS ADDED TO INVESTOR ONCHAINID
+        print(f"🔒 SECURITY: Investor OnchainID will ONLY have Account 0 as management key")
+        print(f"🔒 Trusted issuer keys are ONLY on ClaimIssuer contract")
+        print(f"🔒 Platform (Account 0) will add claims using existing management key")
         
-        # Create issuer key hash for investor's OnchainID
-        claim_issuer_key_hash = web3_service.w3.keccak(
-            web3_service.w3.codec.encode(['address'], [trusted_issuer.wallet_address])
-        )
-        print(f"🔍 Trusted issuer key hash: {claim_issuer_key_hash.hex()}")
+        # Redirect to the new multi-lane KYC system
+        print(f"🔄 Redirecting to new multi-lane KYC system...")
+        flash(f'✅ Account 0 management key verified for {investor.username}. Please use the new multi-lane KYC system to add claims.', 'success')
         
-        # Check if the key already exists in investor's OnchainID
-        try:
-            existing_key = web3_service.call_contract_function(
-                'Identity',
-                investor.onchain_id,
-                'getKey',
-                claim_issuer_key_hash
-            )
-            print(f"🔍 Existing key info in investor's OnchainID: {existing_key}")
-            
-            # Check what purposes the key already has
-            purposes = existing_key[0] if isinstance(existing_key[0], list) else [existing_key[0]]
-            has_management_key = 1 in purposes
-            has_claim_signer_key = 3 in purposes
-            print(f"🔍 Key already has management key: {has_management_key}")
-            print(f"🔍 Key already has claim signer key: {has_claim_signer_key}")
-            
-            if has_management_key and has_claim_signer_key:
-                print(f"✅ Trusted issuer already has both keys in investor's OnchainID")
-                add_management_key_tx = "Already exists"
-                add_signing_key_tx = "Already exists"
-            else:
-                # Add missing keys
-                if not has_management_key:
-                    print(f"🔧 Adding management key for trusted issuer...")
-                    add_management_key_tx = web3_service.transact_contract_function(
-                        'Identity',
-                        investor.onchain_id,
-                        'addKey',
-                        claim_issuer_key_hash,
-                        1,  # purpose (1 for management)
-                        1   # keyType (1 for ECDSA)
-                    )
-                    print(f"✅ Added management key for trusted issuer: {add_management_key_tx}")
-                else:
-                    add_management_key_tx = "Already exists"
-                
-                if not has_claim_signer_key:
-                    print(f"🔧 Adding claim signer key for trusted issuer...")
-                    add_signing_key_tx = web3_service.transact_contract_function(
-                        'Identity',
-                        investor.onchain_id,
-                        'addKey',
-                        claim_issuer_key_hash,
-                        3,  # purpose (3 for claim signer)
-                        1   # keyType (1 for ECDSA)
-                    )
-                    print(f"✅ Added claim signer key for trusted issuer: {add_signing_key_tx}")
-                else:
-                    add_signing_key_tx = "Already exists"
-                
-        except Exception as e:
-            print(f"🔧 Key doesn't exist yet, adding both keys...")
-            # Add BOTH management AND claim signer keys for trusted issuer to investor's OnchainID
-            add_management_key_tx = web3_service.transact_contract_function(
-                'Identity',
-                investor.onchain_id,
-                'addKey',
-                claim_issuer_key_hash,
-                1,  # purpose (1 for management)
-                1   # keyType (1 for ECDSA)
-            )
-            print(f"✅ Added management key for trusted issuer: {add_management_key_tx}")
-            
-            add_signing_key_tx = web3_service.transact_contract_function(
-                'Identity',
-                investor.onchain_id,
-                'addKey',
-                claim_issuer_key_hash,
-                3,  # purpose (3 for claim signer)
-                1   # keyType (1 for ECDSA)
-            )
-            print(f"✅ Added claim signer key for trusted issuer: {add_signing_key_tx}")
-        
-        print(f"✅ Step 1 completed: Added both management and claim signer keys for trusted issuer")
-        
-        flash(f'✅ Step 1 completed: Added {trusted_issuer.username} as claim signer to {investor.username}\'s OnchainID', 'success')
+        # Redirect to the new KYC system
+        return redirect(url_for('kyc_system.select_trusted_issuer', tab_session=tab_session.session_id))
         
     except Exception as e:
         print(f"❌ Error in Step 1: {str(e)}")
@@ -626,8 +551,14 @@ def step1_add_issuer(user_id):
 
 @trusted_issuer_bp.route('/step2-add-claims/<int:user_id>', methods=['POST'])
 def step2_add_claims(user_id):
-    """Step 2: Add claims to investor's OnchainID"""
-    print(f"🚀 Step 2: Adding claims to investor's OnchainID for user_id: {user_id}")
+    """Step 2: Add claims to investor's OnchainID - CORRECT T-REX Architecture
+    
+    This function now redirects to the new multi-lane KYC system which follows the SECURE architecture:
+    - Investor OnchainID has ONLY Account 0 (deployer) as management key
+    - Trusted issuer keys are ONLY on ClaimIssuer contract
+    - NO third-party management keys are added to investor OnchainID
+    """
+    print(f"🚀 Step 2: Redirecting to new multi-lane KYC system for user_id: {user_id}")
     
     # Get tab session ID from URL parameter
     tab_session_id = request.args.get('tab_session')
@@ -658,136 +589,15 @@ def step2_add_claims(user_id):
         flash('Only investors can have KYC approved.', 'error')
         return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
     
-    try:
-        # Check if investor has OnchainID
-        print(f"🔍 Investor OnchainID: {investor.onchain_id}")
-        
-        if not investor.onchain_id:
-            error_msg = f"❌ Investor {investor.username} does not have an OnchainID"
-            print(error_msg)
-            flash(f'Investor {investor.username} does not have an OnchainID. Please ensure registration completed successfully.', 'error')
-            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-        
-        # Get selected claims from form
-        claims_to_add = request.form.getlist('claims_to_add')
-        print(f"🔍 Selected claims: {claims_to_add}")
-        
-        if not claims_to_add:
-            flash('Please select at least one claim to add.', 'error')
-            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-        
-        # Initialize hybrid claim service
-        from services.hybrid_claim_service import HybridClaimService
-        
-        # Create hybrid claim service
-        hybrid_service = HybridClaimService()
-        
-        # Process each selected claim
-        added_claims = []
-        failed_claims = []
-        user_claims_to_add = []
-        
-        for claim_info in claims_to_add:
-            try:
-                topic, data = claim_info.split(':', 1)
-                
-                print(f"🔧 Processing claim - Topic: {topic}, Data: {data}")
-                
-                # Topic handling (following T-REX pattern exactly)
-                # T-REX: let topicId; if (claimTopic === 'KYC (Know Your Customer)') topicId = 1; else if...
-                topic_id = topic
-                if isinstance(topic, str):
-                    if topic == 'KYC (Know Your Customer)':
-                        topic_id = 1
-                    elif topic == 'AML (Anti-Money Laundering)':
-                        topic_id = 2
-                    elif topic == 'Accredited Investor':
-                        topic_id = 3
-                    elif topic == 'EU Nationality Confirmed':
-                        topic_id = 4
-                    elif topic == 'US Nationality Confirmed':
-                        topic_id = 5
-                    elif topic == 'Blacklist':
-                        topic_id = 6
-                    else:
-                        # T-REX: const parsed = parseInt(claimTopic); topicId = isNaN(parsed) ? ethers.BigNumber.from(ethers.utils.keccak256(ethers.utils.toUtf8Bytes(claimTopic))) : parsed;
-                        try:
-                            topic_id = int(topic)
-                        except ValueError:
-                            # Use hash of string like T-REX
-                            from services.web3_service import Web3Service
-                            web3_service = Web3Service()
-                            topic_id = int(web3_service.w3.keccak(topic.encode('utf-8')).hex(), 16)
-                
-                # Convert topic_id to int if it's still a string
-                if isinstance(topic_id, str):
-                    topic_id = int(topic_id)
-                
-                print(f"🔍 Topic ID: {topic_id}")
-                print(f"🔍 Claim data: {data}")
-                
-                # Use hybrid service to add claim
-                claim_result = hybrid_service.add_claim(
-                    investor_user_id=investor.id,
-                    trusted_issuer_user_id=trusted_issuer.id,
-                    topic=topic_id,
-                    data=data
-                )
-                
-                if claim_result['success']:
-                    add_claim_tx = claim_result['transaction_hash']
-                    print(f"✅ Added claim transaction: {add_claim_tx}")
-                    
-                    # Claim was successful
-                    added_claims.append(f"Topic {topic_id}: {data}")
-                    
-                    # Create UserClaim record
-                    user_claim = UserClaim(
-                        user_id=investor.id,
-                        claim_topic=topic_id,
-                        claim_data=data,
-                        issued_by=trusted_issuer.id,
-                        onchain_tx_hash=add_claim_tx
-                    )
-                    user_claims_to_add.append(user_claim)
-                else:
-                    raise Exception(claim_result['error'])
-                    
-            except Exception as claim_error:
-                print(f"❌ Error adding claim {claim_info}: {claim_error}")
-                failed_claims.append(f"Topic {topic_id if 'topic_id' in locals() else topic}: {str(claim_error)}")
-        
-        # Only update database if ALL claims were successful
-        if failed_claims:
-            # Some claims failed - don't update database
-            error_msg = f'Step 2 failed. Failed claims: {", ".join(failed_claims)}'
-            print(f"❌ {error_msg}")
-            flash(error_msg, 'error')
-        else:
-            # All claims successful - update database
-            print("✅ All claims successful, updating database...")
-            
-            # Add all UserClaim records
-            for user_claim in user_claims_to_add:
-                db.session.add(user_claim)
-            
-            # Update KYC status
-            investor.kyc_status = 'approved'
-            investor.kyc_approved_by = trusted_issuer.id
-            investor.kyc_approved_at = db.func.now()
-            
-            # Commit all changes
-            db.session.commit()
-            
-            success_msg = f'✅ Step 2 completed: KYC approved for {investor.username}. Added claims: {", ".join(added_claims)}'
-            print(f"✅ {success_msg}")
-            flash(success_msg, 'success')
-        
-    except Exception as e:
-        print(f"❌ Error in Step 2: {str(e)}")
-        flash(f'Error in Step 2: {str(e)}', 'error')
+    # CORRECT T-REX ARCHITECTURE: Redirect to new multi-lane KYC system
+    print(f"🔒 CORRECT T-REX Architecture: Redirecting to new multi-lane KYC system")
+    print(f"🔒 This ensures SECURE architecture with NO third-party management keys on investor OnchainID")
     
-    return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
+    flash(f'✅ Redirecting to new multi-lane KYC system for {investor.username}. This ensures SECURE architecture.', 'success')
+    
+    # Redirect to the new KYC system
+    return redirect(url_for('kyc_system.select_trusted_issuer', tab_session=tab_session.session_id))
+
 
 @trusted_issuer_bp.route('/kyc-reject/<int:user_id>')
 def reject_kyc(user_id):
@@ -854,6 +664,7 @@ def view_onchainid(user_id):
                          user=user,
                          onchain_id_info=onchain_id_info,
                          user_claims=user_claims,
+                         claim_topics=get_all_topics(),
                          tab_session_id=tab_session.session_id)
 
 @trusted_issuer_bp.route('/add-claim/<int:user_id>', methods=['POST'])

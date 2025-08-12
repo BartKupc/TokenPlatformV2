@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}KYC Requests{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-list-alt me-2"></i>KYC Requests
+                        {% if user.user_type == 'investor' %}
+                            - My Applications
+                        {% elif user.user_type == 'trusted_issuer' %}
+                            - Pending Reviews
+                        {% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if user.user_type == 'investor' %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Multi-Lane KYC System:</strong> You can submit multiple KYC requests to different trusted issuers for different claims.
+                            <a href="{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}" class="btn btn-primary btn-sm ms-2">
+                                <i class="fas fa-plus me-1"></i>Submit New Request
+                            </a>
+                        </div>
+                    {% elif user.user_type == 'trusted_issuer' %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Review KYC Applications:</strong> Review and approve/reject KYC requests from investors.
+                        </div>
+                    {% endif %}
+
+                    {% if kyc_requests %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>ID</th>
+                                        {% if user.user_type == 'investor' %}
+                                            <th>Trusted Issuer</th>
+                                        {% else %}
+                                            <th>Investor</th>
+                                        {% endif %}
+                                        <th>Claims Requested</th>
+                                        <th>Status</th>
+                                        <th>Blockchain</th>
+                                        <th>Submitted</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for kyc_request in kyc_requests %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-secondary">#{{ kyc_request.id }}</span>
+                                            </td>
+                                            {% if user.user_type == 'investor' %}
+                                                <td>
+                                                    <strong>{{ kyc_request.trusted_issuer.username }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">{{ kyc_request.trusted_issuer.wallet_address[:10] }}...{{ kyc_request.trusted_issuer.wallet_address[-8:] }}</small>
+                                                </td>
+                                            {% else %}
+                                                <td>
+                                                    <strong>{{ kyc_request.investor.username }}</strong>
+                                                    <br>
+                                                    <small class="text-muted">{{ kyc_request.investor.wallet_address[:10] }}...{{ kyc_request.investor.wallet_address[-8:] }}</small>
+                                                </td>
+                                            {% endif %}
+                                            <td>
+                                                {% for claim_request in kyc_request.claim_requests %}
+                                                    <span class="badge bg-info me-1" title="{{ claim_topics[claim_request.claim_topic] }}">
+                                                        Topic {{ claim_request.claim_topic }}: {{ claim_request.requested_claim_data }}
+                                                    </span>
+                                                    {% if claim_request.status == 'approved' %}
+                                                        <br><small class="text-success">
+                                                            ✅ Approved: {{ claim_request.approved_claim_data }}
+                                                            {% if claim_request.blockchain_status == 'success' %}
+                                                                <i class="fas fa-link text-primary" title="On Blockchain"></i>
+                                                            {% elif claim_request.blockchain_status == 'failed' %}
+                                                                <i class="fas fa-exclamation-triangle text-danger" title="Blockchain Failed"></i>
+                                                            {% endif %}
+                                                        </small>
+                                                    {% elif claim_request.status == 'rejected' %}
+                                                        <br><small class="text-danger">❌ Rejected</small>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </td>
+                                            <td>
+                                                {% if kyc_request.status == 'pending' %}
+                                                    <span class="badge bg-warning">Pending</span>
+                                                {% elif kyc_request.status == 'approved' %}
+                                                    <span class="badge bg-success">Approved</span>
+                                                {% elif kyc_request.status == 'rejected' %}
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                {% elif kyc_request.status == 'cancelled' %}
+                                                    <span class="badge bg-secondary">Cancelled</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% set blockchain_statuses = kyc_request.claim_requests | map(attribute='blockchain_status') | list %}
+                                                {% if 'success' in blockchain_statuses %}
+                                                    <span class="badge bg-success">
+                                                        <i class="fas fa-link me-1"></i>On Blockchain
+                                                    </span>
+                                                {% elif 'failed' in blockchain_statuses %}
+                                                    <span class="badge bg-danger">
+                                                        <i class="fas fa-exclamation-triangle me-1"></i>Failed
+                                                    </span>
+                                                {% elif 'pending' in blockchain_statuses %}
+                                                    <span class="badge bg-warning">
+                                                        <i class="fas fa-clock me-1"></i>Pending
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <small class="text-muted">
+                                                    {{ kyc_request.submitted_at.strftime('%Y-%m-%d %H:%M') }}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                {% if user.user_type == 'investor' %}
+                                                    {% if kyc_request.status == 'pending' %}
+                                                        <button class="btn btn-warning btn-sm cancel-btn" data-request-id="{{ kyc_request.id }}">
+                                                            <i class="fas fa-times"></i> Cancel
+                                                        </button>
+                                                    {% elif kyc_request.status == 'rejected' %}
+                                                        <button class="btn btn-primary btn-sm reapply-btn" data-request-id="{{ kyc_request.id }}">
+                                                            <i class="fas fa-redo"></i> Reapply
+                                                        </button>
+                                                    {% endif %}
+                                                    
+                                                    <button class="btn btn-info btn-sm details-btn" data-request-id="{{ kyc_request.id }}">
+                                                        <i class="fas fa-eye"></i> Details
+                                                    </button>
+                                                {% elif user.user_type == 'trusted_issuer' %}
+                                                    {% if kyc_request.status == 'pending' %}
+                                                        <a href="{{ url_for('kyc_system.review_kyc_request', request_id=kyc_request.id, tab_session=tab_session_id) }}" 
+                                                           class="btn btn-primary btn-sm">
+                                                            <i class="fas fa-eye"></i> Review
+                                                        </a>
+                                                    {% else %}
+                                                        <button class="btn btn-info btn-sm details-btn" data-request-id="{{ kyc_request.id }}">
+                                                            <i class="fas fa-eye"></i> Details
+                                                        </button>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% if user.user_type == 'investor' %}
+                                <strong>No KYC Requests:</strong> You haven't submitted any KYC requests yet.
+                                <a href="{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}" class="btn btn-primary btn-sm ms-2">
+                                    <i class="fas fa-plus me-1"></i>Submit Your First Request
+                                </a>
+                            {% else %}
+                                <strong>No KYC Requests:</strong> There are no pending KYC requests for you to review.
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mt-4">
+                        {% if user.user_type == 'investor' %}
+                            <a href="{{ url_for('investor.dashboard', tab_session=tab_session_id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('trusted_issuer.dashboard', tab_session=tab_session_id) }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle cancel request buttons
+    document.querySelectorAll('.cancel-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const requestId = this.getAttribute('data-request-id');
+            if (confirm('Are you sure you want to cancel this KYC request?')) {
+                // TODO: Implement cancel functionality
+                alert('Cancel functionality will be implemented soon.');
+            }
+        });
+    });
+    
+    // Handle reapply request buttons
+    document.querySelectorAll('.reapply-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const requestId = this.getAttribute('data-request-id');
+            if (confirm('Do you want to submit a new KYC request? You can select a different trusted issuer or modify your claims.')) {
+                window.location.href = "{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}";
+            }
+        });
+    });
+    
+    // Handle view details buttons
+    document.querySelectorAll('.details-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const requestId = this.getAttribute('data-request-id');
+            // TODO: Implement detailed view modal
+            alert('Detailed view functionality will be implemented soon.');
+        });
+    });
+});
+</script>
+{% endblock %} 

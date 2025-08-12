@@ -7,6 +7,12 @@ class HybridClaimService:
     """
     Hybrid claim service that uses JavaScript subprocess for contract interactions
     while keeping database operations in Python.
+    
+    CORRECT T-REX ARCHITECTURE:
+    - Investor OnchainID has ONLY Account 0 (deployer) as management key
+    - Trusted issuer keys are ONLY on ClaimIssuer contract
+    - Platform (Account 0) adds claims using its existing management key
+    - NO third-party management keys are added to investor OnchainID
     """
     
     def __init__(self, scripts_dir=None):
@@ -70,8 +76,8 @@ class HybridClaimService:
             if not trusted_issuer.claim_issuer_address:
                 return {'success': False, 'error': f'Trusted issuer {trusted_issuer.username} has no ClaimIssuer contract'}
             
-            # STEP 2: Pre-index the ClaimIssuer management key that will be added
-            print("🔑 STEP 2: Pre-indexing ClaimIssuer management key...")
+            # STEP 2: CORRECT T-REX Architecture - No key indexing needed
+            print("🔒 STEP 2: CORRECT T-REX Architecture - No key indexing needed")
             try:
                 from services.transaction_indexer import TransactionIndexer
                 from services.web3_service import Web3Service
@@ -79,22 +85,16 @@ class HybridClaimService:
                 web3_service = Web3Service()
                 transaction_indexer = TransactionIndexer(web3_service)
                 
-                # Pre-index the ClaimIssuer as management key to investor's OnchainID
-                key_id = transaction_indexer.pre_index_onchainid_key(
-                    onchainid_address=investor.onchain_id,
-                    wallet_address=trusted_issuer.claim_issuer_address,  # ClaimIssuer contract address
-                    key_type='management',
-                    owner_type='trusted_issuer',
-                    owner_id=trusted_issuer_user_id
-                )
+                # NO KEY INDEXING NEEDED - CORRECT T-REX ARCHITECTURE
+                # JavaScript now follows the SECURE architecture where:
+                # - Investor OnchainID has ONLY Account 0 as management key
+                # - Trusted issuer keys are ONLY on ClaimIssuer contract
+                # - NO third-party management keys are added to investor OnchainID
+                print(f"🔒 CORRECT T-REX Architecture: No pre-indexing needed")
+                print(f"🔒 Only Account 0 (deployer) has management key - this is SECURE!")
                 
-                if key_id:
-                    print(f"✅ Pre-indexed ClaimIssuer management key: {trusted_issuer.claim_issuer_address} -> {investor.onchain_id}")
-                else:
-                    print(f"⚠️ Failed to pre-index ClaimIssuer management key")
-                    
-            except Exception as e:
-                print(f"⚠️ Error pre-indexing ClaimIssuer management key: {e}")
+                # We don't need to pre-index any keys since JavaScript won't add them
+                print(f"✅ No pre-indexing required - keys remain unchanged")
             
             # STEP 3: Call JavaScript subprocess to add claim
             print("🚀 STEP 3: Calling JavaScript subprocess to add claim...")
@@ -158,33 +158,11 @@ class HybridClaimService:
                 if js_result and js_result.get('success'):
                     print("🎉 Claim addition successful!")
                     
-                    # Update the pre-indexed ClaimIssuer management key with transaction hash
-                    try:
-                        from services.transaction_indexer import TransactionIndexer
-                        from services.web3_service import Web3Service
-                        
-                        web3_service = Web3Service()
-                        transaction_indexer = TransactionIndexer(web3_service)
-                        
-                        # Get the actual key hash from the ClaimIssuer address
-                        key_hash = web3_service.w3.keccak(web3_service.w3.codec.encode(['address'], [trusted_issuer.claim_issuer_address])).hex()
-                        
-                        # Find and update the pre-indexed key
-                        pending_keys = transaction_indexer.get_pending_onchainid_keys(investor.onchain_id)
-                        for key in pending_keys:
-                            if (key.wallet_address == trusted_issuer.claim_issuer_address and 
-                                key.key_type == 'management'):
-                                
-                                transaction_indexer.update_onchainid_key_after_transaction(
-                                    key_id=key.id,
-                                    transaction_hash=js_result.get('transactionHash'),
-                                    actual_key_hash=key_hash
-                                )
-                                print(f"✅ Updated ClaimIssuer management key with transaction: {js_result.get('transactionHash')}")
-                                break
-                                
-                    except Exception as e:
-                        print(f"⚠️ Error updating ClaimIssuer management key: {e}")
+                    # NO KEY UPDATING NEEDED - CORRECT T-REX ARCHITECTURE
+                    # JavaScript now follows the SECURE architecture where no keys are added to investor OnchainID
+                    print(f"🔒 CORRECT T-REX Architecture: No keys to update")
+                    print(f"🔒 Only Account 0 (deployer) has management key - this is SECURE!")
+                    print(f"✅ Claim addition transaction: {js_result.get('transactionHash')}")
                     
                     # Return the result with additional context
                     return {

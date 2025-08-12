@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Select Trusted Issuer for KYC{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-check me-2"></i>Select Trusted Issuer for KYC
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Multi-Lane KYC System:</strong> Choose a trusted issuer and select the specific claims you need. 
+                        You can submit multiple requests to different trusted issuers for different claims.
+                    </div>
+
+                    <!-- Debug Info -->
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Debug Info:</strong> Found {{ trusted_issuers|length }} approved trusted issuers
+                    </div>
+                    
+                    {% if trusted_issuers %}
+                        <form method="POST" action="{{ url_for('kyc_system.submit_kyc_request', tab_session=tab_session_id) }}">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5 class="text-primary mb-3">
+                                        <i class="fas fa-building me-2"></i>Select Trusted Issuer
+                                    </h5>
+                                    
+                                    {% for trusted_issuer in trusted_issuers %}
+                                        <div class="card mb-3 trusted-issuer-card" data-trusted-issuer-id="{{ trusted_issuer.id }}">
+                                            <div class="card-body">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="trusted_issuer_id" 
+                                                           value="{{ trusted_issuer.id }}" id="ti_{{ trusted_issuer.id }}" required>
+                                                    <label class="form-check-label" for="ti_{{ trusted_issuer.id }}">
+                                                        <strong>{{ trusted_issuer.username }}</strong>
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="mt-2">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-wallet me-1"></i>{{ trusted_issuer.wallet_address[:10] }}...{{ trusted_issuer.wallet_address[-8:] }}
+                                                    </small>
+                                                </div>
+                                                
+                                                {% if specializations[trusted_issuer.id] %}
+                                                    <div class="mt-2">
+                                                        <small class="text-success">
+                                                            <i class="fas fa-star me-1"></i>
+                                                            Specializes in: 
+                                                            {% for spec in specializations[trusted_issuer.id][:3] %}
+                                                                Topic {{ spec.claim_topic }}{% if not loop.last %}, {% endif %}
+                                                            {% endfor %}
+                                                            {% if specializations[trusted_issuer.id]|length > 3 %}
+                                                                +{{ specializations[trusted_issuer.id]|length - 3 }} more
+                                                            {% endif %}
+                                                        </small>
+                                                    </div>
+                                                {% else %}
+                                                    <div class="mt-2">
+                                                        <small class="text-warning">
+                                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                                            No specializations configured yet
+                                                        </small>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <h5 class="text-primary mb-3">
+                                        <i class="fas fa-list-check me-2"></i>Select Claims
+                                    </h5>
+                                    
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Note:</strong> Claims will be enabled based on your selected trusted issuer's capabilities.
+                                    </div>
+                                    
+                                    <div id="claims-selection" class="d-none">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                {% for topic_id in range(1, 6) %}
+                                                    <div class="form-check claim-checkbox" data-topic="{{ topic_id }}">
+                                                        <input class="form-check-input" type="checkbox" name="selected_claims" 
+                                                               value="{{ topic_id }}:{{ claim_data_options[topic_id][0] }}" 
+                                                               id="claim_{{ topic_id }}" disabled>
+                                                        <label class="form-check-label" for="claim_{{ topic_id }}">
+                                                            <strong>Topic {{ topic_id }}:</strong> {{ claim_topics[topic_id] }}
+                                                        </label>
+                                                        <br>
+                                                        <small class="text-muted">
+                                                            Default: {{ claim_data_options[topic_id][0] }}
+                                                        </small>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                            <div class="col-md-6">
+                                                {% for topic_id in range(6, 11) %}
+                                                    <div class="form-check claim-checkbox" data-topic="{{ topic_id }}">
+                                                        <input class="form-check-input" type="checkbox" name="selected_claims" 
+                                                               value="{{ topic_id }}:{{ claim_data_options[topic_id][0] }}" 
+                                                               id="claim_{{ topic_id }}" disabled>
+                                                        <label class="form-check-label" for="claim_{{ topic_id }}">
+                                                            <strong>Topic {{ topic_id }}:</strong> {{ claim_topics[topic_id] }}
+                                                        </label>
+                                                        <br>
+                                                        <small class="text-muted">
+                                                            Default: {{ claim_data_options[topic_id][0] }}
+                                                        </small>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="text-primary mb-3">
+                                        <i class="fas fa-file-alt me-2"></i>KYC Information
+                                    </h5>
+                                    
+                                    {% if user.kyc_data %}
+                                        <div class="alert alert-success">
+                                            <i class="fas fa-check-circle me-2"></i>
+                                            <strong>KYC Data Available:</strong> Your existing KYC information will be used.
+                                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="showKYCForm()">
+                                                Update KYC Data
+                                            </button>
+                                        </div>
+                                        
+                                        <div id="kyc-form" class="d-none">
+                                    {% else %}
+                                        <div id="kyc-form">
+                                    {% endif %}
+                                    
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="full_name" class="form-label">Full Name *</label>
+                                                <input type="text" class="form-control" id="full_name" name="full_name" 
+                                                       value="{{ user.full_name or '' }}" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="nationality" class="form-label">Nationality *</label>
+                                                <select class="form-control" id="nationality" name="nationality" required>
+                                                    <option value="">Select your nationality</option>
+                                                    <option value="US" {% if user.nationality == 'US' %}selected{% endif %}>United States</option>
+                                                    <option value="EU" {% if user.nationality == 'EU' %}selected{% endif %}>European Union</option>
+                                                    <option value="UK" {% if user.nationality == 'UK' %}selected{% endif %}>United Kingdom</option>
+                                                    <option value="CA" {% if user.nationality == 'CA' %}selected{% endif %}>Canada</option>
+                                                    <option value="AU" {% if user.nationality == 'AU' %}selected{% endif %}>Australia</option>
+                                                    <option value="ASIA" {% if user.nationality == 'ASIA' %}selected{% endif %}>Asia</option>
+                                                    <option value="OTHER" {% if user.nationality == 'OTHER' %}selected{% endif %}>Other</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label for="date_of_birth" class="form-label">Date of Birth *</label>
+                                                <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" 
+                                                       value="{{ user.date_of_birth or '' }}" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+
+                                    
+                                    {% if user.kyc_data %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" disabled>
+                                        <i class="fas fa-paper-plane me-2"></i>Submit KYC Request
+                                    </button>
+                                    
+                                    <a href="{{ url_for('investor.dashboard', tab_session=tab_session_id) }}" class="btn btn-secondary btn-lg ms-2">
+                                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>No Trusted Issuers Available:</strong> There are currently no approved trusted issuers available for KYC processing.
+                        </div>
+                        
+                        <a href="{{ url_for('investor.dashboard', tab_session=tab_session_id) }}" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle trusted issuer selection
+    const trustedIssuerRadios = document.querySelectorAll('input[name="trusted_issuer_id"]');
+    const claimsSelection = document.getElementById('claims-selection');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    trustedIssuerRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                const trustedIssuerId = this.value;
+                loadTrustedIssuerSpecializations(trustedIssuerId);
+                claimsSelection.classList.remove('d-none');
+            }
+        });
+    });
+});
+
+function loadTrustedIssuerSpecializations(trustedIssuerId) {
+    // Enable all claim checkboxes first
+    const claimCheckboxes = document.querySelectorAll('.claim-checkbox input');
+    claimCheckboxes.forEach(checkbox => {
+        checkbox.disabled = false;
+    });
+    
+    // Fetch specializations and adjust available claims
+    fetch(`/kyc-system/api/trusted-issuer-specializations/${trustedIssuerId}`)
+        .then(response => response.json())
+        .then(data => {
+            // Disable claims that this trusted issuer cannot handle
+            Object.keys(data).forEach(topic => {
+                const topicInt = parseInt(topic);
+                const checkbox = document.getElementById(`claim_${topicInt}`);
+                if (checkbox && !data[topic].can_handle) {
+                    checkbox.disabled = true;
+                    checkbox.checked = false;
+                }
+            });
+            
+            // Update submit button state
+            updateSubmitButtonState();
+        })
+        .catch(error => {
+            console.error('Error loading specializations:', error);
+        });
+}
+
+function updateSubmitButtonState() {
+    const trustedIssuerSelected = document.querySelector('input[name="trusted_issuer_id"]:checked');
+    const claimsSelected = document.querySelectorAll('input[name="selected_claims"]:checked');
+    
+    const submitBtn = document.getElementById('submit-btn');
+    if (trustedIssuerSelected && claimsSelected.length > 0) {
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.disabled = true;
+    }
+}
+
+// Update submit button state when claims are selected/deselected
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'selected_claims') {
+        updateSubmitButtonState();
+    }
+});
+
+function showKYCForm() {
+    const kycForm = document.getElementById('kyc-form');
+    kycForm.classList.remove('d-none');
+}
+</script>
+{% endblock %} 

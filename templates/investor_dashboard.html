@@ -74,143 +74,50 @@
 
     <div class="row">
         <div class="col-12">
-            {% if user.kyc_status == 'not_submitted' %}
-                <!-- KYC Form (Collapsible) -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-user-check me-2"></i>KYC Information Submission
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" action="{{ url_for('investor.kyc_submission', tab_session=tab_session_id) }}">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="full_name" class="form-label">Full Name *</label>
-                                        <input type="text" class="form-control" id="full_name" name="full_name" 
-                                               placeholder="John Doe" required>
-                                        <div class="form-text">Enter your legal full name as it appears on official documents</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="nationality" class="form-label">Nationality *</label>
-                                        <select class="form-control" id="nationality" name="nationality" required>
-                                            <option value="">Select your nationality</option>
-                                            <option value="US">United States</option>
-                                            <option value="EU">European Union</option>
-                                            <option value="UK">United Kingdom</option>
-                                            <option value="CA">Canada</option>
-                                            <option value="AU">Australia</option>
-                                            <option value="ASIA">Asia</option>
-                                            <option value="OTHER">Other</option>
-                                        </select>
-                                        <div class="form-text">Your region of citizenship</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="date_of_birth" class="form-label">Date of Birth *</label>
-                                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
-                                        <div class="form-text">Must be 18 or older to participate</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="alert alert-warning">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                <strong>Important:</strong> By submitting this form, you agree to provide accurate 
-                                information and understand that false statements may result in rejection of your application.
-                                Your KYC information will be reviewed by a trusted issuer before approval.
-                            </div>
-                            
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-paper-plane me-2"></i>Submit KYC Information
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+            <!-- Multi-Lane KYC System -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-network-wired me-2"></i>Multi-Lane KYC System
+                    </h5>
                 </div>
-            {% elif user.kyc_status == 'pending' %}
-                <div class="alert alert-warning">
-                    <i class="fas fa-clock me-2"></i>
-                    <strong>KYC Pending Review</strong> Your KYC information has been submitted and is being reviewed by a trusted issuer.
-                </div>
-            {% endif %}
-            
-            <!-- KYC Form (Collapsible) -->
-            {% if user.kyc_status == 'not_submitted' %}
-            <div class="collapse" id="kycForm">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-user-check me-2"></i>KYC Information Submission
-                        </h5>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6 class="text-primary">How it works:</h6>
+                            <ul class="mb-3">
+                                <li><strong>Select Trusted Issuer:</strong> Choose from approved trusted issuers based on your needs</li>
+                                <li><strong>Choose Claims:</strong> Select specific T-REX standard claims you need (KYC, AML, etc.)</li>
+                                <li><strong>Multiple Requests:</strong> Submit requests to different trusted issuers for different claims</li>
+                                <li><strong>Track Progress:</strong> Monitor the status of all your KYC requests</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="d-grid gap-2">
+                                <a href="{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}" class="btn btn-primary">
+                                    <i class="fas fa-plus me-2"></i>Submit New KYC Request
+                                </a>
+                                <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-list me-2"></i>View My Requests
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <form method="POST" action="{{ url_for('investor.kyc_submission', tab_session=tab_session_id) }}">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="full_name" class="form-label">Full Name *</label>
-                                        <input type="text" class="form-control" id="full_name" name="full_name" 
-                                               placeholder="John Doe" required>
-                                        <div class="form-text">Enter your legal full name as it appears on official documents</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="nationality" class="form-label">Nationality *</label>
-                                        <select class="form-control" id="nationality" name="nationality" required>
-                                            <option value="">Select your nationality</option>
-                                            <option value="US">United States</option>
-                                            <option value="EU">European Union</option>
-                                            <option value="UK">United Kingdom</option>
-                                            <option value="CA">Canada</option>
-                                            <option value="AU">Australia</option>
-                                            <option value="ASIA">Asia</option>
-                                            <option value="OTHER">Other</option>
-                                        </select>
-                                        <div class="form-text">Your region of citizenship</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="date_of_birth" class="form-label">Date of Birth *</label>
-                                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
-                                        <div class="form-text">Must be 18 or older to participate</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="alert alert-warning">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                <strong>Important:</strong> By submitting this form, you agree to provide accurate 
-                                information and understand that false statements may result in rejection of your application.
-                                Your KYC information will be reviewed by a trusted issuer before approval.
-                            </div>
-                            
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-paper-plane me-2"></i>Submit KYC Information
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                    
+                    {% if user.kyc_status == 'not_submitted' %}
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Get Started:</strong> You can now submit KYC requests to specific trusted issuers for the claims you need.
+                        </div>
+                    {% elif user.kyc_status == 'pending' %}
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-clock me-2"></i>
+                            <strong>KYC In Progress:</strong> You have pending KYC requests. Check the status in "View My Requests".
+                        </div>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
-        </div>
+
     </div>
 
     <!-- Tabs: Requests | My Tokens -->

@@ -79,6 +79,83 @@
                         <div class="tab-content mt-3" id="onchainidTabContent">
                             <!-- Keys Tab -->
                             <div class="tab-pane fade show active" id="keys" role="tabpanel">
+                                <!-- Key Management Section -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <div class="card border-primary">
+                                            <div class="card-header bg-primary text-white">
+                                                <h5 class="mb-0">
+                                                    <i class="fas fa-key me-2"></i>Manage Keys
+                                                </h5>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6 class="text-primary mb-3">
+                                                            <i class="fas fa-plus me-2"></i>Add New Key
+                                                        </h6>
+                                                        <form id="addKeyForm">
+                                                            <div class="mb-3">
+                                                                <label for="keyAddress" class="form-label">Wallet Address</label>
+                                                                <input type="text" class="form-control" id="keyAddress" 
+                                                                       placeholder="0x..." required>
+                                                                <div class="form-text">The wallet address to add as a key</div>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label for="keyRole" class="form-label">Role Name</label>
+                                                                <input type="text" class="form-control" id="keyRole" 
+                                                                       placeholder="e.g., Trusted Issuer, Admin, Compliance Officer..." required>
+                                                                <div class="form-text">A descriptive name for this key's role</div>
+                                                                <div class="mt-2">
+                                                                    <small class="text-muted">Common roles:</small>
+                                                                    <div class="mt-1">
+                                                                        <span class="badge bg-light text-dark me-1" onclick="setRole('Trusted Issuer')" style="cursor: pointer;">Trusted Issuer</span>
+                                                                        <span class="badge bg-light text-dark me-1" onclick="setRole('Admin')" style="cursor: pointer;">Admin</span>
+                                                                        <span class="badge bg-light text-dark me-1" onclick="setRole('Compliance Officer')" style="cursor: pointer;">Compliance Officer</span>
+                                                                        <span class="badge bg-light text-dark me-1" onclick="setRole('Treasurer')" style="cursor: pointer;">Treasurer</span>
+                                                                        <span class="badge bg-light text-dark me-1" onclick="setRole('Auditor')" style="cursor: pointer;">Auditor</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div class="mb-3">
+                                                                <label for="keyPurpose" class="form-label">Key Purpose</label>
+                                                                <select class="form-select" id="keyPurpose" required>
+                                                                    <option value="">Select purpose...</option>
+                                                                    <option value="1">1 - Management (add/remove keys)</option>
+                                                                    <option value="2">2 - Action (execute transactions)</option>
+                                                                    <option value="3">3 - Claim Signer (sign claims)</option>
+                                                                </select>
+                                                                <div class="form-text">What this key can do</div>
+                                                            </div>
+                                                            <button type="submit" class="btn btn-primary">
+                                                                <i class="fas fa-plus me-2"></i>Add Key
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <h6 class="text-info mb-3">
+                                                            <i class="fas fa-info-circle me-2"></i>Key Purposes
+                                                        </h6>
+                                                        <div class="alert alert-info">
+                                                            <ul class="mb-0">
+                                                                <li><strong>Purpose 1 (Management):</strong> Can add/remove keys, manage the OnchainID</li>
+                                                                <li><strong>Purpose 2 (Action):</strong> Can execute actions, sign transactions</li>
+                                                                <li><strong>Purpose 3 (Claim Signer):</strong> Can sign claims for this identity</li>
+                                                            </ul>
+                                                            <hr class="my-2">
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                                                <strong>Note:</strong> Only keys with Purpose 1 (Management) can add/remove other keys.
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Current Keys Display -->
                                 <div class="row">
                                     <!-- Management Keys -->
                                     <div class="col-md-4">
@@ -96,10 +173,39 @@
                                                         <div class="border-bottom pb-2 mb-2">
                                                             <strong>Key Hash:</strong><br>
                                                             <code class="small">{{ key.key_hash }}</code><br>
+                                                            <strong>Username:</strong> 
+                                                            {% if key.username and key.username != 'Unknown (blockchain only)' %}
+                                                                <span class="badge bg-success">{{ key.username }}</span>
+                                                            {% else %}
+                                                                <span class="badge bg-warning">{{ key.username or 'Unknown' }}</span>
+                                                            {% endif %}<br>
+                                                            <strong>User Type:</strong> 
+                                                            {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
+                                                                <span class="badge bg-info">{{ key.user_type }}</span>
+                                                            {% else %}
+                                                                <span class="badge bg-secondary">{{ key.user_type or 'Unknown' }}</span>
+                                                            {% endif %}<br>
+                                                            <strong>Wallet Address:</strong><br>
+                                                            {% if key.wallet_address and key.wallet_address != 'Unknown (blockchain only)' %}
+                                                                <code class="small text-break">{{ key.wallet_address }}</code>
+                                                                {% if key.owner_type == 'claim_issuer_contract' and key.owner_wallet %}
+                                                                    <br><small class="text-muted">Contract owned by: <code class="small">{{ key.owner_wallet }}</code></small>
+                                                                {% endif %}
+                                                            {% else %}
+                                                                <span class="badge bg-secondary">{{ key.wallet_address or 'Unknown' }}</span>
+                                                            {% endif %}<br>
                                                             <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
                                                             <strong>Type:</strong> {{ key.key_type }}<br>
-                                                            <strong>Data:</strong><br>
-                                                            <code class="small">{{ key.key_data }}</code>
+                                                            <strong>Source:</strong> 
+                                                            {% if key.source == 'blockchain + database' %}
+                                                                <span class="badge bg-success">Database + Blockchain</span>
+                                                            {% elif key.source == 'blockchain only' %}
+                                                                <span class="badge bg-warning">Blockchain Only</span>
+                                                            {% elif key.source == 'database only' %}
+                                                                <span class="badge bg-info">Database Only</span>
+                                                            {% else %}
+                                                                <span class="badge bg-secondary">{{ key.source or 'Unknown' }}</span>
+                                                            {% endif %}
                                                         </div>
                                                     {% endfor %}
                                                 {% else %}
@@ -123,12 +229,50 @@
                                                 {% if action_keys %}
                                                     {% for key in action_keys %}
                                                         <div class="border-bottom pb-2 mb-2">
-                                                            <strong>Key Hash:</strong><br>
-                                                            <code class="small">{{ key.key_hash }}</code><br>
-                                                            <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
-                                                            <strong>Type:</strong> {{ key.key_type }}<br>
-                                                            <strong>Data:</strong><br>
-                                                            <code class="small">{{ key.key_data }}</code>
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div class="flex-grow-1">
+                                                                    <strong>Key Hash:</strong><br>
+                                                                    <code class="small">{{ key.key_hash }}</code><br>
+                                                                    <strong>Username:</strong> 
+                                                                    {% if key.username and key.username != 'Unknown (blockchain only)' %}
+                                                                        <span class="badge bg-success">{{ key.username }}</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-warning">{{ key.username or 'Unknown' }}</span>
+                                                                    {% endif %}<br>
+                                                                    <strong>User Type:</strong> 
+                                                                    {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
+                                                                        <span class="badge bg-info">{{ key.user_type }}</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-secondary">{{ key.user_type or 'Unknown' }}</span>
+                                                                    {% endif %}<br>
+                                                                    <strong>Wallet Address:</strong><br>
+                                                                    {% if key.wallet_address and key.wallet_address != 'Unknown (blockchain only)' %}
+                                                                        <code class="small text-break">{{ key.wallet_address }}</code>
+                                                                        {% if key.owner_type == 'claim_issuer_contract' and key.owner_wallet %}
+                                                                            <br><small class="text-muted">Contract owned by: <code class="small">{{ key.owner_wallet }}</code></small>
+                                                                        {% endif %}
+                                                                    {% else %}
+                                                                        <span class="badge bg-secondary">{{ key.wallet_address or 'Unknown' }}</span>
+                                                                    {% endif %}<br>
+                                                                    <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
+                                                                    <strong>Type:</strong> {{ key.key_type }}<br>
+                                                                    <strong>Source:</strong> 
+                                                                    {% if key.source == 'blockchain + database' %}
+                                                                        <span class="badge bg-success">Database + Blockchain</span>
+                                                                    {% elif key.source == 'blockchain only' %}
+                                                                        <span class="badge bg-warning">Blockchain Only</span>
+                                                                    {% elif key.source == 'database only' %}
+                                                                        <span class="badge bg-info">Database Only</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-secondary">{{ key.source or 'Unknown' }}</span>
+                                                                    {% endif %}
+                                                                </div>
+                                                                <div class="ms-2">
+                                                                    <button class="btn btn-outline-danger btn-sm" onclick="removeKey('{{ key.wallet_address }}')" title="Remove Key">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     {% endfor %}
                                                 {% else %}
@@ -152,12 +296,47 @@
                                                     <p class="text-success small">✅ Found {{ claim_signer_keys|length }} claim signer key(s)</p>
                                                     {% for key in claim_signer_keys %}
                                                         <div class="border-bottom pb-2 mb-2">
-                                                            <strong>Key Hash:</strong><br>
-                                                            <code class="small">{{ key.key_hash }}</code><br>
-                                                            <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
-                                                            <strong>Type:</strong> {{ key.key_type }}<br>
-                                                            <strong>Data:</strong><br>
-                                                            <code class="small">{{ key.key_data }}</code>
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div class="flex-grow-1">
+                                                                    <strong>Key Hash:</strong><br>
+                                                                    <code class="small">{{ key.key_hash }}</code><br>
+                                                                    <strong>Username:</strong> 
+                                                                    {% if key.username and key.username != 'Unknown (blockchain only)' %}
+                                                                        <span class="badge bg-success">{{ key.username }}</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-warning">{{ key.username or 'Unknown' }}</span>
+                                                                    {% endif %}<br>
+                                                                    <strong>User Type:</strong> 
+                                                                    {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
+                                                                        <span class="badge bg-info">{{ key.user_type }}</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-secondary">{{ key.user_type or 'Unknown' }}</span>
+                                                                    {% endif %}<br>
+                                                                    <strong>Wallet Address:</strong><br>
+                                                                    {% if key.wallet_address and key.wallet_address != 'Unknown (blockchain only)' %}
+                                                                        <code class="small text-break">{{ key.wallet_address }}</code>
+                                                                    {% else %}
+                                                                        <span class="badge bg-secondary">{{ key.wallet_address or 'Unknown' }}</span>
+                                                                    {% endif %}<br>
+                                                                    <strong>Purposes:</strong> {{ key.purposes|join(', ') }}<br>
+                                                                    <strong>Type:</strong> {{ key.key_type }}<br>
+                                                                    <strong>Source:</strong> 
+                                                                    {% if key.source == 'blockchain + database' %}
+                                                                        <span class="badge bg-success">Database + Blockchain</span>
+                                                                    {% elif key.source == 'blockchain only' %}
+                                                                        <span class="badge bg-warning">Blockchain Only</span>
+                                                                    {% elif key.source == 'database only' %}
+                                                                        <span class="badge bg-info">Database Only</span>
+                                                                    {% else %}
+                                                                        <span class="badge bg-secondary">{{ key.source or 'Unknown' }}</span>
+                                                                    {% endif %}
+                                                                </div>
+                                                                <div class="ms-2">
+                                                                    <button class="btn btn-outline-danger btn-sm" onclick="removeKey('{{ key.wallet_address }}')" title="Remove Key">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     {% endfor %}
                                                 {% else %}
@@ -249,82 +428,8 @@
             </div>
     </div>
 
-    <!-- Known Account Hashes Reference -->
-    <div class="card mt-4">
-        <div class="card-header bg-info text-white">
-            <h5 class="mb-0">🔑 Known Hardhat Account Key Hashes</h5>
-        </div>
-        <div class="card-body">
-            <p class="text-muted">Reference table for decoding key hashes to known Hardhat accounts:</p>
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Account</th>
-                            <th>Address</th>
-                            <th>Key Hash (abi.encode)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Account 0</strong></td>
-                            <td><code>0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266</code></td>
-                            <td><code>d9c5115d8ca09413513b0348ccd4aa5d5d2b8183823763b527bfd81f40d86f2a</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 1</strong></td>
-                            <td><code>0x70997970C51812dc3A010C7d01b50e0d17dc79C8</code></td>
-                            <td><code>e9707d0e6171f728f7473c24cc0432a9b07eaaf1efed6a137a4a8c12c79552d9</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 2</strong></td>
-                            <td><code>0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC</code></td>
-                            <td><code>5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 3</strong></td>
-                            <td><code>0x90F79bf6EB2c4f870365E785982E1f101E93b906</code></td>
-                            <td><code>6c9a6c4a9df3d3c9c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 4</strong></td>
-                            <td><code>0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65</code></td>
-                            <td><code>7daa7b5b9ef4e4d9e9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 5</strong></td>
-                            <td><code>0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc</code></td>
-                            <td><code>8ebb8c6c0af5f5e0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 6</strong></td>
-                            <td><code>0x976EA74026E726554dB657fA54763abd0C3a0aa9</code></td>
-                            <td><code>9fcc9d7d1b0g0g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1g1</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 7</strong></td>
-                            <td><code>0x14dC79964da2C08b23698B3D3cc7Ca32193d9955</code></td>
-                            <td><code>a0dd0e8e2c1h1h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2h2</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 8</strong></td>
-                            <td><code>0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f</code></td>
-                            <td><code>b1ee1f9f3d2i2i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3i3</code></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Account 9</strong></td>
-                            <td><code>0xa0Ee7A142d267C1f36714E4a8F75612F20a79720</code></td>
-                            <td><code>c2ff2g0g4e3j3j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4j4</code></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="alert alert-info mt-3">
-                <strong>Note:</strong> Key hashes are generated using <code>keccak256(abi.encode(address))</code>. 
-                If a key hash matches one of these, it means that account has a key on this OnchainID.
-            </div>
-        </div>
-    </div>
+
+
 
     <script>
 // Auto-refresh functionality
@@ -332,5 +437,110 @@ setInterval(function() {
     // Refresh the page every 30 seconds to get latest data
     // location.reload();
 }, 30000);
+
+// Key Management Functions
+let keyToRemove = null;
+
+// Set role from badge click
+function setRole(roleName) {
+    document.getElementById('keyRole').value = roleName;
+}
+
+// Add new key
+document.getElementById('addKeyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const keyAddress = document.getElementById('keyAddress').value.trim();
+    const keyRole = document.getElementById('keyRole').value.trim();
+    const keyPurpose = document.getElementById('keyPurpose').value;
+    
+    if (!keyAddress || !keyRole || !keyPurpose) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    // Validate Ethereum address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(keyAddress)) {
+        alert('Please enter a valid Ethereum address (0x followed by 40 hex characters)');
+        return;
+    }
+    
+    // Show loading state
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Key...';
+    submitBtn.disabled = true;
+    
+    // Submit to backend
+    fetch('{{ url_for("onchainid.add_key", onchainid_address=onchainid_address) }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            key_address: keyAddress,
+            role: keyRole,
+            purpose: parseInt(keyPurpose)
+        })
+    })
+    .then(response => response.json())
+            .then(data => {
+            if (data.success) {
+                alert('Key added successfully!\n\nRole: ' + keyRole + '\nPurpose: ' + keyPurpose + '\nTransaction: ' + data.transaction_hash);
+                location.reload(); // Refresh to show new key
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding key. Please try again.');
+    })
+    .finally(() => {
+        // Reset button state
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+});
+
+// Remove key
+function removeKey(keyAddress) {
+    if (confirm('Are you sure you want to remove the key ' + keyAddress + '?\n\nThis action cannot be undone and will require a blockchain transaction.')) {
+        // Show loading state
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+        
+        // Submit removal request
+        fetch('{{ url_for("onchainid.remove_key", onchainid_address=onchainid_address) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                key_address: keyAddress
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Key removed successfully! Transaction: ' + data.transaction_hash);
+                location.reload(); // Refresh to show updated keys
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error removing key. Please try again.');
+        })
+        .finally(() => {
+            // Reset button state
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }
+}
 </script>
 {% endblock %} 

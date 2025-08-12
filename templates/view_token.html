@@ -131,27 +131,43 @@
                                     <div class="col-6 mb-2">
                                         {% if topic == "1" %}
                                             <span class="badge bg-success">
-                                                <i class="fas fa-check-circle me-1"></i>KYC Status (Topic 1)
+                                                <i class="fas fa-check-circle me-1"></i>KYC (Know Your Customer) (Topic 1)
                                             </span>
                                         {% elif topic == "2" %}
                                             <span class="badge bg-info">
-                                                <i class="fas fa-globe me-1"></i>Nationality (Topic 2)
+                                                <i class="fas fa-shield-alt me-1"></i>AML (Anti-Money Laundering) (Topic 2)
                                             </span>
                                         {% elif topic == "3" %}
                                             <span class="badge bg-warning">
-                                                <i class="fas fa-birthday-cake me-1"></i>Age Verification (Topic 3)
+                                                <i class="fas fa-star me-1"></i>Accredited Investor (Topic 3)
                                             </span>
                                         {% elif topic == "4" %}
-                                            <span class="badge bg-warning">
-                                                <i class="fas fa-star me-1"></i>Accredited Investor (Topic 4)
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-globe-europe me-1"></i>EU Nationality Confirmed (Topic 4)
                                             </span>
                                         {% elif topic == "5" %}
                                             <span class="badge bg-info">
-                                                <i class="fas fa-home me-1"></i>Residency (Topic 5)
+                                                <i class="fas fa-flag-usa me-1"></i>US Nationality Confirmed (Topic 5)
                                             </span>
                                         {% elif topic == "6" %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-ban me-1"></i>Blacklist (Topic 6)
+                                            </span>
+                                        {% elif topic == "7" %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-home me-1"></i>Residency (Topic 7)
+                                            </span>
+                                        {% elif topic == "8" %}
                                             <span class="badge bg-success">
-                                                <i class="fas fa-shield-alt me-1"></i>Compliance (Topic 6)
+                                                <i class="fas fa-shield-alt me-1"></i>Compliance Status (Topic 8)
+                                            </span>
+                                        {% elif topic == "9" %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>Restricted Status (Topic 9)
+                                            </span>
+                                        {% elif topic == "10" %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle me-1"></i>Whitelisted Status (Topic 10)
                                             </span>
                                         {% else %}
                                             <span class="badge bg-secondary">

@@ -228,11 +228,15 @@ def trusted_issuer_approvals():
         flash('Admin access required.', 'error')
         return redirect(url_for('admin.login', tab_session=tab_session.session_id))
     
-    # Get pending approvals
+    # Get all approvals by status
     pending_approvals = TrustedIssuerApproval.query.filter_by(status='pending').all()
+    approved_approvals = TrustedIssuerApproval.query.filter_by(status='approved').all()
+    rejected_approvals = TrustedIssuerApproval.query.filter_by(status='rejected').all()
     
     return render_template('admin_trusted_issuer_approvals.html',
                          pending_approvals=pending_approvals,
+                         approved_approvals=approved_approvals,
+                         rejected_approvals=rejected_approvals,
                          tab_session_id=tab_session.session_id)
 
 @admin_bp.route('/approve-trusted-issuer/<int:approval_id>', methods=['POST'])

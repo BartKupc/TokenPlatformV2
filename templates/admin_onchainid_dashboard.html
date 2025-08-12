@@ -109,9 +109,12 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Key Hash</th>
+                                            <th>Username</th>
+                                            <th>User Type</th>
+                                            <th>Wallet Address</th>
                                             <th>Purposes</th>
                                             <th>Type</th>
-                                            <th>Data</th>
+                                            <th>Source</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -119,12 +122,46 @@
                                         <tr>
                                             <td><code>{{ key.key_hash }}</code></td>
                                             <td>
+                                                {% if key.username and key.username != 'Unknown (blockchain only)' %}
+                                                    <span class="badge badge-success">{{ key.username }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-warning">{{ key.username or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
+                                                    <span class="badge badge-info">{{ key.user_type }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.user_type or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if key.wallet_address and key.wallet_address != 'Unknown (blockchain only)' %}
+                                                    <code class="text-break">{{ key.wallet_address }}</code>
+                                                    {% if key.owner_type == 'claim_issuer_contract' and key.owner_wallet %}
+                                                        <br><small class="text-muted">Contract owned by: <code class="small">{{ key.owner_wallet }}</code></small>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.wallet_address or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
                                                 {% for purpose in key.purposes %}
                                                 <span class="badge badge-primary">{{ purpose }}</span>
                                                 {% endfor %}
                                             </td>
                                             <td>{{ key.key_type }}</td>
-                                            <td><code>{{ key.key_data }}</code></td>
+                                            <td>
+                                                {% if key.source == 'blockchain + database' %}
+                                                    <span class="badge badge-success">Database + Blockchain</span>
+                                                {% elif key.source == 'blockchain only' %}
+                                                    <span class="badge badge-warning">Blockchain Only</span>
+                                                {% elif key.source == 'database only' %}
+                                                    <span class="badge badge-info">Database Only</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.source or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -149,9 +186,12 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Key Hash</th>
+                                            <th>Username</th>
+                                            <th>User Type</th>
+                                            <th>Wallet Address</th>
                                             <th>Purposes</th>
                                             <th>Type</th>
-                                            <th>Data</th>
+                                            <th>Source</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -159,12 +199,46 @@
                                         <tr>
                                             <td><code>{{ key.key_hash }}</code></td>
                                             <td>
+                                                {% if key.username and key.username != 'Unknown (blockchain only)' %}
+                                                    <span class="badge badge-success">{{ key.username }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-warning">{{ key.username or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
+                                                    <span class="badge badge-info">{{ key.user_type }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.user_type or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if key.wallet_address and key.wallet_address != 'Unknown (blockchain only)' %}
+                                                    <code class="text-break">{{ key.wallet_address }}</code>
+                                                    {% if key.owner_type == 'claim_issuer_contract' and key.owner_wallet %}
+                                                        <br><small class="text-muted">Contract owned by: <code class="small">{{ key.owner_wallet }}</code></small>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.wallet_address or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
                                                 {% for purpose in key.purposes %}
                                                 <span class="badge badge-success">{{ purpose }}</span>
                                                 {% endfor %}
                                             </td>
                                             <td>{{ key.key_type }}</td>
-                                            <td><code>{{ key.key_data }}</code></td>
+                                            <td>
+                                                {% if key.source == 'blockchain + database' %}
+                                                    <span class="badge badge-success">Database + Blockchain</span>
+                                                {% elif key.source == 'blockchain only' %}
+                                                    <span class="badge badge-warning">Blockchain Only</span>
+                                                {% elif key.source == 'database only' %}
+                                                    <span class="badge badge-info">Database Only</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.source or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -189,9 +263,12 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Key Hash</th>
+                                            <th>Username</th>
+                                            <th>User Type</th>
+                                            <th>Wallet Address</th>
                                             <th>Purposes</th>
                                             <th>Type</th>
-                                            <th>Data</th>
+                                            <th>Source</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -199,12 +276,46 @@
                                         <tr>
                                             <td><code>{{ key.key_hash }}</code></td>
                                             <td>
+                                                {% if key.username and key.username != 'Unknown (blockchain only)' %}
+                                                    <span class="badge badge-success">{{ key.username }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-warning">{{ key.username or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
+                                                    <span class="badge badge-info">{{ key.user_type }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.user_type or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if key.wallet_address and key.wallet_address != 'Unknown (blockchain only)' %}
+                                                    <code class="text-break">{{ key.wallet_address }}</code>
+                                                    {% if key.owner_type == 'claim_issuer_contract' and key.owner_wallet %}
+                                                        <br><small class="text-muted">Contract owned by: <code class="small">{{ key.owner_wallet }}</code></small>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.wallet_address or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
                                                 {% for purpose in key.purposes %}
                                                 <span class="badge badge-warning">{{ purpose }}</span>
                                                 {% endfor %}
                                             </td>
                                             <td>{{ key.key_type }}</td>
-                                            <td><code>{{ key.key_data }}</code></td>
+                                            <td>
+                                                {% if key.source == 'blockchain + database' %}
+                                                    <span class="badge badge-success">Database + Blockchain</span>
+                                                {% elif key.source == 'blockchain only' %}
+                                                    <span class="badge badge-warning">Blockchain Only</span>
+                                                {% elif key.source == 'database only' %}
+                                                    <span class="badge badge-info">Database Only</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ key.source or 'Unknown' }}</span>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>

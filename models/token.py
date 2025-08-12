@@ -21,6 +21,12 @@ class Token(db.Model):
     claim_issuer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Specific trusted issuer ID
     claim_issuer_type = db.Column(db.String(20), nullable=False)  # 'issuer', 'trusted_issuer', 'admin'
     
+    # Trusted Issuers for Token Identity Registry (TIR)
+    trusted_issuers = db.Column(db.Text, nullable=True)  # JSON array of trusted issuer IDs
+    
+    # Multiple Agents (JSON array for multiple agents per type)
+    agents = db.Column(db.Text, nullable=True)  # JSON object with identity_agents, token_agents, compliance_agents arrays
+    
     # Contract Addresses (from TREX Suite deployment)
     identity_registry_address = db.Column(db.String(42), nullable=True)
     compliance_address = db.Column(db.String(42), nullable=True)

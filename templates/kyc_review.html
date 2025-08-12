@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Review KYC Request #{{ kyc_request.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-check me-2"></i>Review KYC Request #{{ kyc_request.id }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-user me-2"></i>Investor Information
+                            </h5>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <p><strong>Username:</strong> {{ kyc_request.investor.username }}</p>
+                                    <p><strong>Wallet Address:</strong> <code>{{ kyc_request.investor.wallet_address }}</code></p>
+                                    <p><strong>Submitted:</strong> {{ kyc_request.submitted_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                    
+                                    {% if kyc_request.kyc_data %}
+                                        <hr>
+                                        <h6>KYC Data:</h6>
+                                        {% set kyc_data = kyc_request.kyc_data | from_json %}
+                                        <p><strong>Full Name:</strong> {{ kyc_data.full_name or 'Not provided' }}</p>
+                                        <p><strong>Nationality:</strong> {{ kyc_data.nationality or 'Not provided' }}</p>
+                                        <p><strong>Date of Birth:</strong> {{ kyc_data.date_of_birth or 'Not provided' }}</p>
+                                        {% if kyc_data.additional_info %}
+                                            <p><strong>Additional Info:</strong> {{ kyc_data.additional_info }}</p>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-list-check me-2"></i>Claims Requested
+                            </h5>
+                            
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    {% for claim_request in kyc_request.claim_requests %}
+                                        <div class="mb-3 p-3 border rounded">
+                                            <h6 class="mb-2">
+                                                <span class="badge bg-info me-2">Topic {{ claim_request.claim_topic }}</span>
+                                                {{ claim_topics[claim_request.claim_topic] }}
+                                            </h6>
+                                            
+                                            <p><strong>Requested:</strong> {{ claim_request.requested_claim_data }}</p>
+                                            
+                                            <div class="form-group">
+                                                <label class="form-label">Decision:</label>
+                                                <select class="form-select" name="claim_{{ claim_request.id }}_decision" required>
+                                                    <option value="">Select decision...</option>
+                                                    <option value="approved">Approve</option>
+                                                    <option value="rejected">Reject</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div class="form-group mt-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    Claim data will be automatically set based on your decision
+                                                </small>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-gavel me-2"></i>Decision
+                                </h5>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Review Process:</strong> You can approve all claims or reject all claims.
+                                </div>
+                                
+                                <div class="d-flex gap-2">
+                                    <button type="submit" name="action" value="approve" class="btn btn-success btn-lg" 
+                                            onclick="return confirm('Are you sure you want to approve this KYC request?')">
+                                        <i class="fas fa-check me-2"></i>Approve Selected Claims
+                                    </button>
+                                    
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger btn-lg"
+                                            onclick="return confirm('Are you sure you want to reject this KYC request?')">
+                                        <i class="fas fa-times me-2"></i>Reject All Claims
+                                    </button>
+                                    
+
+                                    
+                                    <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-secondary btn-lg">
+                                        <i class="fas fa-arrow-left me-2"></i>Back to Requests
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %} 
