@@ -176,7 +176,11 @@ class TREXDeployment:
         
         # Sign and send transaction
         signed_txn = self.w3.eth.account.sign_transaction(transaction, self.deployer_private_key)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        # Handle both old and new eth-account versions
+        raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
+        if not raw_tx:
+            raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+        tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
         
         # Wait for transaction receipt
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -211,7 +215,11 @@ class TREXDeployment:
         
         # Sign and send transaction
         signed_txn = self.w3.eth.account.sign_transaction(transaction, self.deployer_private_key)
-        tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+        # Handle both old and new eth-account versions
+        raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
+        if not raw_tx:
+            raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+        tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
         
         # Wait for transaction receipt
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
