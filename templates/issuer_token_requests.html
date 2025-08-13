@@ -369,6 +369,9 @@ function openPurchaseProcessModal(requestId, investorUsername, investorWallet, a
     document.getElementById('pp_wallet').textContent = investorWallet;
     document.getElementById('pp_amount').textContent = amountRequested.toLocaleString();
 
+    // Automatically populate the "To Address" field with investor's wallet
+    document.getElementById('pp_to').value = investorWallet;
+
     // Set form actions to existing real endpoints
     const mintForm = document.getElementById('pp_mint_form');
     const transferForm = document.getElementById('pp_transfer_form');
@@ -378,6 +381,21 @@ function openPurchaseProcessModal(requestId, investorUsername, investorWallet, a
     transferForm.action = `/issuer/token/{{ token.id }}/force-transfer-for-purchase/${requestId}?tab_session={{ tab_session_id }}`;
     transferForm.method = 'POST';
     modal.show();
+}
+
+function confirmPurchaseTransferFromRequests() {
+    const form = document.getElementById('pp_transfer_form');
+    const fromAddress = document.getElementById('pp_from').value;
+    const toAddress = document.getElementById('pp_to').value;
+    
+    if (!fromAddress || !toAddress) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (confirm(`Transfer tokens from ${fromAddress} to ${toAddress}?`)) {
+        form.submit();
+    }
 }
 </script>
 {% endblock %} 
@@ -418,16 +436,19 @@ function openPurchaseProcessModal(requestId, investorUsername, investorWallet, a
                         <div class="card">
                             <div class="card-body">
                                 <h6><i class="fas fa-exchange-alt text-warning me-2"></i>Force Transfer</h6>
-                                <form id="pp_transfer_form">
+                                <small class="text-muted">Transfer tokens from a source account to the investor who requested the purchase</small>
+                                <form id="pp_transfer_form" method="POST">
                                     <div class="mb-2">
                                         <label class="form-label">From Address</label>
-                                        <input id="pp_from" class="form-control" placeholder="0x..." required>
+                                        <input id="pp_from" name="from_address" class="form-control" placeholder="0x..." required>
+                                        <small class="text-muted">Source account address (who has the tokens)</small>
                                     </div>
                                     <div class="mb-2">
-                                        <label class="form-label">To Address</label>
-                                        <input id="pp_to" class="form-control" placeholder="0x..." required>
+                                        <label class="form-label">To Address (Investor)</label>
+                                        <input id="pp_to" name="to_address" class="form-control" readonly>
+                                        <small class="text-muted">Automatically set to investor's wallet address</small>
                                     </div>
-                                    <button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-exchange-alt me-1"></i>Transfer</button>
+                                    <button type="button" class="btn btn-warning btn-sm" onclick="confirmPurchaseTransferFromRequests()"><i class="fas fa-exchange-alt me-1"></i>Transfer</button>
                                 </form>
                             </div>
                         </div>

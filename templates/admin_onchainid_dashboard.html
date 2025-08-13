@@ -109,7 +109,6 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Key Hash</th>
-                                            <th>Username</th>
                                             <th>User Type</th>
                                             <th>Wallet Address</th>
                                             <th>Purposes</th>
@@ -121,13 +120,6 @@
                                         {% for key in management_keys %}
                                         <tr>
                                             <td><code>{{ key.key_hash }}</code></td>
-                                            <td>
-                                                {% if key.username and key.username != 'Unknown (blockchain only)' %}
-                                                    <span class="badge badge-success">{{ key.username }}</span>
-                                                {% else %}
-                                                    <span class="badge badge-warning">{{ key.username or 'Unknown' }}</span>
-                                                {% endif %}
-                                            </td>
                                             <td>
                                                 {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
                                                     <span class="badge badge-info">{{ key.user_type }}</span>
@@ -186,7 +178,6 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Key Hash</th>
-                                            <th>Username</th>
                                             <th>User Type</th>
                                             <th>Wallet Address</th>
                                             <th>Purposes</th>
@@ -198,13 +189,6 @@
                                         {% for key in action_keys %}
                                         <tr>
                                             <td><code>{{ key.key_hash }}</code></td>
-                                            <td>
-                                                {% if key.username and key.username != 'Unknown (blockchain only)' %}
-                                                    <span class="badge badge-success">{{ key.username }}</span>
-                                                {% else %}
-                                                    <span class="badge badge-warning">{{ key.username or 'Unknown' }}</span>
-                                                {% endif %}
-                                            </td>
                                             <td>
                                                 {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
                                                     <span class="badge badge-info">{{ key.user_type }}</span>
@@ -263,7 +247,6 @@
                                     <thead class="thead-light">
                                         <tr>
                                             <th>Key Hash</th>
-                                            <th>Username</th>
                                             <th>User Type</th>
                                             <th>Wallet Address</th>
                                             <th>Purposes</th>
@@ -275,13 +258,6 @@
                                         {% for key in claim_signer_keys %}
                                         <tr>
                                             <td><code>{{ key.key_hash }}</code></td>
-                                            <td>
-                                                {% if key.username and key.username != 'Unknown (blockchain only)' %}
-                                                    <span class="badge badge-success">{{ key.username }}</span>
-                                                {% else %}
-                                                    <span class="badge badge-warning">{{ key.username or 'Unknown' }}</span>
-                                                {% endif %}
-                                            </td>
                                             <td>
                                                 {% if key.user_type and key.user_type != 'Unknown (blockchain only)' %}
                                                     <span class="badge badge-info">{{ key.user_type }}</span>

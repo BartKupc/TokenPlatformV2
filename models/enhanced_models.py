@@ -14,6 +14,7 @@ class OnchainIDKey(db.Model):
     wallet_address = db.Column(db.String(42), nullable=False)
     key_hash = db.Column(db.String(66), nullable=False)
     key_type = db.Column(db.String(20), nullable=False)  # 'management', 'claim_signer'
+    role = db.Column(db.String(100), nullable=True)  # Descriptive role name (e.g., 'Trusted Issuer', 'Admin')
     owner_type = db.Column(db.String(20), nullable=False)  # 'issuer', 'investor', 'trusted_issuer', 'admin'
     owner_id = db.Column(db.Integer)  # Reference to user.id if applicable
     transaction_hash = db.Column(db.String(66))  # Blockchain transaction hash when key was added

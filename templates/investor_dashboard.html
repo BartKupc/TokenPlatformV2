@@ -57,14 +57,10 @@
                                     <p class="text-muted mb-0">Your KYC application is being reviewed by a trusted issuer. You'll be notified once approved.</p>
                                 {% else %}
                                     <h6 class="mb-1">KYC Required</h6>
-                                    <p class="text-muted mb-0">Complete your KYC verification to start investing in tokens.</p>
+                                    <p class="text-muted mb-0">Use the KYC system below to submit your verification request.</p>
                                 {% endif %}
                             </div>
-                            {% if user.kyc_status == 'not_submitted' %}
-                                <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#kycForm">
-                                    <i class="fas fa-edit me-1"></i>Submit KYC
-                                </button>
-                            {% endif %}
+
                         </div>
                     </div>
                 </div>
@@ -72,53 +68,120 @@
         </div>
     {% endif %}
 
-    <div class="row">
-        <div class="col-12">
-            <!-- Multi-Lane KYC System -->
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-network-wired me-2"></i>Multi-Lane KYC System
-                    </h5>
+    <!-- Investment Guide and KYC System in 2-column layout -->
+    {% if user.kyc_status == 'approved' %}
+        <div class="row mb-4">
+            <!-- How to Invest in Tokens -->
+            <div class="col-md-6">
+                <div class="card border-info h-100">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>How to Invest in Tokens
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ol class="text-muted mb-0">
+                            <li><strong>Express Interest:</strong> Submit interest in a token (one-time approval required)</li>
+                            <li><strong>Request Purchase:</strong> Submit purchase requests for the amount you want to buy</li>
+                            <li><strong>Wait for Approval:</strong> Issuer reviews and approves your request</li>
+                            <li><strong>Tokens Minted:</strong> Tokens are minted to your wallet after approval</li>
+                            <li><strong>Buy More:</strong> You can continue buying more tokens after each purchase is completed!</li>
+                        </ol>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <h6 class="text-primary">How it works:</h6>
-                            <ul class="mb-3">
-                                <li><strong>Select Trusted Issuer:</strong> Choose from approved trusted issuers based on your needs</li>
-                                <li><strong>Choose Claims:</strong> Select specific T-REX standard claims you need (KYC, AML, etc.)</li>
-                                <li><strong>Multiple Requests:</strong> Submit requests to different trusted issuers for different claims</li>
-                                <li><strong>Track Progress:</strong> Monitor the status of all your KYC requests</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-4 text-center">
-                            <div class="d-grid gap-2">
-                                <a href="{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}" class="btn btn-primary">
-                                    <i class="fas fa-plus me-2"></i>Submit New KYC Request
-                                </a>
-                                <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-outline-primary">
-                                    <i class="fas fa-list me-2"></i>View My Requests
-                                </a>
+            </div>
+            
+            <!-- Multi-Lane KYC System -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-network-wired me-2"></i>Multi-Lane KYC System
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-primary">How it works:</h6>
+                        <ul class="mb-3">
+                            <li><strong>Select Trusted Issuer:</strong> Choose from approved trusted issuers based on your needs</li>
+                            <li><strong>Choose Claims:</strong> Select specific T-REX standard claims you need (KYC, AML, etc.)</li>
+                            <li><strong>Multiple Requests:</strong> Submit requests to different trusted issuers for different claims</li>
+                            <li><strong>Track Progress:</strong> Monitor the status of all your KYC requests</li>
+                        </ul>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus me-2"></i>Submit New KYC Request
+                            </a>
+                                                        <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-list me-2"></i>View My Requests
+                            </a>
                             </div>
                         </div>
                     </div>
-                    
-                    {% if user.kyc_status == 'not_submitted' %}
-                        <div class="alert alert-info mt-3">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <strong>Get Started:</strong> You can now submit KYC requests to specific trusted issuers for the claims you need.
-                        </div>
-                    {% elif user.kyc_status == 'pending' %}
-                        <div class="alert alert-warning mt-3">
-                            <i class="fas fa-clock me-2"></i>
-                            <strong>KYC In Progress:</strong> You have pending KYC requests. Check the status in "View My Requests".
-                        </div>
-                    {% endif %}
                 </div>
             </div>
-
-    </div>
+        </div>
+        
+        </div>
+    {% endif %}
+    
+    <!-- KYC System for Non-Approved Users -->
+    {% if user.kyc_status != 'approved' %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-user-check me-2"></i>KYC Verification Required
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="text-warning">How to get verified:</h6>
+                                <ul class="mb-3">
+                                    <li><strong>Select Trusted Issuer:</strong> Choose from approved trusted issuers based on your needs</li>
+                                    <li><strong>Choose Claims:</strong> Select specific T-REX standard claims you need (KYC, AML, etc.)</li>
+                                    <li><strong>Submit Request:</strong> Submit your KYC request to the selected trusted issuer</li>
+                                    <li><strong>Wait for Approval:</strong> The trusted issuer will review and process your request</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('kyc_system.select_trusted_issuer', tab_session=tab_session_id) }}" class="btn btn-warning">
+                                        <i class="fas fa-plus me-2"></i>Submit KYC Request
+                                    </a>
+                                    <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-outline-warning">
+                                        <i class="fas fa-list me-2"></i>View My Requests
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- KYC Status Alerts -->
+        {% if user.kyc_status == 'not_submitted' %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Get Started:</strong> You can now submit KYC requests to specific trusted issuers for the claims you need.
+                    </div>
+                </div>
+            </div>
+        {% elif user.kyc_status == 'pending' %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>KYC In Progress:</strong> You have pending KYC requests. Check the status in "View My Requests".
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
 
     <!-- Tabs: Requests | My Tokens -->
     <ul class="nav nav-tabs" id="invTabs" role="tablist">
@@ -157,8 +220,14 @@
                                             {% set existing_purchase = purchase_requests | selectattr('token_id', 'equalto', token.id) | list %}
                                             {% set existing_interest = user_interests | selectattr('token_id', 'equalto', token.id) | list %}
                                             
+                                            <!-- Debug info (remove in production) -->
+                                            {% if existing_purchase %}
+                                                <!-- Debug: Found {{ existing_purchase|length }} purchase request(s) for this token -->
+                                            {% endif %}
+                                            
                                             {% if existing_purchase %}
                                                 {% set purchase = existing_purchase[0] %}
+                                                <!-- Debug: Purchase status is {{ purchase.status }} -->
                                                 {% if purchase.status == 'approved' %}
                                                     <a href="{{ url_for('investor.request_purchase', token_id=token.id, tab_session=tab_session_id) }}" 
                                                        class="btn btn-success btn-sm">
@@ -171,6 +240,18 @@
                                                 {% elif purchase.status == 'rejected' %}
                                                     <span class="badge bg-danger">
                                                         <i class="fas fa-times me-1"></i>Purchase Rejected
+                                                    </span>
+                                                {% elif purchase.status == 'completed' %}
+                                                    <!-- Allow new purchase requests after completion -->
+                                                    <a href="{{ url_for('investor.request_purchase', token_id=token.id, tab_session=tab_session_id) }}" 
+                                                       class="btn btn-primary btn-sm">
+                                                        <i class="fas fa-shopping-cart"></i> Buy More Tokens
+                                                    </a>
+                                                    <br><small class="text-muted">Previous purchase completed</small>
+                                                {% else %}
+                                                    <!-- Debug: Unknown status {{ purchase.status }} -->
+                                                    <span class="badge bg-secondary">
+                                                        <i class="fas fa-question me-1"></i>Status: {{ purchase.status }}
                                                     </span>
                                                 {% endif %}
                                             {% elif existing_interest %}
@@ -289,6 +370,51 @@
             </div>
           </div>
         </div>
+
+        <!-- My Token Holdings -->
+        {% if my_holdings %}
+        <div class="row mt-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h4><i class="fas fa-coins"></i> My Token Holdings</h4>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-striped">
+                    <thead>
+                      <tr>
+                        <th>Token</th><th>Balance</th><th>Verification Status</th><th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for holding in my_holdings %}
+                      <tr>
+                        <td><strong>{{ holding.token.name }}</strong> ({{ holding.token.symbol }})</td>
+                        <td>{{ "{:,.0f}".format(holding.balance) }} {{ holding.token.symbol }}</td>
+                        <td>
+                          {% if holding.verified %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i> Verified</span>
+                          {% else %}
+                            <span class="badge bg-warning"><i class="fas fa-exclamation-triangle"></i> Not Verified</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <a href="{{ url_for('investor.request_purchase', token_id=holding.token.id, tab_session=tab_session_id) }}" 
+                             class="btn btn-primary btn-sm">
+                            <i class="fas fa-plus"></i> Buy More
+                          </a>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
       </div>
 
       <!-- My Tokens tab -->
@@ -308,7 +434,7 @@
                   <table class="table table-striped">
                     <thead>
                       <tr>
-                        <th>Token</th><th>Balance</th><th>Verified</th><th>Token Address</th>
+                        <th>Token</th><th>Balance</th><th>Verified</th><th>Token Address</th><th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -318,6 +444,22 @@
                         <td>{{ "{:,.4f}".format(h.balance) }} {{ h.token.symbol }}</td>
                         <td>{% if h.verified %}<span class="badge bg-success">Verified</span>{% else %}<span class="badge bg-warning">Not Verified</span>{% endif %}</td>
                         <td><code>{{ h.token.token_address }}</code></td>
+                        <td>
+                          <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary btn-sm" 
+                                    data-token-id="{{ h.token.id }}"
+                                    data-token-name="{{ h.token.name }}"
+                                    data-token-symbol="{{ h.token.symbol }}"
+                                    data-balance="{{ "{:,.4f}".format(h.balance) }}"
+                                    data-token-address="{{ h.token.token_address }}"
+                                    onclick="openTransferModalFromData(this)">
+                              <i class="fas fa-exchange-alt me-1"></i>Transfer
+                            </button>
+                            <a href="{{ url_for('investor.request_purchase', token_id=h.token.id, tab_session=tab_session_id) }}" class="btn btn-primary btn-sm">
+                              <i class="fas fa-plus me-1"></i>Buy More
+                            </a>
+                          </div>
+                        </td>
                       </tr>
                       {% endfor %}
                     </tbody>
@@ -513,6 +655,52 @@
 </div>
 {% endfor %}
 
+<!-- Transfer Modal -->
+<div class="modal fade" id="transferModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+                        <div class="modal-header">
+                <h5 class="modal-title">Transfer Tokens</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+                        <form id="transferForm" method="POST" action="{{ url_for('investor.transfer_tokens', tab_session=tab_session_id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Token</label>
+                        <input type="text" class="form-control" id="transfer_token_name" readonly>
+                        <input type="hidden" name="token_id" id="transfer_token_id">
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer_amount" class="form-label">Amount to Transfer</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="transfer_amount" name="amount" min="1" step="1" required>
+                            <span class="input-group-text" id="transfer_symbol"></span>
+                        </div>
+                        <small class="text-muted">Available: <span id="transfer_available"></span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer_to_address" class="form-label">To Address</label>
+                        <input type="text" class="form-control" id="transfer_to_address" name="to_address" placeholder="0x..." required>
+                        <small class="text-muted">Enter the recipient's wallet address</small>
+                    </div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="checkRecipientVerification()">
+                            <i class="fas fa-check-circle me-1"></i>Check Recipient Verification
+                        </button>
+                        <small class="text-muted d-block mt-1">Verify the recipient can receive tokens</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-exchange-alt me-1"></i>Transfer Tokens
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 // Auto-refresh My Tokens tab when activated
 document.addEventListener('DOMContentLoaded', function() {
@@ -546,5 +734,197 @@ function refreshMyTokens() {
     currentUrl.searchParams.set('active_tab', 'mytokens');
     window.location.href = currentUrl.toString();
 }
+
+function openTransferModalFromData(button) {
+    // Get data from button attributes
+    const tokenId = button.dataset.tokenId;
+    const tokenName = button.dataset.tokenName;
+    const tokenSymbol = button.dataset.tokenSymbol;
+    const balance = button.dataset.balance;
+    const tokenAddress = button.dataset.tokenAddress;
+    
+    // Populate the transfer modal with token information
+    document.getElementById('transfer_token_id').value = tokenId;
+    document.getElementById('transfer_token_name').value = `${tokenName} (${tokenSymbol})`;
+    document.getElementById('transfer_symbol').textContent = tokenSymbol;
+    document.getElementById('transfer_available').textContent = `${balance} ${tokenSymbol}`;
+    
+    // Set max amount for the transfer
+    const amountInput = document.getElementById('transfer_amount');
+    amountInput.max = parseFloat(balance);
+    amountInput.placeholder = `Max: ${balance}`;
+    
+    // Clear previous values
+    document.getElementById('transfer_to_address').value = '';
+    
+    // Show the modal
+    new bootstrap.Modal(document.getElementById('transferModal')).show();
+}
+
+function openTransferModal(tokenId, tokenName, tokenSymbol, balance, tokenAddress) {
+    // Populate the transfer modal with token information
+    document.getElementById('transfer_token_id').value = tokenId;
+    document.getElementById('transfer_token_name').value = `${tokenName} (${tokenSymbol})`;
+    document.getElementById('transfer_symbol').textContent = tokenSymbol;
+    document.getElementById('transfer_available').textContent = `${balance} ${tokenSymbol}`;
+    
+    // Set max amount for the transfer
+    const amountInput = document.getElementById('transfer_amount');
+    amountInput.max = parseFloat(balance);
+    amountInput.placeholder = `Max: ${balance}`;
+    
+    // Clear previous values
+    document.getElementById('transfer_to_address').value = '';
+    
+    // Show the modal
+    new bootstrap.Modal(document.getElementById('transferModal')).show();
+}
+
+
+
+
+
+function confirmTransfer() {
+    console.log('confirmTransfer function called');
+    
+    const form = document.getElementById('transferForm');
+    console.log('Form element found:', form);
+    
+    if (!form) {
+        console.error('Form not found!');
+        alert('Form not found. Please refresh the page.');
+        return;
+    }
+    
+    const tokenId = document.getElementById('transfer_token_id').value;
+    const amount = document.getElementById('transfer_amount').value;
+    const toAddress = document.getElementById('transfer_to_address').value;
+    
+    if (!tokenId || !amount || !toAddress) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (parseFloat(amount) <= 0) {
+        alert('Amount must be greater than 0');
+        return;
+    }
+    
+    if (!toAddress.startsWith('0x') || toAddress.length !== 42) {
+        alert('Please enter a valid Ethereum address (0x followed by 40 characters)');
+        return;
+    }
+    
+    if (confirm(`Transfer ${amount} tokens to ${toAddress}?`)) {
+        console.log('Transfer confirmed, using fetch API...');
+        
+        // Use the same fetch pattern as the verification function
+        const requestData = {
+            token_id: tokenId,
+            amount: amount,
+            to_address: toAddress
+        };
+        
+        console.log('Sending transfer data:', requestData);
+        
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => {
+            console.log('Transfer response:', response);
+            if (response.redirected) {
+                console.log('Following redirect to:', response.url);
+                window.location.href = response.url;
+            } else if (response.ok) {
+                console.log('Transfer successful');
+                window.location.reload();
+            } else {
+                console.log('Transfer failed with status:', response.status);
+                response.text().then(text => {
+                    console.log('Response text:', text);
+                    alert('Transfer failed. Please check the console for details.');
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Transfer fetch error:', error);
+            alert('Transfer failed: ' + error.message);
+        });
+    }
+}
+
+function checkRecipientVerification() {
+    console.log('checkRecipientVerification called');
+    
+    const toAddress = document.getElementById('transfer_to_address').value;
+    const tokenId = document.getElementById('transfer_token_id').value;
+    
+    console.log('toAddress:', toAddress);
+    console.log('tokenId:', tokenId);
+    
+    if (!toAddress || !toAddress.startsWith('0x')) {
+        alert('Please enter a valid Ethereum address first');
+        return;
+    }
+    
+    if (!tokenId) {
+        alert('Please select a token first');
+        return;
+    }
+    
+    // Show loading state
+    const checkButton = event.target;
+    const originalText = checkButton.innerHTML;
+    checkButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Checking...';
+    checkButton.disabled = true;
+    
+    const requestData = {
+        address: toAddress,
+        token_id: tokenId
+    };
+    
+    console.log('Sending request data:', requestData);
+    const requestUrl = '{{ url_for("investor.check_verification") }}?tab_session={{ tab_session_id }}';
+    console.log('Request URL:', requestUrl);
+    
+    // Call the verification API with token context
+    fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Response received:', response);
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.verified) {
+            alert(`✅ Address ${toAddress} is verified for this token and can receive tokens`);
+        } else {
+            alert(`❌ Address ${toAddress} is not verified for this token: ${data.reason || 'Unknown reason'}`);
+        }
+    })
+    .catch(error => {
+        console.error('Verification check failed:', error);
+        alert('Failed to check verification status');
+    })
+    .finally(() => {
+        // Restore button state
+        checkButton.innerHTML = originalText;
+        checkButton.disabled = false;
+    });
+}
+
+
+
+
 </script>
 {% endblock %}

@@ -350,7 +350,7 @@
                             <i class="fas fa-exchange-alt text-warning me-2"></i>Option 2: Force Transfer
                         </h6>
                         <p class="card-text text-muted">
-                            Transfer tokens from one account to another. You need to specify the source and destination accounts.
+                            Transfer tokens from a source account to the investor who requested the purchase. The destination is automatically set to the investor's wallet address.
                         </p>
                         <form id="transferForm" method="POST" style="display: none;">
                             <div class="row">
@@ -358,14 +358,14 @@
                                     <div class="mb-3">
                                         <label for="from_address" class="form-label">From Address</label>
                                         <input type="text" class="form-control" id="from_address" name="from_address" placeholder="0x..." required>
-                                        <small class="text-muted">Source account address</small>
+                                        <small class="text-muted">Source account address (who has the tokens)</small>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="to_address" class="form-label">To Address</label>
-                                        <input type="text" class="form-control" id="to_address" name="to_address" placeholder="0x..." required>
-                                        <small class="text-muted">Destination account address</small>
+                                        <label for="to_address" class="form-label">To Address (Investor)</label>
+                                        <input type="text" class="form-control" id="to_address" name="to_address" readonly>
+                                        <small class="text-muted">Automatically set to investor's wallet address</small>
                                     </div>
                                 </div>
                             </div>
@@ -373,7 +373,7 @@
                                 <label for="transfer_notes" class="form-label">Notes (Optional)</label>
                                 <textarea class="form-control" id="transfer_notes" name="transfer_notes" rows="2" placeholder="Add any notes about this transfer..."></textarea>
                             </div>
-                            <button type="submit" class="btn btn-warning">
+                            <button type="button" class="btn btn-warning" onclick="confirmPurchaseTransfer()">
                                 <i class="fas fa-exchange-alt me-2"></i>Execute Force Transfer
                             </button>
                         </form>
@@ -513,6 +513,9 @@ function loadPurchaseRequestDetails(requestId) {
             if (data.success) {
                 const request = data.purchase_request;
                 const investor = data.investor;
+                
+                // Automatically populate the "To Address" field with investor's wallet
+                document.getElementById('to_address').value = investor.wallet_address;
                 
                 const content = `
                     <div class="row">
@@ -662,6 +665,21 @@ function viewDetails(requestId) {
             document.getElementById('purchaseDetailsContent').innerHTML = '<div class="alert alert-danger">Error loading purchase request details</div>';
             new bootstrap.Modal(document.getElementById('purchaseDetailsModal')).show();
         });
+}
+
+function confirmPurchaseTransfer() {
+    const form = document.getElementById('transferForm');
+    const fromAddress = document.getElementById('from_address').value;
+    const toAddress = document.getElementById('to_address').value;
+    
+    if (!fromAddress || !toAddress) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    if (confirm(`Transfer tokens from ${fromAddress} to ${toAddress}?`)) {
+        form.submit();
+    }
 }
 </script>
 {% endblock %}

@@ -125,6 +125,7 @@ class TransactionIndexer:
                     wallet_address=wallet_address,
                     key_hash=key_hash,
                     key_type=key_type,
+                    role='Synced Key',  # Add default role for synced keys
                     owner_type=owner_type,
                     owner_id=owner_id
                 )
@@ -334,6 +335,7 @@ class TransactionIndexer:
                 wallet_address=wallet_address,
                 key_hash=temp_key_hash,
                 key_type=key_type,
+                role='Pending Role',  # Add default role for pending keys
                 owner_type=owner_type,
                 owner_id=owner_id
             )

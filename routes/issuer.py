@@ -1542,7 +1542,7 @@ def api_investor_details(token_id, investor_id):
         )
         # Web3Service likely has from_units, if not, return raw and human as string assuming 18 decimals
         try:
-            balance = web3_service.from_units(balance_wei, 18)
+            balance = web3_service.format_units(balance_wei, 18)
         except Exception:
             # Fallback manual conversion
             balance = float(balance_wei) / (10 ** 18)
@@ -2110,7 +2110,7 @@ def force_transfer_for_purchase(token_id, request_id):
         trex_service = TREXService(web3_service)
         
         # Force transfer tokens
-        result = trex_service.force_transfer(
+        result = trex_service.transfer_tokens(
             token_address=token.token_address,
             from_address=from_address,
             to_address=to_address,

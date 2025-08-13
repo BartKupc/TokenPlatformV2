@@ -225,6 +225,7 @@ class OnchainIDKeyManager:
                 wallet_address=wallet_address,
                 key_hash=key_hash,
                 key_type='management',
+                role='Initial Management Key',  # Add default role for initial keys
                 owner_type=owner_type,
                 owner_id=owner_id,  # Can be None for deployer account
                 transaction_hash=transaction_hash
@@ -271,6 +272,7 @@ class OnchainIDKeyManager:
                 wallet_address=wallet_address,
                 key_hash=key_hash,
                 key_type='claim_signer',
+                role='Claim Signer',  # Add default role for claim signer keys
                 owner_type=owner_type,
                 owner_id=owner_id,
                 transaction_hash=transaction_hash
