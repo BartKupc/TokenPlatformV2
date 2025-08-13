@@ -92,8 +92,18 @@ class TokenPlatformStartup:
             max_retries = 5
             for attempt in range(max_retries):
                 try:
+                    # Load config for dynamic URLs
+                    import json
+                    config_path = Path(__file__).parent / 'config.json'
+                    if config_path.exists():
+                        with open(config_path, 'r') as f:
+                            config = json.load(f)
+                        hardhat_url = config.get('HARDHAT_URL', 'http://127.0.0.1:8545')
+                    else:
+                        hardhat_url = 'http://127.0.0.1:8545'
+                    
                     response = requests.post(
-                        'http://localhost:8545',
+                        hardhat_url,
                         json={"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1},
                         headers={"Content-Type": "application/json"},
                         timeout=10
@@ -101,7 +111,7 @@ class TokenPlatformStartup:
                     if response.status_code == 200:
                         result = response.json()
                         if 'result' in result:
-                            print(f"✅ Hardhat node is running on http://localhost:8545 (attempt {attempt + 1})")
+                            print(f"✅ Hardhat node is running on {hardhat_url} (attempt {attempt + 1})")
                             return True
                         else:
                             print(f"❌ Hardhat node response invalid (attempt {attempt + 1})")
@@ -202,9 +212,19 @@ class TokenPlatformStartup:
             
             # Check if Flask is running
             try:
-                response = requests.get('http://localhost:5000', timeout=5)
+                # Load config for dynamic URLs
+                import json
+                config_path = Path(__file__).parent / 'config.json'
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                    flask_url = config.get('FLASK_URL', 'http://127.0.0.1:5000')
+                else:
+                    flask_url = 'http://127.0.0.1:5000'
+                
+                response = requests.get(flask_url, timeout=5)
                 if response.status_code == 200:
-                    print("✅ Flask application is running on http://localhost:5000")
+                    print(f"✅ Flask application is running on {flask_url}")
                     return True
             except requests.exceptions.RequestException:
                 pass
@@ -213,9 +233,19 @@ class TokenPlatformStartup:
             time.sleep(5)
             
             try:
-                response = requests.get('http://localhost:5000', timeout=5)
+                # Load config for dynamic URLs
+                import json
+                config_path = Path(__file__).parent / 'config.json'
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                    flask_url = config.get('FLASK_URL', 'http://127.0.0.1:5000')
+                else:
+                    flask_url = 'http://127.0.0.1:5000'
+                
+                response = requests.get(flask_url, timeout=5)
                 if response.status_code == 200:
-                    print("✅ Flask application is running on http://localhost:5000")
+                    print(f"✅ Flask application is running on {flask_url}")
                     return True
             except requests.exceptions.RequestException:
                 pass
@@ -224,10 +254,19 @@ class TokenPlatformStartup:
             try:
                 import socket
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                result = sock.connect_ex(('localhost', 5000))
+                result = sock.connect_ex(('127.0.0.1', 5000))
                 sock.close()
                 if result == 0:
-                    print("✅ Flask application is running on http://localhost:5000")
+                    # Load config for dynamic URLs
+                    import json
+                    config_path = Path(__file__).parent / 'config.json'
+                    if config_path.exists():
+                        with open(config_path, 'r') as f:
+                            config = json.load(f)
+                        flask_url = config.get('FLASK_URL', 'http://127.0.0.1:5000')
+                    else:
+                        flask_url = 'http://127.0.0.1:5000'
+                    print(f"✅ Flask application is running on {flask_url}")
                     return True
             except:
                 pass
@@ -253,14 +292,14 @@ class TokenPlatformStartup:
             if config_path.exists():
                 with open(config_path, 'r') as f:
                     config = json.load(f)
-                flask_url = config.get('FLASK_URL', 'http://localhost:5000')
-                hardhat_url = config.get('HARDHAT_URL', 'http://localhost:8545')
+                flask_url = config.get('FLASK_URL', 'http://127.0.0.1:5000')
+                hardhat_url = config.get('HARDHAT_URL', 'http://127.0.0.1:8545')
             else:
-                flask_url = 'http://localhost:5000'
-                hardhat_url = 'http://localhost:8545'
+                flask_url = 'http://127.0.0.1:5000'
+                hardhat_url = 'http://127.0.0.1:8545'
         except Exception as e:
-            flask_url = 'http://localhost:5000'
-            hardhat_url = 'http://localhost:8545'
+            flask_url = 'http://127.0.0.1:5000'
+            hardhat_url = 'http://127.0.0.1:8545'
         
         print("📱 Access your platform:")
         print(f"   🌐 Web Interface: {flask_url}")

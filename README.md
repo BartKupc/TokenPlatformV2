@@ -109,15 +109,6 @@ pip install -r requirements.txt
 **Note:** The requirements.txt contains only essential dependencies. Flask will automatically install its core dependencies (Werkzeug, Jinja2, etc.) when you install Flask.
 ```
 
-### Step 4: Environment Configuration
-
-**Note:** Your application is designed to work without environment variables. All necessary configuration is hardcoded with sensible defaults:
-
-- **Flask Configuration**: Uses hardcoded secret key and database path
-- **Blockchain Configuration**: Defaults to `http://localhost:8545` for RPC
-- **T-REX Configuration**: Contract addresses are handled dynamically during deployment
-
-If you need to customize these settings later, you can create a `.env` file, but it's not required for basic functionality.
 
 ## 🚀 Running the Application
 
@@ -189,72 +180,29 @@ For detailed testing instructions, see the individual route documentation in the
 
 ## 🔧 Troubleshooting
 
-### Python 3.12+ Compatibility Issues
 
-If you encounter `ModuleNotFoundError: No module named 'pkg_resources'` on Python 3.12+:
 
-```bash
-# Remove existing virtual environment
-rm -rf venv
-
-# Recreate virtual environment
-python3 -m venv venv
-
-# Activate and reinstall dependencies
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-This updates packages to versions compatible with Python 3.12+.
 
 ---
 
-## 📁 Project Structure
+## 🔑 Admin Access
 
-```
-TokenPlatform/
-├── app.py                          # Main Flask application
-├── startup.py                      # Application startup script
-├── requirements.txt                # Python dependencies
-├── package.json                    # Node.js dependencies
-├── hardhat.config.js              # Hardhat configuration
-├── contracts/                      # Smart contracts
-│   ├── token/                     # Token contracts
-│   └── onchainid/                 # OnchainID contracts
-├── routes/                         # Flask route handlers
-│   ├── admin.py                   # Admin functionality
-│   ├── issuer.py                  # Issuer functionality
-│   ├── investor.py                # Investor functionality
-│   └── trusted_issuer.py          # Trusted issuer functionality
-├── services/                       # Business logic services
-├── models/                         # Database models
-├── templates/                      # HTML templates
-├── static/                         # CSS, JS, images
-├── scripts/                        # Deployment and utility scripts
-├── T-REX/                         # T-REX framework integration
-└── migrations/                     # Database migrations
-```
+### Default Admin Credentials
 
----
+The platform includes a default admin account for initial setup:
 
-## 🔧 Configuration Options
+- **Username:** `admin`
+- **Password:** `admin123`
 
-### Hardhat Configuration
+### Accessing Admin Dashboard
 
-Edit `hardhat.config.js` to customize:
-- Network settings
-- Compiler versions
-- Gas optimization
-- Contract verification
-
-### Flask Configuration
-
-Edit `app.py` to customize:
-- Database connections
-- Session management
-- Security settings
-- API endpoints
+1. Navigate to `/admin/login` in your browser
+2. Use the default credentials above
+3. Access the admin dashboard for:
+   - User management
+   - Platform oversight
+   - Compliance monitoring
+   - System administration
 
 ---
 
@@ -304,30 +252,6 @@ pip install -r requirements.txt
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-### Development Guidelines
-
-- Follow existing code style
-- Add tests for new functionality
-- Update documentation
-- Ensure all tests pass
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🆘 Support
 
 If you encounter issues:
@@ -338,5 +262,3 @@ If you encounter issues:
 4. Join our community discussions
 
 ---
-
-**Happy Tokenizing! 🚀✨** 
