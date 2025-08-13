@@ -15,9 +15,9 @@ sys.path.append(str(Path(__file__).parent))
 def setup_contracts():
     """Copy contract ABIs and store addresses directly in database"""
     
-    # Paths
-    trex_path = Path('/mnt/ethnode/T-REX')
-    platform_path = Path('/mnt/ethnode/TokenPlatform')
+    # Paths (self-contained)
+    platform_path = Path(__file__).parent
+    local_artifacts = platform_path / 'artifacts'
     
     # Create contracts directory if it doesn't exist
     contracts_dir = platform_path / 'contracts'
@@ -25,15 +25,14 @@ def setup_contracts():
     
     print("🔧 Setting up contracts for Token Platform...")
     
-    # Copy contract ABIs
-    trex_artifacts = trex_path / 'trex-scaffold' / 'packages' / 'react-app' / 'src' / 'contracts'
+    # Use local artifacts (self-contained)
     platform_artifacts = contracts_dir / 'artifacts'
     
-    if trex_artifacts.exists():
+    if local_artifacts.exists():
         # Create artifacts directory
         platform_artifacts.mkdir(exist_ok=True)
         
-        # Copy all JSON contract files
+        # Copy all JSON contract files from local artifacts
         contract_files = [
             'TREXFactory.json',
             'Token.json',
@@ -41,11 +40,11 @@ def setup_contracts():
             'ClaimTopicsRegistry.json',
             'TrustedIssuersRegistry.json',
             'ModularCompliance.json',
-            'OnchainID.json'
+            'Identity.json'
         ]
         
         for contract_file in contract_files:
-            source = trex_artifacts / contract_file
+            source = local_artifacts / 'trex' / contract_file
             destination = platform_artifacts / contract_file
             
             if source.exists():
@@ -55,13 +54,13 @@ def setup_contracts():
                 print(f"⚠️  {contract_file} not found")
     
     # Store contracts directly in database
-    store_contracts_in_database(trex_path)
+    store_contracts_in_database(local_artifacts)
     
     print("🎉 Contract setup completed!")
     return True
 
-def store_contracts_in_database(trex_path):
-    """Store contract addresses directly in database from T-REX deployments"""
+def store_contracts_in_database(local_artifacts):
+    """Store contract addresses directly in database from local artifacts"""
     try:
         # Import Flask app and database
         from app import app
@@ -69,11 +68,12 @@ def store_contracts_in_database(trex_path):
         from models.contract import Contract
         from utils.contract_utils import store_contract
         
-        # Read deployments.json from T-REX project
-        deployments_file = trex_path / 'deployments.json'
-        if not deployments_file.exists():
-            print("❌ deployments.json not found in T-REX project")
+        # Check if local artifacts exist
+        if not local_artifacts.exists():
+            print("❌ Local artifacts directory not found")
             return
+        
+        print("✅ Using local artifacts (self-contained)")
         
         with open(deployments_file, 'r') as f:
             deployments = json.load(f)
@@ -228,7 +228,7 @@ def store_contracts_in_database(trex_path):
 def check_setup():
     """Check if setup is complete"""
     
-    platform_path = Path('/mnt/ethnode/TokenPlatform')
+    platform_path = Path(__file__).parent
     contracts_dir = platform_path / 'contracts'
     
     required_files = [
@@ -275,11 +275,11 @@ if __name__ == "__main__":
     print("🚀 Token Platform Contract Setup")
     print("=" * 40)
     
-    # Check if T-REX project exists
-    trex_path = Path('/mnt/ethnode/T-REX')
-    if not trex_path.exists():
-        print("❌ T-REX project not found at /mnt/ethnode/T-REX")
-        print("Please ensure T-REX project is set up first.")
+    # Check if local artifacts exist (self-contained)
+    artifacts_path = Path(__file__).parent / 'artifacts'
+    if not artifacts_path.exists():
+        print("❌ Local artifacts directory not found")
+        print("Please ensure artifacts are properly set up.")
         exit(1)
     
     # Run setup

@@ -41,6 +41,43 @@ def create_user_onchainid(user_id, wallet_address, user_type, password):
             is_new_onchain_id = False
             transaction_hash = None
             print(f"✅ Using existing OnchainID: {onchain_id_address}")
+            
+            # 🆕 CHECK IF USER ALREADY HAS MANAGEMENT KEY ON EXISTING ONCHAINID
+            try:
+                from services.onchainid_key_manager import OnchainIDKeyManager
+                
+                # Use Account 0's private key to check and add management keys
+                account0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+                account0_web3_service = Web3Service(account0_private_key)
+                platform_key_manager = OnchainIDKeyManager(account0_web3_service)
+                
+                # Check if user already has management key
+                user_key_hash = account0_web3_service.w3.keccak(text=wallet_address)
+                has_management_key = platform_key_manager.check_key_exists(
+                    onchainid_address=onchain_id_address,
+                    key_hash=user_key_hash,
+                    purpose=1  # Management key
+                )
+                
+                if not has_management_key:
+                    print(f"🔑 User doesn't have management key on existing OnchainID, adding now...")
+                    # Add user as management key to existing OnchainID using platform authority
+                    key_result = platform_key_manager.add_user_as_management_key_during_registration(
+                        onchainid_address=onchain_id_address,
+                        wallet_address=wallet_address,
+                        user_id=user_id,  # The actual user being registered
+                        private_key=account0_private_key  # Use Account 0's private key for blockchain transaction
+                    )
+                    
+                    if key_result.get('success'):
+                        print(f"✅ Successfully added user {wallet_address} as management key to existing OnchainID")
+                    else:
+                        print(f"⚠️ Warning: Failed to add user as management key to existing OnchainID: {key_result.get('error')}")
+                else:
+                    print(f"✅ User already has management key on existing OnchainID")
+                    
+            except Exception as e:
+                print(f"⚠️ Warning: Error checking/adding management key to existing OnchainID: {str(e)}")
         else:
             # Create new OnchainID
             result = trex_service.create_identity(wallet_address, identity_factory_address)
@@ -57,7 +94,7 @@ def create_user_onchainid(user_id, wallet_address, user_type, password):
         onchain_id_entry = UserOnchainID(
             user_id=user_id,
             onchain_id_address=onchain_id_address,
-            management_keys_added=True,  # T-REX factory adds management keys
+            management_keys_added=False,  # Will be set to True after we add user's management key
             signing_keys_added=False,  # Will be added later if needed
             claim_issuer_address=None  # Will be set later for trusted issuers
         )
@@ -71,9 +108,47 @@ def create_user_onchainid(user_id, wallet_address, user_type, password):
             user.onchain_id = onchain_id_address
             db.session.commit()
         
+        # 🆕 ADD USER AS MANAGEMENT KEY TO THEIR OWN ONCHAINID
+        if is_new_onchain_id:
+            print(f"🔑 Adding user {wallet_address} as management key to their OnchainID {onchain_id_address}")
+            try:
+                # Add user as management key using Account 0's private key (which has management access)
+                from services.onchainid_key_manager import OnchainIDKeyManager
+                
+                # Create key manager with Account 0's private key (platform owner)
+                # Account 0 is the only one with management key access initially
+                account0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+                account0_web3_service = Web3Service(account0_private_key)
+                platform_key_manager = OnchainIDKeyManager(account0_web3_service)
+                
+                # Add user as management key to their own OnchainID using platform authority
+                key_result = platform_key_manager.add_user_as_management_key_during_registration(
+                    onchainid_address=onchain_id_address,
+                    wallet_address=wallet_address,
+                    user_id=user_id,  # The actual user being registered
+                    private_key=account0_private_key  # Use Account 0's private key for blockchain transaction
+                )
+                
+                if key_result.get('success'):
+                    print(f"✅ Successfully added user {wallet_address} as management key")
+                    # Update database to reflect that management keys are now added
+                    onchain_id_entry.management_keys_added = True
+                    db.session.commit()
+                else:
+                    print(f"⚠️ Warning: Failed to add user as management key: {key_result.get('error')}")
+                    # Don't fail the registration, but log the warning
+                    
+            except Exception as e:
+                print(f"⚠️ Warning: Error adding user as management key: {str(e)}")
+                # Don't fail the registration, but log the warning
+                # The user can still use their OnchainID, they just won't have management access
+        
         success_msg = f"OnchainID {'created' if is_new_onchain_id else 'found'} at {onchain_id_address}"
         if transaction_hash:
             success_msg += f" (tx: {transaction_hash})"
+        
+        if is_new_onchain_id and onchain_id_entry.management_keys_added:
+            success_msg += " - User now has management key access"
         
         return True, onchain_id_address
         

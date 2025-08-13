@@ -51,7 +51,7 @@ class OnchainIDKeyManager:
             contract = web3_service.get_contract('Identity', onchainid_address)
             
             # Hash the wallet address (this is what gets stored on blockchain)
-            key_hash = web3_service.web3.keccak(text=wallet_address)
+            key_hash = web3_service.w3.keccak(text=wallet_address)
             
             # Add the key to the blockchain (purpose 1 = management)
             tx_hash = web3_service.transact_contract_function(
@@ -83,6 +83,86 @@ class OnchainIDKeyManager:
                 
         except Exception as e:
             logger.error(f"Error adding management key: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def check_key_exists(self, onchainid_address, key_hash, purpose):
+        """Check if a key with specific purpose exists on an OnchainID"""
+        try:
+            # First check the blockchain
+            contract = self.web3_service.get_contract('Identity', onchainid_address)
+            if not contract:
+                return False
+            
+            # Check if the key has the specified purpose
+            has_purpose = contract.functions.keyHasPurpose(key_hash, purpose).call()
+            return has_purpose
+            
+        except Exception as e:
+            logger.error(f"Error checking key existence: {e}")
+            return False
+    
+    def add_user_as_management_key_during_registration(self, onchainid_address, wallet_address, user_id, private_key):
+        """Add a user as a management key to their own OnchainID during registration (special case)"""
+        try:
+            # Get the user being added as management key
+            user = User.query.get(user_id)
+            if not user:
+                logger.error(f"User {user_id} not found")
+                return {'success': False, 'error': 'User not found'}
+            
+            # Pre-index the key before blockchain transaction
+            # This indexes the USER'S key, not the platform's key
+            key_id = self.transaction_indexer.pre_index_onchainid_key(
+                onchainid_address=onchainid_address,
+                wallet_address=wallet_address,
+                key_type='management',
+                owner_type=user.user_type,  # The user's type (investor, issuer, etc.)
+                owner_id=user_id  # The user's ID
+            )
+            
+            if not key_id:
+                return {'success': False, 'error': 'Failed to pre-index key'}
+            
+            # Create Web3Service with the provided private key (should be Account 0's)
+            web3_service = Web3Service(private_key)
+            
+            # Get the OnchainID contract
+            contract = web3_service.get_contract('Identity', onchainid_address)
+            
+            # Hash the wallet address (this is what gets stored on blockchain)
+            key_hash = web3_service.w3.keccak(text=wallet_address)
+            
+            # Add the key to the blockchain (purpose 1 = management)
+            tx_hash = web3_service.transact_contract_function(
+                'Identity', onchainid_address, 'addKey', key_hash, 1, 1
+            )
+            
+            # Wait for transaction
+            receipt = web3_service.wait_for_transaction(tx_hash)
+            
+            if receipt.status == 1:
+                # Update the indexed key with transaction details
+                # tx_hash is already a hex string from transact_contract_function
+                self.transaction_indexer.update_onchainid_key_after_transaction(
+                    key_id=key_id,
+                    transaction_hash=tx_hash,  # Already hex string
+                    actual_key_hash=key_hash.hex()
+                )
+                
+                logger.info(f"Successfully added user {wallet_address} as management key to their own OnchainID {onchainid_address}")
+                return {
+                    'success': True, 
+                    'tx_hash': tx_hash,  # Already hex string
+                    'key_hash': key_hash.hex(),
+                    'key_id': key_id
+                }
+            else:
+                # Transaction failed, remove the pre-indexed key
+                self._remove_pre_indexed_key(key_id)
+                return {'success': False, 'error': 'Blockchain transaction failed'}
+                
+        except Exception as e:
+            logger.error(f"Error adding user as management key during registration: {e}")
             return {'success': False, 'error': str(e)}
     
     def add_claim_signer_key(self, onchainid_address, wallet_address, added_by_user_id, private_key=None):
@@ -117,7 +197,7 @@ class OnchainIDKeyManager:
             contract = web3_service.get_contract('Identity', onchainid_address)
             
             # Hash the wallet address (this is what gets stored on blockchain)
-            key_hash = web3_service.web3.keccak(text=wallet_address)
+            key_hash = web3_service.w3.keccak(text=wallet_address)
             
             # Add the key to the blockchain (purpose 3 = claim signer)
             tx_hash = web3_service.transact_contract_function(
@@ -197,8 +277,8 @@ class OnchainIDKeyManager:
             # If no key_hash provided, use the wallet address hash
             if not key_hash:
                 print(f"🔍 No key_hash provided, calculating from wallet address...")
-                if self.web3_service and self.web3_service.web3:
-                    key_hash = self.web3_service.web3.keccak(text=wallet_address).hex()
+                if self.web3_service and self.web3_service.w3:
+                    key_hash = self.web3_service.w3.keccak(text=wallet_address).hex()
                     print(f"🔍 Calculated key_hash: {key_hash}")
                 else:
                     print(f"❌ ERROR: No web3_service available to calculate key_hash")
@@ -254,7 +334,7 @@ class OnchainIDKeyManager:
         try:
             # If no key_hash provided, use the wallet address hash
             if not key_hash:
-                key_hash = self.web3_service.web3.keccak(text=wallet_address).hex()
+                key_hash = self.web3_service.w3.keccak(text=wallet_address).hex()
             
             # Check if key already exists
             existing_key = OnchainIDKey.query.filter_by(

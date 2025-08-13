@@ -47,8 +47,8 @@ class Web3Service:
             except Exception as e:
                 print(f"Error loading ABI for {abi_file}: {e}")
         
-        # Load OnchainID contracts from T-REX artifacts (like T-REX does)
-        trex_artifacts_dir = Path('/mnt/ethnode/T-REX/trex-scaffold/packages/react-app/src/contracts')
+        # Load OnchainID contracts from local artifacts (self-contained)
+        trex_artifacts_dir = Path(__file__).parent.parent / 'artifacts' / 'trex'
         if trex_artifacts_dir.exists():
             # Load Identity contract (use the interface like T-REX)
             identity_path = trex_artifacts_dir / 'Identity.json'
@@ -57,7 +57,7 @@ class Web3Service:
                     with open(identity_path, 'r') as f:
                         abi_data = json.load(f)
                         self.contract_abis['Identity'] = abi_data['abi']
-                        print(f"✅ Loaded Identity ABI from T-REX")
+                        print(f"✅ Loaded Identity ABI from local T-REX")
                 except Exception as e:
                     print(f"Error loading Identity ABI: {e}")
             
@@ -68,19 +68,19 @@ class Web3Service:
                     with open(iidfactory_path, 'r') as f:
                         abi_data = json.load(f)
                         self.contract_abis['IIdFactory'] = abi_data['abi']
-                        print(f"✅ Loaded IIdFactory ABI from T-REX")
+                        print(f"✅ Loaded IIdFactory ABI from local T-REX")
                 except Exception as e:
                     print(f"Error loading IIdFactory ABI: {e}")
             
             # Load Factory contract (the actual IdFactory implementation)
-            # Try to load from node_modules first (like the deployment script)
-            factory_path = Path(__file__).parent.parent / 'node_modules' / '@onchain-id' / 'solidity' / 'artifacts' / 'contracts' / 'factory' / 'IdFactory.sol' / 'IdFactory.json'
+            # Try to load from local @onchain-id artifacts
+            factory_path = Path(__file__).parent.parent / 'artifacts' / '@onchain-id' / 'solidity' / 'contracts' / 'factory' / 'IdFactory.sol' / 'IdFactory.json'
             if factory_path.exists():
                 try:
                     with open(factory_path, 'r') as f:
                         abi_data = json.load(f)
                         self.contract_abis['Factory'] = abi_data['abi']
-                        print(f"✅ Loaded Factory ABI from node_modules")
+                        print(f"✅ Loaded Factory ABI from local @onchain-id")
                 except Exception as e:
                     print(f"Error loading Factory ABI: {e}")
             
@@ -91,11 +91,16 @@ class Web3Service:
                     with open(claimissuer_path, 'r') as f:
                         abi_data = json.load(f)
                         self.contract_abis['ClaimIssuer'] = abi_data['abi']
-                        print(f"✅ Loaded ClaimIssuer ABI from T-REX")
+                        print(f"✅ Loaded ClaimIssuer ABI from local T-REX")
                 except Exception as e:
                     print(f"Error loading ClaimIssuer ABI: {e}")
         else:
-            print(f"Warning: T-REX artifacts directory not found: {trex_artifacts_dir}")
+            print(f"Warning: Local T-REX artifacts directory not found: {trex_artifacts_dir}")
+        
+        # Map Factory to IIdFactory since IdFactory.json doesn't exist
+        if 'IIdFactory' in self.contract_abis and 'Factory' not in self.contract_abis:
+            self.contract_abis['Factory'] = self.contract_abis['IIdFactory']
+            print(f"✅ Mapped 'Factory' to 'IIdFactory' (interface)")
     
 
     
@@ -129,11 +134,15 @@ class Web3Service:
             print(nonce_msg)
             
             # Also write to file
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"{tx_args_msg}\n")
-                f.write(f"{account_msg}\n")
-                f.write(f"{gas_msg}\n")
-                f.write(f"{nonce_msg}\n")
+            log_file = Path(__file__).parent.parent / 'logs' / 'tokenplatform_debug.log'
+            try:
+                with open(log_file, "a") as f:
+                    f.write(f"{tx_args_msg}\n")
+                    f.write(f"{account_msg}\n")
+                    f.write(f"{gas_msg}\n")
+                    f.write(f"{nonce_msg}\n")
+            except Exception as e:
+                print(f"Warning: Could not write to debug log: {e}")
             
             tx = function(*args).build_transaction({
                 'from': self.account.address,

@@ -20,7 +20,7 @@ from threading import Thread
 
 class TokenPlatformStartup:
     def __init__(self):
-        self.platform_path = Path('/mnt/ethnode/TokenPlatform')
+        self.platform_path = Path(__file__).parent
         self.hardhat_process = None
         self.flask_process = None
         

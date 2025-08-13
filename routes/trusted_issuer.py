@@ -184,7 +184,7 @@ def approve_kyc(user_id):
         with open("/tmp/tokenplatform_debug.log", "a") as f:
             f.write("🔧 Starting service initialization...\n")
         
-            from services.onchainid_service import OnchainIDService
+        from services.onchainid_service import OnchainIDService
         from services.trex_service import TREXService
         from services.web3_service import Web3Service
         from utils.auth_utils import decrypt_private_key

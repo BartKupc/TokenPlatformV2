@@ -329,13 +329,27 @@ class TransactionIndexer:
             # Create a temporary key hash (will be updated after blockchain transaction)
             temp_key_hash = f"pending_{wallet_address}_{key_type}"
             
-            # Index the key with pending status
+            # Set proper role based on owner type
+            if owner_type == 'Account 0':
+                role = 'Initial Management Key'
+            elif owner_type == 'admin':
+                role = 'Admin Management Key'
+            elif owner_type == 'issuer':
+                role = 'Issuer Management Key'
+            elif owner_type == 'trusted_issuer':
+                role = 'Trusted Issuer Management Key'
+            elif owner_type == 'investor':
+                role = 'Investor Management Key'
+            else:
+                role = f'{owner_type.title()} Management Key'
+            
+            # Index the key with proper role
             key = OnchainIDKey(
                 onchainid_address=onchainid_address,
                 wallet_address=wallet_address,
                 key_hash=temp_key_hash,
                 key_type=key_type,
-                role='Pending Role',  # Add default role for pending keys
+                role=role,  # Use meaningful role based on user type
                 owner_type=owner_type,
                 owner_id=owner_id
             )
