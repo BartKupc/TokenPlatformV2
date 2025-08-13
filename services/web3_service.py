@@ -153,7 +153,11 @@ class Web3Service:
             
             # Sign and send the transaction
             signed_tx = self.account.sign_transaction(tx)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_tx, 'rawTransaction', None) or getattr(signed_tx, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             return tx_hash.hex()
             

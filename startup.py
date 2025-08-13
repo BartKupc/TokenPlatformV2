@@ -246,12 +246,28 @@ class TokenPlatformStartup:
         print("🎉 TOKEN PLATFORM STARTED SUCCESSFULLY!")
         print("=" * 60)
         print()
+        # Load configuration
+        try:
+            import json
+            config_path = Path(__file__).parent / 'config.json'
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                flask_url = config.get('FLASK_URL', 'http://localhost:5000')
+                hardhat_url = config.get('HARDHAT_URL', 'http://localhost:8545')
+            else:
+                flask_url = 'http://localhost:5000'
+                hardhat_url = 'http://localhost:8545'
+        except Exception as e:
+            flask_url = 'http://localhost:5000'
+            hardhat_url = 'http://localhost:8545'
+        
         print("📱 Access your platform:")
-        print("   🌐 Web Interface: http://localhost:5000")
-        print("   🔗 Blockchain Node: http://localhost:8545")
+        print(f"   🌐 Web Interface: {flask_url}")
+        print(f"   🔗 Blockchain Node: {hardhat_url}")
         print()
         print("👥 Next Steps:")
-        print("   1. Open http://localhost:5000 in your browser")
+        print(f"   1. Open {flask_url} in your browser")
         print("   2. Register as an issuer (startup)")
         print("   3. Deploy your first security token")
         print("   4. Have investors complete KYC onboarding")

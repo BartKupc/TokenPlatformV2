@@ -902,7 +902,11 @@ class TREXService:
             
             # Sign and send transaction using deployer's private key
             signed_tx = self.w3.eth.account.sign_transaction(tx, deployer_private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_tx, 'rawTransaction', None) or getattr(signed_tx, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for transaction
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -1029,7 +1033,11 @@ class TREXService:
             
             # Sign and send transaction
             signed_tx = self.w3.eth.account.sign_transaction(tx, self.web3.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_tx, 'rawTransaction', None) or getattr(signed_tx, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for transaction
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -1282,7 +1290,11 @@ class TREXService:
                 print(f"🔍 DEBUG: Gas estimation failed: {gas_error}")
             
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for transaction confirmation
             print(f"📤 Transaction sent with hash: {tx_hash.hex()}")
@@ -1393,7 +1405,11 @@ class TREXService:
             # Sign and send the transaction using the current private key
             # This will be either Account 0's key or the issuer's key depending on ownership
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for transaction confirmation
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -1483,7 +1499,11 @@ class TREXService:
             # Sign and send the transaction using the platform's private key
             # This represents the platform acting on behalf of the issuer
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for transaction confirmation
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -1573,7 +1593,11 @@ class TREXService:
             # Sign and send the transaction using the platform's private key
             # This represents the platform acting on behalf of the issuer
             signed_txn = self.w3.eth.account.sign_transaction(transaction, self.web3.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            # Handle both old and new eth-account versions
+            raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
+            if not raw_tx:
+                raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
+            tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
             
             # Wait for transaction confirmation
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)

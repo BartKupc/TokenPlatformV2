@@ -121,7 +121,27 @@ If you need to customize these settings later, you can create a `.env` file, but
 
 ## 🚀 Running the Application
 
-### Quick Start
+### Step 1: Configure Your Environment
+
+Before starting the platform, configure it for your environment:
+
+#### **For local**
+```bash
+cd TokenPlatform
+echo "EXTERNAL_IP=127.0.0.1" > .env
+node scripts/generate-flask-config.js
+```
+
+#### **For cloud:**
+```bash
+cd TokenPlatform
+echo "EXTERNAL_IP=************" > .env
+node scripts/generate-flask-config.js
+```
+
+**Note:** Replace `13.213.37.149` with your actual EC2 public IP address.
+
+### Step 2: Quick Start
 
 Your platform comes with convenient shell scripts for easy startup:
 
