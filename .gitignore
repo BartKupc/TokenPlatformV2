@@ -6,3 +6,7 @@ node_modules
 # Ignore corrupted files with control characters
 *[[:cntrl:]]*
 *.bin
+
+# Cursor temporary files
+.cursor-*
+*.tmp
