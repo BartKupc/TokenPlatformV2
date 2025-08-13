@@ -38,4 +38,4 @@ echo "   2. Deploy T-REX factory using Python script"
 echo "   3. Start Flask web application"
 echo ""
 
-python startup.py 
+python3 startup.py 
