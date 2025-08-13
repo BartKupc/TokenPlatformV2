@@ -61,12 +61,6 @@ node --version
 npm --version
 ```
 
-
-#### Verify installation
-node --version
-npm --version
-
-
 # Test package installation
 npm install -g yarn yarn --version
 
