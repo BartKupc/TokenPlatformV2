@@ -124,7 +124,7 @@ echo "EXTERNAL_IP=************" > .env
 node scripts/generate-flask-config.js
 ```
 
-**Note:** Replace `13.213.37.149` with your actual EC2 public IP address.
+**Note:** Replace `=************` with your actual EC2 public IP address.
 
 ### Step 2: Quick Start
 
