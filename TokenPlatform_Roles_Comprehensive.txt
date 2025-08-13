@@ -1,0 +1,136 @@
+# 🚀 TokenPlatform Role-Based Access Control (RBAC)
+
+---
+
+## 👑 ADMIN ROLE
+**Core Responsibilities: Platform Governance & Oversight**
+
+• **User Management & KYC Oversight**
+  - Approve/reject investor KYC applications
+  - Review and approve trusted issuer capabilities
+  - Monitor all platform users and their verification status
+  - Access to on-chain claims verification for all users
+
+• **Platform Administration**
+  - View all tokens and transactions across the platform
+  - Monitor pending KYC requests and trusted issuer approvals
+  - Oversee compliance with T-REX standards
+  - Access to comprehensive platform analytics
+
+• **Security & Compliance**
+  - Verify on-chain identity claims for all user types
+  - Ensure proper role assignments and permissions
+  - Monitor blockchain transaction integrity
+
+---
+
+## 🏢 ISSUER ROLE
+**Core Responsibilities: Token Creation & Management**
+
+• **Token Lifecycle Management**
+  - Create and deploy new security tokens
+  - Mint new tokens to verified addresses
+  - Burn tokens from specific addresses
+  - Force transfer tokens between addresses (compliance scenarios)
+
+• **Investor Management & KYC**
+  - Review investor interest expressions
+  - Verify investor KYC status using Identity Registry
+  - Approve/reject purchase requests
+  - Add verified investors to Identity Registry
+  - Process purchase requests with minting or force transfers
+
+• **Compliance & Control**
+  - Manage token compliance rules
+  - Control who can hold and transfer tokens
+  - Enforce regulatory requirements
+  - Monitor token holder activities
+
+---
+
+## 🛡️ TRUSTED ISSUER ROLE
+**Core Responsibilities: KYC Verification & Claims Management**
+
+• **KYC Verification Services**
+  - Review and approve investor KYC applications
+  - Issue T-REX standard claims (KYC, AML, etc.)
+  - Manage claim topics and verification data
+  - Ensure compliance with regulatory standards
+
+• **Claims Management**
+  - Add verified claims to investor OnchainIDs
+  - Manage claim issuer contracts and capabilities
+  - Process multi-lane KYC requests
+  - Maintain claim verification standards
+
+• **Investor Onboarding**
+  - Guide investors through KYC process
+  - Select appropriate claim topics for different investor types
+  - Ensure proper blockchain integration of claims
+
+---
+
+## 💰 INVESTOR ROLE
+**Core Responsibilities: Token Investment & Management**
+
+• **Token Investment Process**
+  - Express interest in available tokens
+  - Submit purchase requests for approved tokens
+  - Complete KYC verification through trusted issuers
+  - View token details and investment opportunities
+
+• **Portfolio Management**
+  - View current token holdings and balances
+  - Transfer tokens to other verified addresses
+  - Buy additional tokens after initial purchase
+  - Monitor investment performance
+
+• **KYC & Compliance**
+  - Submit KYC information for verification
+  - Select trusted issuers for verification services
+  - Complete required claims for token access
+  - Maintain compliance with platform requirements
+
+---
+
+## 🔗 PLATFORM ROLE (Account 0)
+**Core Responsibilities: Infrastructure & System Management**
+
+• **OnchainID Management**
+  - Deploy and manage OnchainID contracts
+  - Maintain platform management keys
+  - Ensure system security and integrity
+  - Coordinate with T-REX infrastructure
+
+• **System Integration**
+  - Manage blockchain connections and contracts
+  - Handle platform-level transactions
+  - Maintain system stability and performance
+  - Coordinate cross-role interactions
+
+---
+
+## 🔄 Role Interactions & Workflows
+
+### **KYC Verification Flow:**
+1. **Investor** submits KYC request
+2. **Trusted Issuer** reviews and approves claims
+3. **Admin** oversees the process
+4. **Issuer** verifies KYC before token access
+
+### **Token Investment Flow:**
+1. **Investor** expresses interest in token
+2. **Issuer** reviews and verifies KYC
+3. **Issuer** approves purchase request
+4. **Issuer** mints or transfers tokens
+5. **Investor** can now trade and transfer tokens
+
+### **Compliance Enforcement:**
+1. **Issuer** sets token compliance rules
+2. **Trusted Issuer** verifies investor eligibility
+3. **Platform** enforces on-chain compliance
+4. **Admin** monitors overall compliance
+
+---
+
+This role-based system ensures proper separation of concerns, regulatory compliance, and secure token management while maintaining the integrity of the T-REX security token standard. 

@@ -1,320 +1,367 @@
-# Token Platform - ERC-3643 Compliant Fundraising App
+# 🚀 TokenPlatform - RWA Tokenization Platform
 
-A Flask-based tokenized fundraising platform built on the T-REX (Token for Regulated EXchanges) ERC-3643 standard. This platform enables startups to deploy compliant security tokens and allows only KYC-verified investors to purchase tokens.
+## 📖 Introduction
 
-## 🎯 Features
+**TokenPlatform** is a new Real-World Asset (RWA) Tokenization platform that demonstrates the implementation of ERC-3643 (T-REX) security token standards using modern blockchain technologies. This platform serves as an educational tool to showcase how enterprise-grade tokenization platforms work in practice.
 
-### For Startups (Issuers)
-- **Token Deployment**: Deploy compliant security tokens with built-in KYC requirements
-- **Dashboard**: Manage tokens, view investor statistics, and monitor fundraising progress
-- **Compliance Management**: Automatic compliance enforcement through ERC-3643 contracts
-- **Analytics**: Track fundraising progress and investor distribution
+### 🎯 What We Do Here
 
-### For Investors
-- **KYC Onboarding**: Complete identity verification process
-- **Compliance Verification**: Automatic checks before token purchases
-- **Token Purchase**: Buy tokens only if compliant
-- **Portfolio Management**: Track investments and token balances
+This platform recreates actual enterprise tokenization behavior using:
+- **T-REX Factory** for token creation and management
+- **OnchainID** for identity verification and KYC management
+- **OpenZeppelin libraries** for secure smart contract implementations
+- **ERC-3643** compliance for security token standards
 
-### Technical Features
-- **ERC-3643 Standard**: Full implementation of T-REX compliance framework
-- **Python/Flask Backend**: Modern web framework with web3.py integration
-- **SQLite Database**: Lightweight database for user management
-- **Bootstrap UI**: Responsive, modern user interface
-- **Real-time Compliance**: On-chain compliance verification
+### 🔧 Current Architecture
 
-## 🚀 Quick Start
+The platform currently uses **Account 0 on Hardhat** to act as the platform manager, handling most core functions but not all platform capabilities. This design choice allows for educational demonstration while maintaining security.
 
-### Prerequisites
+### 🚀 Future Improvements & Collaborations Needed
 
-1. **Python 3.8+**
-2. **Node.js & npm** (for Hardhat and T-REX contracts)
-3. **T-REX Project** (already set up in `/mnt/ethnode/T-REX`)
+1. **MetaMask Integration**: Implement MetaMask for all transaction signings across the platform
+2. **Multi-Factory Deployment**: Deploy T-REX factory contracts for each individual issuer instead of shared platform factory
 
-### One-Command Setup & Start
+### 🙏 Special Thanks
 
-The Token Platform includes automated setup and startup scripts that handle everything for you:
+**Shout out to the ERC-3643 Association** for their pioneering work in establishing security token standards and making enterprise tokenization accessible to developers worldwide.
 
-#### First Time Setup
+---
+
+## 🛠️ Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+- **Git** (for cloning the repository)
+- **Node.js** (v16 or higher) - for Hardhat and npm packages
+- **Python** (3.8 or higher) - for Flask backend
+- **pip** (Python package manager)
+- **GitHub account** (for cloning)
+
+---
+
+## 📥 Installation & Setup
+
+### Step 0: Install Node.js and npm
+
+
+#### Option 1: Install via Package Manager
+
+**Ubuntu/Debian:**
 ```bash
-cd /mnt/ethnode/TokenPlatform
-./setup.sh
+# Update package list
+sudo apt update
+
+# Install Node.js and npm
+sudo apt install nodejs npm
+
+# Verify installation
+node --version
+npm --version
 ```
 
-#### Start the Platform
+#### Option 32: Install via Node Version Manager (Advanced Users)
+
+**nvm (Node Version Manager) - Linux/macOS:**
 ```bash
-cd /mnt/ethnode/TokenPlatform
-./start.sh
+# Install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Restart terminal or run:
+source ~/.bashrc
+
+# Install latest LTS version
+nvm install --lts
+
+# Use the installed version
+nvm use --lts
+
+
+
+
+#### Verify installation
+node --version
+npm --version
 ```
 
-#### Stop the Platform
+# Test package installation
+npm install -g yarn
+yarn --version
+
+
+### Step 1: Clone the Repository
+
 ```bash
-cd /mnt/ethnode/TokenPlatform
-./stop.sh
+# Clone the main repository
+git clone https://github.com/yourusername/TokenPlatform.git
+
+# Navigate to the project directory
+cd TokenPlatform
 ```
 
-#### Restart the Platform
+### Step 2: Install Node.js Dependencies
+
 ```bash
-cd /mnt/ethnode/TokenPlatform
-./restart.sh
+# Install Hardhat and related packages
+npm install
+
+# Install T-REX dependencies
+cd T-REX
+npm install
+cd ..
 ```
 
-#### Check Platform Status
+### Step 3: Set Up Python Environment
+
 ```bash
-cd /mnt/ethnode/TokenPlatform
-./status.sh
+# Create a Python virtual environment
+python3 -m venv venv
+
+# Activate the virtual environment
+# On Linux/Mac:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+**Note:** The requirements.txt contains only essential dependencies. Flask will automatically install its core dependencies (Werkzeug, Jinja2, etc.) when you install Flask.
 ```
 
-That's it! The startup script will:
-1. ✅ Start Hardhat blockchain node
-2. ✅ Deploy T-REX factory and contracts
-3. ✅ Copy contract addresses to Token Platform
-4. ✅ Start Flask web application
-5. ✅ Open the platform at `http://localhost:5000`
+### Step 4: Environment Configuration
 
-### Manual Setup (Alternative)
-
-If you prefer manual setup:
-
-1. **Install Dependencies**
 ```bash
-cd /mnt/ethnode/TokenPlatform
+# Create environment file
+cp .env.example .env
+
+# Edit the environment file with your configuration
+nano .env
+```
+
+**Required Environment Variables:**
+```env
+# Flask Configuration
+SECRET_KEY=your-secret-key-here
+FLASK_ENV=development
+
+# Database Configuration
+DATABASE_URL=sqlite:///fundraising.db
+
+# Blockchain Configuration
+RPC_URL=http://localhost:8545
+PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+# T-REX Configuration
+TREX_FACTORY_ADDRESS=your-deployed-factory-address
+IDENTITY_REGISTRY_ADDRESS=your-deployed-identity-registry-address
+```
+
+### Step 5: Database Setup
+
+```bash
+# Initialize the database
+python -c "from app import app, db; app.app_context().push(); db.create_all()"
+
+# Run database migrations
+python -m flask db upgrade
+```
+
+---
+
+## 🚀 Running the Application
+
+### Step 1: Start Hardhat Blockchain
+
+```bash
+# Start local Hardhat node
+npx hardhat node
+
+# Keep this terminal running - it will show transaction logs
+```
+
+### Step 6: Deploy Smart Contracts
+
+```bash
+# In a new terminal, deploy contracts
+npx hardhat run scripts/deploy.js --network localhost
+
+# This will deploy:
+# - T-REX Factory
+# - Identity Registry
+# - Sample Token
+# - OnchainID contracts
+```
+
+### Step 7: Start Flask Application
+
+```bash
+# Activate virtual environment (if not already active)
+source venv/bin/activate
+
+# Start the Flask application
+python startup.py
+
+# Or alternatively:
+# export FLASK_APP=app.py
+# flask run --host=0.0.0.0 --port=5000
+```
+
+### Step 8: Access the Platform
+
+Open your web browser and navigate to:
+```
+http://localhost:5000
+```
+
+---
+
+## 🧪 Testing the Platform
+
+### Default Accounts
+
+The platform comes with pre-configured Hardhat accounts:
+
+- **Account 0** (Platform Admin): `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+- **Account 1** (Issuer): `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`
+- **Account 2** (Investor): `0x90F79bf6EB2c4f870365E785982E1f101E93b906`
+
+### Quick Test Flow
+
+1. **Register as Investor** using Account 2
+2. **Complete KYC** through the multi-lane verification system
+3. **Express Interest** in available tokens
+4. **Submit Purchase Request** for token investment
+5. **Test Transfer** functionality between verified addresses
+
+---
+
+## 📁 Project Structure
+
+```
+TokenPlatform/
+├── app.py                          # Main Flask application
+├── startup.py                      # Application startup script
+├── requirements.txt                # Python dependencies
+├── package.json                    # Node.js dependencies
+├── hardhat.config.js              # Hardhat configuration
+├── contracts/                      # Smart contracts
+│   ├── token/                     # Token contracts
+│   └── onchainid/                 # OnchainID contracts
+├── routes/                         # Flask route handlers
+│   ├── admin.py                   # Admin functionality
+│   ├── issuer.py                  # Issuer functionality
+│   ├── investor.py                # Investor functionality
+│   └── trusted_issuer.py          # Trusted issuer functionality
+├── services/                       # Business logic services
+├── models/                         # Database models
+├── templates/                      # HTML templates
+├── static/                         # CSS, JS, images
+├── scripts/                        # Deployment and utility scripts
+├── T-REX/                         # T-REX framework integration
+└── migrations/                     # Database migrations
+```
+
+---
+
+## 🔧 Configuration Options
+
+### Hardhat Configuration
+
+Edit `hardhat.config.js` to customize:
+- Network settings
+- Compiler versions
+- Gas optimization
+- Contract verification
+
+### Flask Configuration
+
+Edit `app.py` to customize:
+- Database connections
+- Session management
+- Security settings
+- API endpoints
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**1. Port Already in Use**
+```bash
+# Kill process using port 5000
+lsof -ti:5000 | xargs kill -9
+```
+
+**2. Database Locked**
+```bash
+# Remove database file and recreate
+rm fundraising.db
+python -c "from app import app, db; app.app_context().push(); db.create_all()"
+```
+
+**3. Contract Deployment Failed**
+```bash
+# Check Hardhat node is running
+npx hardhat node
+
+# Verify network configuration
+npx hardhat run scripts/deploy.js --network localhost
+```
+
+**4. Python Dependencies Issues**
+```bash
+# Recreate virtual environment
+rm -rf venv
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. **Setup Contracts**
-```bash
-python setup_contracts.py
-```
+---
 
-3. **Start Platform**
-```bash
-python startup.py
-```
+## 📚 Learning Resources
 
-## 📋 Usage Guide
+- **ERC-3643 Documentation**: [Official T-REX Standard](https://erc3643.org/)
+- **OnchainID**: [Identity Management](https://onchainid.com/)
+- **OpenZeppelin**: [Smart Contract Libraries](https://openzeppelin.com/)
+- **Hardhat**: [Development Framework](https://hardhat.org/)
 
-### For Startups (Issuers)
-
-1. **Register as Issuer**
-   - Visit `http://localhost:5000/issuer/register`
-   - Enter your wallet address and email
-   - Complete registration
-
-2. **Login to Dashboard**
-   - Visit `http://localhost:5000/issuer/login`
-   - Enter your wallet address
-   - Access issuer dashboard
-
-3. **Deploy Token**
-   - Navigate to "Deploy Token" tab
-   - Fill in token details (name, symbol, supply, price)
-   - Submit deployment
-   - Token will be deployed with KYC compliance requirements
-
-4. **Manage Investors**
-   - Review pending KYC applications
-   - Approve/reject investor verifications
-   - Monitor fundraising progress
-
-### For Investors
-
-1. **Start KYC Process**
-   - Visit `http://localhost:5000/investor/onboarding`
-   - Connect wallet or enter wallet address
-   - Complete KYC form with personal information
-   - Submit for verification
-
-2. **Wait for Approval**
-   - KYC applications are reviewed manually
-   - Approval typically takes 24-48 hours
-   - Check status at `/investor/status`
-
-3. **Purchase Tokens**
-   - Once approved, browse available tokens
-   - Select tokens to purchase
-   - Complete transaction (only if compliant)
-
-## 🏗️ Architecture
-
-```
-TokenPlatform/
-├── app.py                 # Main Flask application
-├── config.py             # Configuration settings
-├── startup.py            # Automated startup script
-├── setup.sh              # Setup script
-├── start.sh              # Start script
-├── requirements.txt      # Python dependencies
-├── templates/           # HTML templates
-│   ├── base.html
-│   ├── home.html
-│   ├── issuer_dashboard.html
-│   └── investor_onboarding.html
-├── services/            # Business logic services
-│   ├── web3_service.py
-│   ├── trex_service.py
-│   └── auth_service.py
-├── static/              # Static assets (CSS, JS, images)
-├── contracts/           # Contract ABIs and addresses
-└── database/            # Database files
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root:
-
-```env
-# Flask Configuration
-SECRET_KEY=your-secret-key-here
-DATABASE_URL=sqlite:///fundraising.db
-
-# Blockchain Configuration
-RPC_URL=http://localhost:8545
-CHAIN_ID=31337
-
-# Contract Addresses (auto-loaded from deployments.json)
-TREX_FACTORY_ADDRESS=0x...
-IDENTITY_REGISTRY_ADDRESS=0x...
-CLAIM_TOPICS_REGISTRY_ADDRESS=0x...
-TRUSTED_ISSUERS_REGISTRY_ADDRESS=0x...
-
-# Gas Settings
-GAS_LIMIT=3000000
-GAS_PRICE=20000000000
-
-# KYC Claim Topics
-KYC_CLAIM_TOPIC=1
-AML_CLAIM_TOPIC=2
-ACCREDITED_INVESTOR_TOPIC=3
-```
-
-## 🔒 Security Features
-
-### Compliance Enforcement
-- **KYC Verification**: Required for all investors
-- **On-chain Claims**: Verifiable compliance claims stored on blockchain
-- **Transfer Restrictions**: Automatic compliance checks before token transfers
-- **Identity Management**: Self-sovereign identity with OnchainID
-
-### Data Protection
-- **Encrypted Storage**: Sensitive data encrypted in database
-- **Secure Sessions**: Flask session management with secure cookies
-- **Input Validation**: All user inputs validated and sanitized
-- **CSRF Protection**: Built-in CSRF protection for forms
-
-## 📊 API Endpoints
-
-### Authentication
-- `POST /issuer/login` - Issuer login
-- `POST /issuer/register` - Issuer registration
-- `POST /logout` - Logout
-
-### Token Management
-- `GET /` - Home page with token listings
-- `POST /issuer/deploy-token` - Deploy new token
-- `GET /issuer/dashboard` - Issuer dashboard
-
-### Investor Management
-- `POST /investor/onboarding` - Submit KYC application
-- `GET /investor/status` - Check KYC status
-- `POST /investor/purchase/<token_id>` - Purchase tokens
-
-### API Endpoints
-- `GET /api/token/<address>/balance/<wallet>` - Get token balance
-- `GET /api/compliance/check/<wallet>` - Check compliance status
-- `GET /api/token/<address>/info` - Get token information
-
-### Admin Functions
-- `GET /admin/dashboard` - Admin dashboard
-- `GET /admin/kyc-approve/<user_id>` - Approve KYC
-- `GET /admin/kyc-reject/<user_id>` - Reject KYC
-
-## 🧪 Testing
-
-### Manual Testing
-
-1. **Startup Flow**
-   - Run `./start.sh`
-   - Verify Hardhat node starts on port 8545
-   - Verify Flask app starts on port 5000
-   - Check that contracts are deployed
-
-2. **Issuer Flow**
-   - Register as issuer
-   - Deploy a token
-   - Verify token appears on home page
-
-3. **Investor Flow**
-   - Complete KYC onboarding
-   - Wait for approval (or approve manually as admin)
-   - Attempt to purchase tokens
-
-4. **Compliance Testing**
-   - Try to purchase tokens without KYC approval
-   - Verify transaction is blocked
-   - Approve KYC and retry purchase
-
-## 🚀 Deployment
-
-### Production Deployment
-
-1. **Set Environment Variables**
-```bash
-export FLASK_ENV=production
-export SECRET_KEY=your-production-secret-key
-export DATABASE_URL=postgresql://...
-```
-
-2. **Use Production WSGI Server**
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
-3. **Set Up Reverse Proxy**
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+---
 
 ## 🤝 Contributing
+
+We welcome contributions! Please:
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
+4. Submit a pull request
 
-## 📄 License
+### Development Guidelines
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For support and questions:
-- Check the documentation
-- Review the code comments
-- Open an issue on GitHub
-- Contact the development team
-
-## 🔗 Related Projects
-
-- **[T-REX Framework](https://github.com/tokeny/T-REX)**: The underlying ERC-3643 standard
-- **[OnchainID](https://onchainid.com/)**: Self-sovereign identity solution
-- **[Hardhat](https://hardhat.org/)**: Ethereum development environment
+- Follow existing code style
+- Add tests for new functionality
+- Update documentation
+- Ensure all tests pass
 
 ---
 
-**Happy Tokenizing! 🚀** 
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🆘 Support
+
+If you encounter issues:
+
+1. Check the troubleshooting section above
+2. Review the logs in your terminal
+3. Open an issue on GitHub
+4. Join our community discussions
+
+---
+
+**Happy Tokenizing! 🚀✨** 

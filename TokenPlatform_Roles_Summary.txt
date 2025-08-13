@@ -1,0 +1,35 @@
+# 🚀 TokenPlatform Role Summary
+
+## 👑 ADMIN ROLE
+**Platform Governance & Oversight**
+
+Admins manage the entire platform ecosystem by approving investor KYC applications and trusted issuer capabilities, monitoring all platform users and their verification status, and maintaining access to comprehensive on-chain claims verification for all users. They oversee platform administration by viewing all tokens and transactions across the platform, monitoring pending KYC requests and trusted issuer approvals, ensuring compliance with T-REX standards, and accessing comprehensive platform analytics. Additionally, admins handle security and compliance by verifying on-chain identity claims for all user types, ensuring proper role assignments and permissions, and monitoring blockchain transaction integrity across the entire system.
+
+## 🏢 ISSUER ROLE
+**Token Creation & Management**
+
+Issuers are responsible for the complete token lifecycle management, including creating and deploying new security tokens, minting new tokens to verified addresses, burning tokens from specific addresses, and executing force transfers between addresses for compliance scenarios. They manage investor relationships and KYC verification by reviewing investor interest expressions, verifying investor KYC status using the Identity Registry, approving or rejecting purchase requests, adding verified investors to the Identity Registry, and processing purchase requests through either minting new tokens or force transferring existing ones. Issuers also maintain compliance and control by managing token compliance rules, controlling who can hold and transfer tokens, enforcing regulatory requirements, and continuously monitoring token holder activities to ensure platform integrity.
+
+## 🛡️ TRUSTED ISSUER ROLE
+**KYC Verification & Claims Management**
+
+Trusted issuers provide comprehensive KYC verification services by reviewing and approving investor KYC applications, issuing T-REX standard claims such as KYC and AML verification, managing claim topics and verification data, and ensuring full compliance with regulatory standards across all verification processes. They handle claims management by adding verified claims to investor OnchainIDs, managing claim issuer contracts and capabilities, processing multi-lane KYC requests efficiently, and maintaining high claim verification standards throughout the verification workflow. Additionally, trusted issuers guide investor onboarding by helping investors navigate the KYC process, selecting appropriate claim topics for different investor types based on their needs, and ensuring proper blockchain integration of all claims for seamless platform operation.
+
+## 💰 INVESTOR ROLE
+**Token Investment & Management**
+
+Investors participate in the token investment process by expressing interest in available tokens, submitting purchase requests for approved tokens, completing KYC verification through trusted issuers, and viewing comprehensive token details and investment opportunities across the platform. They manage their investment portfolios by viewing current token holdings and balances, transferring tokens to other verified addresses, purchasing additional tokens after initial investments, and continuously monitoring their investment performance and market opportunities. Investors also maintain KYC and compliance requirements by submitting KYC information for verification, selecting appropriate trusted issuers for verification services, completing all required claims for token access, and maintaining ongoing compliance with platform requirements and regulatory standards.
+
+## 🔗 PLATFORM ROLE (Account 0)
+**Infrastructure & System Management**
+
+The platform role manages OnchainID infrastructure by deploying and managing OnchainID contracts, maintaining platform management keys, ensuring system security and integrity, and coordinating with T-REX infrastructure for seamless blockchain integration. It handles system integration by managing blockchain connections and contracts, processing platform-level transactions, maintaining system stability and performance, and coordinating cross-role interactions to ensure smooth platform operation and user experience.
+
+## 🔄 Key Workflows
+
+**KYC Verification Flow:** Investors submit KYC requests which are reviewed and approved by trusted issuers, while admins oversee the entire process and issuers verify KYC status before granting token access to ensure compliance and security.
+
+**Token Investment Flow:** Investors express interest in tokens, issuers review and verify their KYC status, approve purchase requests, and then either mint new tokens or transfer existing ones, enabling investors to trade and transfer tokens according to platform rules.
+
+**Compliance Enforcement:** Issuers establish token compliance rules, trusted issuers verify investor eligibility through comprehensive checks, the platform enforces on-chain compliance automatically, and admins monitor overall compliance across the entire ecosystem to maintain regulatory adherence and platform integrity.
+
