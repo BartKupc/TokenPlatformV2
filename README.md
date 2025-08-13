@@ -33,9 +33,11 @@ Before you begin, ensure you have the following installed on your system:
 
 - **Git** (for cloning the repository)
 - **Node.js** (v16 or higher) - for Hardhat and npm packages
-- **Python** (3.8 or higher) - for Flask backend
+- **Python** (3.8-3.11 recommended, 3.12+ supported with updated packages) - for Flask backend
 - **pip** (Python package manager)
 - **GitHub account** (for cloning)
+
+**Note:** Python 3.12+ users may need to reinstall dependencies due to package compatibility changes.
 
 ---
 
@@ -44,7 +46,7 @@ Before you begin, ensure you have the following installed on your system:
 ### Step 0: Install Node.js and npm
 
 
-#### Option 1: Install via Package Manager
+#### Install via Package Manager
 
 **Ubuntu/Debian:**
 ```bash
@@ -59,24 +61,6 @@ node --version
 npm --version
 ```
 
-#### Option 32: Install via Node Version Manager (Advanced Users)
-
-**nvm (Node Version Manager) - Linux/macOS:**
-```bash
-# Install nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-
-# Restart terminal or run:
-source ~/.bashrc
-
-# Install latest LTS version
-nvm install --lts
-
-# Use the installed version
-nvm use --lts
-
-
-
 
 #### Verify installation
 node --version
@@ -84,15 +68,14 @@ npm --version
 ```
 
 # Test package installation
-npm install -g yarn
-yarn --version
+npm install -g yarn yarn --version
 
 
 ### Step 1: Clone the Repository
 
 ```bash
 # Clone the main repository
-git clone https://github.com/yourusername/TokenPlatform.git
+git clone https://github.com/BartKupc/TokenPlatform.git
 
 # Navigate to the project directory
 cd TokenPlatform
@@ -104,16 +87,14 @@ cd TokenPlatform
 # Install Hardhat and related packages
 npm install
 
-# Install T-REX dependencies
-cd T-REX
-npm install
-cd ..
 ```
 
 ### Step 3: Set Up Python Environment
 
 ```bash
 # Create a Python virtual environment
+sudo apt install python3.12-venv
+
 python3 -m venv venv
 
 # Activate the virtual environment
@@ -130,85 +111,44 @@ pip install -r requirements.txt
 
 ### Step 4: Environment Configuration
 
-```bash
-# Create environment file
-cp .env.example .env
+**Note:** Your application is designed to work without environment variables. All necessary configuration is hardcoded with sensible defaults:
 
-# Edit the environment file with your configuration
-nano .env
-```
+- **Flask Configuration**: Uses hardcoded secret key and database path
+- **Blockchain Configuration**: Defaults to `http://localhost:8545` for RPC
+- **T-REX Configuration**: Contract addresses are handled dynamically during deployment
 
-**Required Environment Variables:**
-```env
-# Flask Configuration
-SECRET_KEY=your-secret-key-here
-FLASK_ENV=development
-
-# Database Configuration
-DATABASE_URL=sqlite:///fundraising.db
-
-# Blockchain Configuration
-RPC_URL=http://localhost:8545
-PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-# T-REX Configuration
-TREX_FACTORY_ADDRESS=your-deployed-factory-address
-IDENTITY_REGISTRY_ADDRESS=your-deployed-identity-registry-address
-```
-
-### Step 5: Database Setup
-
-```bash
-# Initialize the database
-python -c "from app import app, db; app.app_context().push(); db.create_all()"
-
-# Run database migrations
-python -m flask db upgrade
-```
-
----
+If you need to customize these settings later, you can create a `.env` file, but it's not required for basic functionality.
 
 ## 🚀 Running the Application
 
-### Step 1: Start Hardhat Blockchain
+### Quick Start
+
+Your platform comes with convenient shell scripts for easy startup:
 
 ```bash
-# Start local Hardhat node
-npx hardhat node
+# First time setup (run once)
+./setup.sh
 
-# Keep this terminal running - it will show transaction logs
+# Start the platform
+./start.sh
+
+# Restart the platform (stops, cleans, and starts)
+./restart.sh
+
+# Stop the platform
+./stop.sh
 ```
 
-### Step 6: Deploy Smart Contracts
+### What the start.sh script does:
 
-```bash
-# In a new terminal, deploy contracts
-npx hardhat run scripts/deploy.js --network localhost
+1. **Checks dependencies** (virtual environment, Node.js modules)
+2. **Starts Hardhat blockchain node**
+3. **Deploys T-REX factory contracts**
+4. **Launches Flask web application**
 
-# This will deploy:
-# - T-REX Factory
-# - Identity Registry
-# - Sample Token
-# - OnchainID contracts
-```
+### Access the Platform
 
-### Step 7: Start Flask Application
-
-```bash
-# Activate virtual environment (if not already active)
-source venv/bin/activate
-
-# Start the Flask application
-python startup.py
-
-# Or alternatively:
-# export FLASK_APP=app.py
-# flask run --host=0.0.0.0 --port=5000
-```
-
-### Step 8: Access the Platform
-
-Open your web browser and navigate to:
+Once started, open your web browser and navigate to:
 ```
 http://localhost:5000
 ```
@@ -217,21 +157,36 @@ http://localhost:5000
 
 ## 🧪 Testing the Platform
 
-### Default Accounts
+The platform comes with pre-configured Hardhat test accounts. After starting the application, you can:
 
-The platform comes with pre-configured Hardhat accounts:
+1. **Register users** with different roles (Investor, Issuer, Trusted Issuer)
+2. **Deploy security tokens** with T-REX compliance
+3. **Test the complete investment flow** from token creation to transfer
 
-- **Account 0** (Platform Admin): `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
-- **Account 1** (Issuer): `0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`
-- **Account 2** (Investor): `0x90F79bf6EB2c4f870365E785982E1f101E93b906`
+For detailed testing instructions, see the individual route documentation in the `routes/` directory.
 
-### Quick Test Flow
+---
 
-1. **Register as Investor** using Account 2
-2. **Complete KYC** through the multi-lane verification system
-3. **Express Interest** in available tokens
-4. **Submit Purchase Request** for token investment
-5. **Test Transfer** functionality between verified addresses
+## 🔧 Troubleshooting
+
+### Python 3.12+ Compatibility Issues
+
+If you encounter `ModuleNotFoundError: No module named 'pkg_resources'` on Python 3.12+:
+
+```bash
+# Remove existing virtual environment
+rm -rf venv
+
+# Recreate virtual environment
+python3 -m venv venv
+
+# Activate and reinstall dependencies
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+This updates packages to versions compatible with Python 3.12+.
 
 ---
 

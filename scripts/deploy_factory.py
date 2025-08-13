@@ -22,7 +22,7 @@ from utils.contract_utils import store_contract
 
 class TREXDeployment:
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider('http://127.0.0.1:8545'))
+        self.w3 = Web3(Web3.HTTPProvider('http://localhost:8545'))
         self.deployer_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
         self.account = Account.from_key(self.deployer_private_key)
         self.deployer_address = self.account.address
@@ -220,7 +220,7 @@ class TREXDeployment:
     async def deploy(self):
         """Main deployment function - exact copy of JavaScript logic"""
         print("🏭 Enhanced TREXFactory Deployment for TokenPlatform")
-        print(f"🔗 Connected to Hardhat node at http://127.0.0.1:8545")
+        print(f"🔗 Connected to Hardhat node at http://localhost:8545")
         print(f"👤 Deployer: {self.deployer_address}")
         
         # Check initial block number
