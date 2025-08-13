@@ -10,3 +10,10 @@ node_modules
 # Cursor temporary files
 .cursor-*
 *.tmp
+
+temp.txt
+
+# Cursor remote sync files
+*[[:cntrl:]]*   sync files  
+*[[:cntrl:]]*   sync files
+
