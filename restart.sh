@@ -17,9 +17,10 @@ echo "🧹 Cleaning database for fresh start..."
 
 # Clear debug logs for a fresh start
 echo "🧹 Clearing debug logs for fresh start..."
-rm -f /tmp/tokenplatform_debug.log
-touch /tmp/tokenplatform_debug.log
-echo "$(date): Token Platform restart - debug log cleared" > /tmp/tokenplatform_debug.log
+mkdir -p logs
+rm -f logs/tokenplatform_debug.log
+touch logs/tokenplatform_debug.log
+echo "$(date): Token Platform restart - debug log cleared" > logs/tokenplatform_debug.log
 
 # Stop all services first
 echo "🛑 Stopping existing services..."

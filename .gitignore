@@ -1,48 +1,25 @@
-# Python virtual environment
+# Virtual environments (don't commit these)
 venv/
 env/
-ENV/
 
-# Node.js dependencies
+# Node.js dependencies (don't commit these)
 node_modules/
 
-# Environment variables
+# Environment variables (don't commit these)
 .env
-.env.local
-.env.*.local
 
-# Database files
+# Database files (don't commit these)
 *.db
 *.sqlite
-*.sqlite3
 
-# Logs
+# Logs (don't commit these)
+logs/
 *.log
-/tmp/
 
-# Python cache
+# Python cache (don't commit these)
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Ignore corrupted files with control characters
-*[[:cntrl:]]*
-*.bin
-
-# Cursor temporary files
-.cursor-*
-*.tmp
-
-# Cursor remote sync files
-*[[:cntrl:]]*   sync files
+# Keep ABI files - they are essential for the app
+!artifacts/
+!artifacts/trex/
