@@ -2,3 +2,7 @@ venv/
 node_modules/
 .env
 node_modules
+
+# Ignore corrupted files with control characters
+*[[:cntrl:]]*
+*.bin
