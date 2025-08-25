@@ -13,6 +13,7 @@ class User(db.Model):
     kyc_data = db.Column(db.Text)  # JSON string of KYC data
     onchain_id = db.Column(db.String(42))  # OnchainID address if created
     claim_issuer_address = db.Column(db.String(42), nullable=True)  # ClaimIssuer contract address (for trusted issuers)
+    is_gateway_deployer = db.Column(db.Boolean, default=False)  # Whether user is a deployer on the Gateway
     kyc_approved_by = db.Column(db.Integer, db.ForeignKey('user.id'))  # Who approved the KYC
     kyc_approved_at = db.Column(db.DateTime)  # When KYC was approved
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Gateway Management - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Admin Panel
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('admin.dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </a>
+                        <a href="{{ url_for('admin.blockchain_verification', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Blockchain Verification
+                        </a>
+                        <a href="{{ url_for('admin.transaction_history', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-history me-2"></i>
+                            Transaction History
+                        </a>
+                        <a href="{{ url_for('admin.trusted_issuer_approvals', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-check me-2"></i>
+                            Trusted Issuer Approvals
+                        </a>
+                        <a href="{{ url_for('admin.onchainid_dashboard', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-id-card me-2"></i>
+                            OnchainID Dashboard
+                        </a>
+                        <a href="{{ url_for('admin.gateway_management', tab_session=tab_session_id) }}" class="list-group-item list-group-item-action active">
+                            <i class="fas fa-network-wired me-2"></i>
+                            Gateway Management
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h1 class="h3 mb-4">Gateway Management</h1>
+            
+            <!-- Gateway Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Gateway Information</h5>
+                </div>
+                <div class="card-body">
+                    {% if gateway_address %}
+                        <p><strong>Gateway Address:</strong> <code>{{ gateway_address }}</code></p>
+                        <p><strong>Status:</strong> <span class="badge badge-success">Active</span></p>
+                    {% else %}
+                        <p><strong>Status:</strong> <span class="badge badge-danger">Gateway not found</span></p>
+                        <p class="text-muted">Please ensure the Gateway contract is deployed and registered in the database.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Add Deployer -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Add Deployer</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('admin.gateway_add_deployer', tab_session=tab_session_id) }}" method="POST">
+                        <div class="form-group">
+                            <label for="add_wallet_address">Wallet Address</label>
+                            <input type="text" class="form-control" id="add_wallet_address" name="wallet_address" 
+                                   placeholder="0x..." required>
+                            <small class="form-text text-muted">Enter the wallet address to add as a deployer on the Gateway.</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary" {% if not gateway_address %}disabled{% endif %}>
+                            <i class="fas fa-plus"></i> Add Deployer
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Remove Deployer -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Remove Deployer</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('admin.gateway_remove_deployer', tab_session=tab_session_id) }}" method="POST">
+                        <div class="form-group">
+                            <label for="remove_wallet_address">Wallet Address</label>
+                            <input type="text" class="form-control" id="remove_wallet_address" name="wallet_address" 
+                                   placeholder="0x..." required>
+                            <small class="form-text text-muted">Enter the wallet address to remove as a deployer from the Gateway.</small>
+                        </div>
+                        <button type="submit" class="btn btn-danger" {% if not gateway_address %}disabled{% endif %}>
+                            <i class="fas fa-minus"></i> Remove Deployer
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Check Deployer Status -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Check Deployer Status</h5>
+                </div>
+                <div class="card-body">
+                    <form action="{{ url_for('admin.gateway_check_deployer', tab_session=tab_session_id) }}" method="POST">
+                        <div class="form-group">
+                            <label for="check_wallet_address">Wallet Address</label>
+                            <input type="text" class="form-control" id="check_wallet_address" name="wallet_address" 
+                                   placeholder="0x..." required>
+                            <small class="form-text text-muted">Enter the wallet address to check if it's a deployer on the Gateway.</small>
+                        </div>
+                        <button type="submit" class="btn btn-info" {% if not gateway_address %}disabled{% endif %}>
+                            <i class="fas fa-search"></i> Check Status
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Last Transaction Details -->
+            {% if session.get('last_gateway_tx') %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-receipt me-2"></i>
+                        Last Gateway Operation
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% set tx = session.get('last_gateway_tx') %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Operation:</strong> {{ tx.operation.replace('_', ' ').title() }}</p>
+                            <p><strong>Wallet Address:</strong> <code>{{ tx.wallet_address }}</code></p>
+                            <p><strong>Transaction Hash:</strong> <code>{{ tx.tx_hash }}</code></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Block Number:</strong> {{ tx.block_number }}</p>
+                            <p><strong>Gas Used:</strong> {{ tx.gas_used }}</p>
+                            <p><strong>Status:</strong> {{ tx.status | safe }}</p>
+                            <p><strong>On-Chain Status:</strong> {{ tx.onchain_status | safe }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <a href="https://etherscan.io/tx/{{ tx.tx_hash }}" target="_blank" class="btn btn-info btn-sm">
+                            <i class="fas fa-external-link-alt"></i> View on Etherscan
+                        </a>
+                        <button class="btn btn-secondary btn-sm" onclick="clearTransactionDetails()">
+                            <i class="fas fa-times"></i> Clear Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Current Deployers -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Deployers</h5>
+                </div>
+                <div class="card-body">
+                    {% if deployers %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Wallet Address</th>
+                                        <th>User Type</th>
+                                        <th>KYC Status</th>
+                                        <th>Database Status</th>
+                                        <th>On-Chain Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for deployer_info in deployers %}
+                                    {% set deployer = deployer_info.user %}
+                                    <tr>
+                                        <td>{{ deployer.username }}</td>
+                                        <td><code>{{ deployer.wallet_address }}</code></td>
+                                        <td>
+                                            <span class="badge badge-{% if deployer.user_type == 'admin' %}danger{% elif deployer.user_type == 'issuer' %}primary{% elif deployer.user_type == 'trusted_issuer' %}warning{% else %}secondary{% endif %}">
+                                                {{ deployer.user_type }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-{% if deployer.kyc_status == 'approved' %}success{% elif deployer.kyc_status == 'pending' %}warning{% else %}danger{% endif %}">
+                                                {{ deployer.kyc_status }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-success">
+                                                <i class="fas fa-database"></i> Database
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if deployer_info.verified_onchain %}
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-link"></i> Verified
+                                                </span>
+                                            {% else %}
+                                                <span class="badge badge-warning">
+                                                    <i class="fas fa-exclamation-triangle"></i> Not Verified
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-muted mt-3">
+                            <strong>Total Deployers:</strong> {{ deployers|length }}
+                        </p>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No deployers found in the database.</p>
+                            <p class="text-muted">Deployers will appear here after they are added to the Gateway.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for form validation and UX -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation for wallet addresses
+    const walletInputs = document.querySelectorAll('input[name="wallet_address"]');
+    
+    walletInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            const value = this.value.trim();
+            const isValid = /^0x[a-fA-F0-9]{40}$/.test(value);
+            
+            if (value && !isValid) {
+                this.classList.add('is-invalid');
+                this.classList.remove('is-valid');
+            } else if (value && isValid) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-invalid', 'is-valid');
+            }
+        });
+    });
+    
+    // Confirm before removing deployer
+    const removeForm = document.querySelector('form[action*="gateway-remove-deployer"]');
+    if (removeForm) {
+        removeForm.addEventListener('submit', function(e) {
+            const walletAddress = this.querySelector('input[name="wallet_address"]').value;
+            if (!confirm(`Are you sure you want to remove ${walletAddress} as a deployer? This will prevent them from deploying new tokens.`)) {
+                e.preventDefault();
+            }
+        });
+    }
+    
+    // Function to clear transaction details
+    window.clearTransactionDetails = function() {
+        // Send request to clear session data
+        fetch('{{ url_for("admin.gateway_clear_tx", tab_session=tab_session_id) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        }).then(() => {
+            // Reload page to hide the transaction details
+            location.reload();
+        });
+    };
+});
+</script>
+{% endblock %}

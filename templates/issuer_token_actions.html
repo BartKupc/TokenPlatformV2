@@ -401,8 +401,7 @@ function toggleBlock(address) {
     }
 }
 
-function confirmMint() {
-    const form = document.getElementById('mintForm');
+async function confirmMint() {
     const toAddress = document.getElementById('to_address').value;
     const amount = document.getElementById('amount').value;
     
@@ -411,13 +410,91 @@ function confirmMint() {
         return;
     }
     
+    if (!window.metaMaskService.isWalletConnected()) {
+        alert('Please connect your MetaMask wallet first');
+        return;
+    }
+    
     if (confirm(`Mint ${amount} {{ token.symbol }} tokens to ${toAddress}?`)) {
-        form.submit();
+        try {
+            // Show loading state
+            const mintBtn = document.querySelector('#mintModal .btn-primary');
+            const originalText = mintBtn.innerHTML;
+            mintBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Minting...';
+            mintBtn.disabled = true;
+            
+            // Build transaction data
+            const transactionData = {
+                to_address: toAddress,
+                amount: amount,
+                purchase_request_id: document.getElementById('purchase_request_id').value || null
+            };
+            
+            // Call backend to build transaction
+            const response = await fetch(`{{ url_for('issuer.build_mint_transaction', token_id=token.id, tab_session=tab_session_id) }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(transactionData)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to build transaction');
+            }
+            
+            const txData = await response.json();
+            
+            if (!txData.success) {
+                throw new Error(txData.error || 'Failed to build transaction');
+            }
+            
+            // Sign transaction with MetaMask
+            const result = await window.metaMaskService.signTransaction(txData.transaction);
+            
+            if (result.success) {
+                // Submit signed transaction
+                const submitResponse = await fetch(`{{ url_for('issuer.submit_mint_transaction', token_id=token.id, tab_session=tab_session_id) }}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        signed_transaction: result.txHash,
+                        transaction_data: transactionData
+                    })
+                });
+                
+                if (submitResponse.ok) {
+                    const submitResult = await submitResponse.json();
+                    if (submitResult.success) {
+                        alert(`✅ Tokens minted successfully! Transaction: ${result.txHash}`);
+                        // Close modal and refresh
+                        bootstrap.Modal.getInstance(document.getElementById('mintModal')).hide();
+                        location.reload();
+                    } else {
+                        throw new Error(submitResult.error || 'Failed to submit transaction');
+                    }
+                } else {
+                    throw new Error('Failed to submit transaction');
+                }
+            } else {
+                throw new Error(result.error || 'Transaction signing failed');
+            }
+            
+        } catch (error) {
+            console.error('Mint error:', error);
+            alert(`❌ Error minting tokens: ${error.message}`);
+        } finally {
+            // Reset button state
+            const mintBtn = document.querySelector('#mintModal .btn-primary');
+            mintBtn.innerHTML = originalText;
+            mintBtn.disabled = false;
+        }
     }
 }
 
-function confirmBurn() {
-    const form = document.getElementById('burnForm');
+async function confirmBurn() {
     const fromAddress = document.getElementById('from_address').value;
     const amount = document.getElementById('burn_amount').value;
     
@@ -426,8 +503,86 @@ function confirmBurn() {
         return;
     }
     
+    if (!window.metaMaskService.isWalletConnected()) {
+        alert('Please connect your MetaMask wallet first');
+        return;
+    }
+    
     if (confirm(`Burn ${amount} {{ token.symbol }} tokens from ${fromAddress}?`)) {
-        form.submit();
+        try {
+            // Show loading state
+            const burnBtn = document.querySelector('#burnModal .btn-warning');
+            const originalText = burnBtn.innerHTML;
+            burnBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Burning...';
+            burnBtn.disabled = true;
+            
+            // Build transaction data
+            const transactionData = {
+                from_address: fromAddress,
+                amount: amount
+            };
+            
+            // Call backend to build transaction
+            const response = await fetch(`{{ url_for('issuer.build_burn_transaction', token_id=token.id, tab_session=tab_session_id) }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(transactionData)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to build transaction');
+            }
+            
+            const txData = await response.json();
+            
+            if (!txData.success) {
+                throw new Error(txData.error || 'Failed to build transaction');
+            }
+            
+            // Sign transaction with MetaMask
+            const result = await window.metaMaskService.signTransaction(txData.transaction);
+            
+            if (result.success) {
+                // Submit signed transaction
+                const submitResponse = await fetch(`{{ url_for('issuer.submit_burn_transaction', token_id=token.id, tab_session=tab_session_id) }}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        signed_transaction: result.txHash,
+                        transaction_data: transactionData
+                    })
+                });
+                
+                if (submitResponse.ok) {
+                    const submitResult = await submitResponse.json();
+                    if (submitResult.success) {
+                        alert(`✅ Tokens burned successfully! Transaction: ${result.txHash}`);
+                        // Close modal and refresh
+                        bootstrap.Modal.getInstance(document.getElementById('burnModal')).hide();
+                        location.reload();
+                    } else {
+                        throw new Error(submitResult.error || 'Failed to submit transaction');
+                    }
+                } else {
+                    throw new Error('Failed to submit transaction');
+                }
+            } else {
+                throw new Error(result.error || 'Transaction signing failed');
+            }
+            
+        } catch (error) {
+            console.error('Burn error:', error);
+            alert(`❌ Error burning tokens: ${error.message}`);
+        } finally {
+            // Reset button state
+            const burnBtn = document.querySelector('#burnModal .btn-warning');
+            burnBtn.innerHTML = originalText;
+            burnBtn.disabled = false;
+        }
     }
 }
 

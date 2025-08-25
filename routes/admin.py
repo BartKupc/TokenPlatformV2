@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from models import db
 from models.user import User, TrustedIssuerApproval
 from models.token import Token
@@ -564,8 +564,11 @@ def blockchain_verification():
         
         for token in tokens:
             try:
+                # Convert token address to checksum format
+                checksum_token_address = web3_service.w3.to_checksum_address(token.token_address)
+                
                 # Check if token exists on-chain
-                code = web3_service.w3.eth.get_code(token.token_address)
+                code = web3_service.w3.eth.get_code(checksum_token_address)
                 exists = code != b''
                 
                 # Get token info from blockchain if it exists
@@ -573,8 +576,8 @@ def blockchain_verification():
                     try:
                         # Try to get token info from blockchain
                         token_contract = web3_service.w3.eth.contract(
-                            address=token.token_address,
-                            abi=web3_service.get_contract_abi('Token')
+                            address=checksum_token_address,
+                            abi=web3_service.contract_abis['Token']
                         )
                         onchain_name = token_contract.functions.name().call()
                         onchain_symbol = token_contract.functions.symbol().call()
@@ -797,6 +800,293 @@ def transaction_history():
         return render_template('admin_transaction_history.html',
                              transaction_data=transaction_data,
                              tab_session_id=tab_session.session_id)
+
+@admin_bp.route('/gateway-management')
+def gateway_management():
+    """Admin Gateway management - add/remove deployers and check status"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        print(f"🔍 Gateway Management - Tab session ID: {tab_session_id}")
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        print(f"🔍 Gateway Management - Tab session created: {tab_session.session_id}")
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        print(f"🔍 Gateway Management - Current user: {user.username if user else 'None'} (type: {user.user_type if user else 'None'})")
+        
+        if not user or user.user_type != 'admin':
+            print(f"❌ Gateway Management - Access denied for user: {user.username if user else 'None'}")
+            flash('Admin access required.', 'error')
+            return redirect(url_for('admin.login', tab_session=tab_session.session_id))
+        
+        # Get all users who are deployers (from database)
+        db_deployers = User.query.filter_by(is_gateway_deployer=True).all()
+        
+        # Get Gateway contract address
+        from models.contract import Contract
+        gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+        gateway_address = gateway_contract.contract_address if gateway_contract else None
+        
+        # Get all deployers from blockchain (if Gateway is available)
+        blockchain_deployers = []
+        if gateway_address:
+            try:
+                # Initialize Web3 service for blockchain queries
+                web3_service = Web3Service()
+                
+                # Get deployer count from Gateway
+                gateway_contract_instance = web3_service.w3.eth.contract(
+                    address=web3_service.w3.to_checksum_address(gateway_address),
+                    abi=web3_service.contract_abis['TREXGateway']
+                )
+                
+                # Note: T-REX Gateway doesn't have a getDeployerCount function, so we'll show what we can
+                # For now, we'll rely on the database + manual verification
+                
+            except Exception as e:
+                print(f"⚠️ Could not query Gateway contract: {e}")
+        
+        # Combine database and blockchain data
+        deployers = []
+        for db_deployer in db_deployers:
+            deployers.append({
+                'source': 'database',
+                'user': db_deployer,
+                'verified_onchain': True  # We'll verify this below
+            })
+        
+        # Verify on-chain status for each deployer
+        if gateway_address:
+            for deployer_info in deployers:
+                try:
+                    is_deployer = web3_service.is_deployer_on_gateway(
+                        gateway_address, 
+                        deployer_info['user'].wallet_address
+                    )
+                    deployer_info['verified_onchain'] = is_deployer
+                except Exception as e:
+                    deployer_info['verified_onchain'] = False
+                    print(f"⚠️ Could not verify {deployer_info['user'].wallet_address}: {e}")
+        
+        return render_template('admin_gateway_management.html', 
+                             deployers=deployers,
+                             gateway_address=gateway_address,
+                             tab_session_id=tab_session.session_id)
+    except Exception as e:
+        print(f"❌ Gateway Management - Unexpected error: {str(e)}")
+        flash(f'Unexpected error: {str(e)}', 'error')
+        return redirect(url_for('admin.dashboard', tab_session=tab_session_id))
+
+@admin_bp.route('/gateway-add-deployer', methods=['POST'])
+def gateway_add_deployer():
+    """Admin add deployer to Gateway"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'admin':
+            flash('Admin access required.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        wallet_address = request.form.get('wallet_address')
+        if not wallet_address:
+            flash('Wallet address is required.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        # Use Account 0 (Gateway owner) to add deployer
+        account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(private_key=account_0_private_key)
+        
+        # Get Gateway contract address
+        from models.contract import Contract
+        gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+        if not gateway_contract:
+            flash('Gateway contract not found in database.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        gateway_address = gateway_contract.contract_address
+        
+        # Add deployer to Gateway
+        tx_hash = web3_service.add_deployer_to_gateway(gateway_address, wallet_address)
+        
+        # Get transaction details for confirmation
+        try:
+            tx_receipt = web3_service.w3.eth.wait_for_transaction_receipt(tx_hash)
+            block_number = tx_receipt.blockNumber
+            gas_used = tx_receipt.gasUsed
+            status = "✅ Success" if tx_receipt.status == 1 else "❌ Failed"
+            
+            # Verify on-chain that the deployer was actually added
+            is_deployer = web3_service.is_deployer_on_gateway(gateway_address, wallet_address)
+            onchain_status = "✅ Confirmed on-chain" if is_deployer else "❌ Not found on-chain"
+            
+            flash(f'Successfully added {wallet_address} as deployer! {status} | Block: {block_number} | Gas: {gas_used} | {onchain_status}', 'success')
+            
+            # Store transaction details in session for display
+            session['last_gateway_tx'] = {
+                'operation': 'add_deployer',
+                'wallet_address': wallet_address,
+                'tx_hash': tx_hash,
+                'block_number': block_number,
+                'gas_used': gas_used,
+                'status': status,
+                'onchain_status': onchain_status
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not verify on-chain status: {str(e)}")
+        
+        # Update user in database if they exist
+        user_obj = User.query.filter_by(wallet_address=wallet_address).first()
+        if user_obj:
+            user_obj.is_gateway_deployer = True
+            db.session.commit()
+        
+    except Exception as e:
+        flash(f'Error adding deployer: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+
+@admin_bp.route('/gateway-remove-deployer', methods=['POST'])
+def gateway_remove_deployer():
+    """Admin remove deployer from Gateway"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'admin':
+            flash('Admin access required.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        wallet_address = request.form.get('wallet_address')
+        if not wallet_address:
+            flash('Wallet address is required.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        # Use Account 0 (Gateway owner) to remove deployer
+        account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(private_key=account_0_private_key)
+        
+        # Get Gateway contract address
+        from models.contract import Contract
+        gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+        if not gateway_contract:
+            flash('Gateway contract not found in database.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        gateway_address = gateway_contract.contract_address
+        
+        # Remove deployer from Gateway
+        tx_hash = web3_service.remove_deployer_from_gateway(gateway_address, wallet_address)
+        
+        # Get transaction details for confirmation
+        try:
+            tx_receipt = web3_service.w3.eth.wait_for_transaction_receipt(tx_hash)
+            block_number = tx_receipt.blockNumber
+            gas_used = tx_receipt.gasUsed
+            status = "✅ Success" if tx_receipt.status == 1 else "❌ Failed"
+            
+            # Verify on-chain that the deployer was actually removed
+            is_deployer = web3_service.is_deployer_on_gateway(gateway_address, wallet_address)
+            onchain_status = "✅ Confirmed removed on-chain" if not is_deployer else "❌ Still found on-chain"
+            
+            flash(f'Successfully removed {wallet_address} as deployer! {status} | Block: {block_number} | Gas: {gas_used} | {onchain_status}', 'success')
+            
+            # Store transaction details in session for display
+            session['last_gateway_tx'] = {
+                'operation': 'remove_deployer',
+                'wallet_address': wallet_address,
+                'tx_hash': tx_hash,
+                'block_number': block_number,
+                'gas_used': gas_used,
+                'status': status,
+                'onchain_status': onchain_status
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not verify on-chain status: {str(e)}")
+        
+        # Update user in database if they exist
+        user_obj = User.query.filter_by(wallet_address=wallet_address).first()
+        if user_obj:
+            user_obj.is_gateway_deployer = False
+            db.session.commit()
+        
+    except Exception as e:
+        flash(f'Error removing deployer: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+
+@admin_bp.route('/gateway-check-deployer', methods=['POST'])
+def gateway_check_deployer():
+    """Admin check if wallet is a deployer on Gateway"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'admin':
+            flash('Admin access required.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        wallet_address = request.form.get('wallet_address')
+        if not wallet_address:
+            flash('Wallet address is required.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        # Initialize Web3 service (no private key needed for read-only)
+        web3_service = Web3Service()
+        
+        # Get Gateway contract address
+        from models.contract import Contract
+        gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+        if not gateway_contract:
+            flash('Gateway contract not found in database.', 'error')
+            return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+        
+        gateway_address = gateway_contract.contract_address
+        
+        # Check if wallet is deployer
+        is_deployer = web3_service.is_deployer_on_gateway(gateway_address, wallet_address)
+        
+        if is_deployer:
+            flash(f'{wallet_address} IS a deployer on the Gateway.', 'success')
+        else:
+            flash(f'{wallet_address} is NOT a deployer on the Gateway.', 'info')
+        
+    except Exception as e:
+        flash(f'Error checking deployer status: {str(e)}', 'error')
+    
+    return redirect(url_for('admin.gateway_management', tab_session=tab_session_id))
+
+@admin_bp.route('/gateway-clear-tx', methods=['POST'])
+def gateway_clear_tx():
+    """Clear last gateway transaction details from session"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'admin':
+            return {'error': 'Admin access required'}, 403
+        
+        # Clear transaction details from session
+        if 'last_gateway_tx' in session:
+            del session['last_gateway_tx']
+        
+        return {'success': True}
+        
+    except Exception as e:
+        return {'error': str(e)}, 500
 
 @admin_bp.route('/onchainid-dashboard')
 def onchainid_dashboard():

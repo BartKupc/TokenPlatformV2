@@ -1,41 +1,39 @@
- #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-TokenPlatform Token Suite Deployment Script
-Exact Python version of deploy_token_enhanced.js
+Token Deployment Script for TokenPlatform V2
+Uses TREXGateway for deployment and stores results in database
 """
 
 import json
-import os
 import sys
-import time
-from pathlib import Path
+import os
 from web3 import Web3
 from eth_account import Account
+import time
 
-# Add TokenPlatform to path (scripts folder is one level down)
-sys.path.append(str(Path(__file__).parent.parent))
+# Add the project root to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import app
-from models import db, Contract
-from models.token import Token
+# Note: Database operations are handled by the Flask route
+# This script only handles blockchain deployment and returns results
 
 class TokenDeployment:
     def __init__(self):
         self.w3 = Web3(Web3.HTTPProvider('http://localhost:8545'))
-        self.deployer_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-        self.account = Account.from_key(self.deployer_private_key)
-        self.deployer_address = self.account.address
         
-        # Contract ABIs and bytecodes
+        # Load contract ABIs
         self.contract_abis = {}
-        self.contract_bytecodes = {}
-        self._load_contract_artifacts()
+        self.load_contract_abis()
         
-        # Token details (same as JavaScript)
+        # Deployer details (will be set during deployment)
+        self.deployer_address = None
+        self.deployer_private_key = None
+        
+        # Token details (same as V1)
         self.token_details = {
             'owner': None,
-            'name': "MySecurityToken",
-            'symbol': "MST",
+            'name': 'DefaultToken',
+            'symbol': 'DTK',
             'decimals': 18,
             'irs': None,
             'ONCHAINID': None,
@@ -43,333 +41,438 @@ class TokenDeployment:
             'tokenAgents': [],
             'complianceModules': [],
             'complianceSettings': [],
-            'totalSupply': "1000000"
+            'totalSupply': '1000000'
         }
         
-        # Claim details
         self.claim_details = {
             'claimTopics': [],
             'issuers': [],
             'issuerClaims': []
         }
         
-    def _load_contract_artifacts(self):
-        """Load contract ABIs and bytecodes from artifacts"""
-        artifacts_dir = Path(__file__).parent.parent / 'artifacts'
+    def load_contract_abis(self):
+        """Load all required contract ABIs"""
+        abi_files = {
+            "TREXGateway": "artifacts/trex/TREXGateway.json",
+            "TREXFactory": "artifacts/trex/TREXFactory.json",
+            "Token": "artifacts/trex/Token.json",
+            "IdentityRegistry": "artifacts/trex/IdentityRegistry.json",
+            "ModularCompliance": "artifacts/trex/ModularCompliance.json"
+        }
         
-        # Load T-REX contracts
-        trex_contracts = [
-            'factory/TREXFactory.sol/TREXFactory.json',
-            'token/Token.sol/Token.json',
-            'registry/implementation/IdentityRegistry.sol/IdentityRegistry.json'
-        ]
-        
-        for contract_file in trex_contracts:
-            file_path = artifacts_dir / 'contracts' / contract_file
-            if file_path.exists():
-                with open(file_path, 'r') as f:
-                    artifact = json.load(f)
-                    contract_name = Path(contract_file).stem
-                    self.contract_abis[contract_name] = artifact['abi']
-                    self.contract_bytecodes[contract_name] = artifact['bytecode']
-                    print(f"✅ Loaded {contract_name}")
-            else:
-                print(f"⚠️  Contract artifact not found: {contract_file}")
-    
-    def get_trex_factory_address(self):
-        """Get TREXFactory address from database - there's only one factory in TokenPlatform"""
-        try:
-            with app.app_context():
-                factory_contract = Contract.query.filter_by(contract_type="TREXFactory").first()
-                if factory_contract:
-                    print(f"✅ Found TREXFactory: {factory_contract.contract_address}")
-                    return factory_contract.contract_address
-                else:
-                    raise ValueError("TREXFactory not found in database. Please run deploy_factory.py first.")
-        except Exception as e:
-            print(f"❌ Error getting TREXFactory address: {e}")
-            raise
+        for name, path in abi_files.items():
+            try:
+                with open(path, 'r') as f:
+                    abi_data = json.load(f)
+                    self.contract_abis[name] = abi_data.get('abi', [])
+                    print(f"✅ Loaded {name} ABI")
+            except Exception as e:
+                print(f"❌ Failed to load {name} ABI: {e}")
+                sys.exit(1)
     
     def call_contract_function(self, contract_address, abi, function_name, *args):
-        """Call a contract function"""
-        contract = self.w3.eth.contract(address=contract_address, abi=abi)
-        function = getattr(contract.functions, function_name)
-        return function(*args).call()
-    
-    def send_contract_transaction(self, contract_address, abi, function_name, *args):
-        """Send a transaction to a contract function"""
-        contract = self.w3.eth.contract(address=contract_address, abi=abi)
-        function = getattr(contract.functions, function_name)
-        
-        # Build transaction
-        transaction = function(*args).build_transaction({
-            'from': self.deployer_address,
-            'gasPrice': self.w3.eth.gas_price,
-            'nonce': self.w3.eth.get_transaction_count(self.deployer_address)
-        })
-        
-        # Estimate gas (like ethers does)
-        estimated_gas = function(*args).estimate_gas({
-            'from': self.deployer_address
-        })
-        transaction['gas'] = int(estimated_gas * 1.2)  # Add 20% buffer like ethers
-        
-        # Sign and send transaction
-        signed_txn = self.w3.eth.account.sign_transaction(transaction, self.deployer_private_key)
-        # Handle both old and new eth-account versions
-        raw_tx = getattr(signed_txn, 'rawTransaction', None) or getattr(signed_txn, 'raw_transaction', None)
-        if not raw_tx:
-            raise AttributeError("SignedTransaction object has no rawTransaction or raw_transaction attribute")
-        tx_hash = self.w3.eth.send_raw_transaction(raw_tx)
-        
-        # Wait for transaction receipt
-        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-        return tx_receipt
-    
-    def store_token_in_database(self, token_address, token_name, token_symbol, token_decimals, 
-                               identity_registry, compliance, claim_topics_registry, 
-                               trusted_issuers_registry, deployer_address, salt):
-        """Store token suite in TokenPlatform database"""
+        """Call a contract function (read-only)"""
         try:
-            with app.app_context():
-                # Store the token using existing Token model structure
-                # Use the issuer address, not the deployer address
-                issuer_address = self.token_details.get('tokenAgents', [deployer_address])[0]
-                token = Token(
-                    token_address=token_address,
-                    name=token_name,
-                    symbol=token_symbol,
-                    total_supply=int(self.token_details['totalSupply']),
-                    issuer_address=issuer_address,
-                    price_per_token=0.0,
-                    description=f"ERC-3643 Token deployed via TREXFactory with salt: {salt}",
-                    ir_agent='issuer',
-                    token_agent='issuer',
-                    claim_topics=json.dumps(self.claim_details['claimTopics']),
-                    claim_issuer_type='trusted_issuer'
-                )
-                db.session.add(token)
-                db.session.commit()
-                print(f"✅ Stored token {token_name} in database")
-                print(f"   Token Address: {token_address}")
-                print(f"   Identity Registry: {identity_registry}")
-                print(f"   Compliance: {compliance}")
-                print(f"   Claim Topics Registry: {claim_topics_registry}")
-                print(f"   Trusted Issuers Registry: {trusted_issuers_registry}")
+            contract = self.w3.eth.contract(address=contract_address, abi=abi)
+            function = getattr(contract.functions, function_name)
+            result = function(*args).call()
+            return result
         except Exception as e:
-            print(f"❌ Error storing token: {e}")
+            print(f"❌ Error calling {function_name}: {e}")
             raise
     
-    def deploy(self, deployer_address=None):
-        """Main deployment function - exact copy of JavaScript logic"""
-        if deployer_address:
-            self.deployer_address = deployer_address
-            self.account = Account.from_key(self.deployer_private_key)
-        
-        # Use the issuer address passed as parameter
-        if deployer_address:
-            print(f"🔍 Using issuer address: {deployer_address}")
-            # For now, we'll use the hardcoded private key but set the deployer address
-            # In production, you'd need to pass the issuer's private key securely
-            self.deployer_address = deployer_address
-        
-        print("🎯 Enhanced Token Deployment for TokenPlatform")
-        print(f"🔗 Connected to Hardhat node at http://localhost:8545")
-        print(f"👤 Deployer: {self.deployer_address}")
-        
-        # Check initial block number
-        initial_block = self.w3.eth.block_number
-        print(f"📦 Initial block number: {initial_block}")
-        
+    def send_contract_transaction(self, contract_address, abi, function_name, *args):
+        """Send a contract transaction (write operation)"""
         try:
-            # Get TREXFactory address from database
-            trex_factory_address = self.get_trex_factory_address()
-            print(f"\n📋 Using TREXFactory: {trex_factory_address}")
+            print(f"🔍 DEBUG: send_contract_transaction called with:")
+            print(f"   contract_address: {contract_address}")
+            print(f"   function_name: {function_name}")
+            print(f"   deployer_address: {self.deployer_address}")
             
-            # Get the TREXFactory contract instance
-            trex_factory = self.w3.eth.contract(
-                address=trex_factory_address,
-                abi=self.contract_abis["TREXFactory"]
-            )
-            print("✅ Connected to TREXFactory")
+            contract = self.w3.eth.contract(address=contract_address, abi=abi)
+            function = getattr(contract.functions, function_name)
             
-            # Verify factory configuration (exact same as JavaScript)
-            print("\n📋 Factory Configuration:")
-            implementation_authority = self.call_contract_function(
-                trex_factory_address, 
-                self.contract_abis["TREXFactory"], 
-                "getImplementationAuthority"
-            )
-            id_factory = self.call_contract_function(
-                trex_factory_address, 
-                self.contract_abis["TREXFactory"], 
-                "getIdFactory"
-            )
-            owner = self.call_contract_function(
-                trex_factory_address, 
-                self.contract_abis["TREXFactory"], 
-                "owner"
-            )
+            # Build transaction
+            tx = function(*args).build_transaction({
+                'from': self.deployer_address,
+                'gas': 5000000,  # High gas limit for deployment
+                'gasPrice': self.w3.eth.gas_price,
+                'nonce': self.w3.eth.get_transaction_count(self.deployer_address)
+            })
             
-            print(f"Owner: {owner}")
-            print(f"Implementation Authority: {implementation_authority}")
-            print(f"ID Factory: {id_factory}")
+            print(f"🔍 DEBUG: Transaction built:")
+            print(f"   to: {tx.get('to')}")
+            print(f"   from: {tx.get('from')}")
+            print(f"   data: {tx.get('data')[:66]}...")
             
-            # Check if we need to use the factory owner's private key
-            if owner.lower() != self.deployer_address.lower():
-                print(f"⚠️ Factory owner ({owner}) is different from deployer ({self.deployer_address})")
-                print("🔧 Using factory owner's private key for deployment")
-                # Use the factory owner's private key (hardcoded Hardhat account 0)
-                self.deployer_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-                self.account = Account.from_key(self.deployer_private_key)
-                self.deployer_address = self.account.address
-                print(f"✅ Switched to factory owner: {self.deployer_address}")
+            # Sign and send transaction
+            signed_tx = self.w3.eth.account.sign_transaction(tx, self.deployer_private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             
-            # Use claim details from instance (set by TREXService)
-            claim_details = self.claim_details
-            print('📋 Using claim details from instance:', claim_details)
-            print('📋 Claim topics:', claim_details['claimTopics'])
-            print('📋 Issuers:', claim_details['issuers'])
-            print('📋 Issuer claims:', claim_details['issuerClaims'])
+            print(f"📝 Transaction sent: {tx_hash.hex()}")
             
-            # Token details are already set by TREXService
-            print('📋 Using token details from instance:', self.token_details)
+            # Wait for confirmation
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             
-            salt = "token-" + str(int(time.time()))
+            if tx_receipt.status == 1:
+                print(f"✅ Transaction confirmed in block {tx_receipt.blockNumber}")
+                return tx_receipt
+            else:
+                raise Exception("Transaction failed")
+                
+        except Exception as e:
+            print(f"❌ Error sending transaction {function_name}: {e}")
+            raise
+    
+    def parse_deployment_event(self, logs):
+        """Parse TREXSuiteDeployed event from TREXFactory to get deployed contract addresses"""
+        try:
+            # TREXSuiteDeployed event signature from TREXFactory
+            # Event: TREXSuiteDeployed(address indexed _token, address _ir, address _irs, address _tir, address _ctr, address _mc, string indexed _salt)
+            # Topic: 0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41
             
-            print("\n📋 Token Details:")
-            print(f"Token Name: {self.token_details['name']}")
-            print(f"Token Symbol: {self.token_details['symbol']}")
-            print(f"Token Decimals: {self.token_details['decimals']}")
-            print(f"Salt: {salt}")
+            deployment_event_topic = "0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41"
             
-            print("\n🚀 Deploying token suite...")
+            print(f"🔍 DEBUG: Parsing {len(logs)} transaction logs for TREXFactory event...")
+            for i, log in enumerate(logs):
+                print(f"   Log {i}: topics={[t.hex() for t in log.topics]}, data_length={len(log.data)}")
+                if log.topics and len(log.topics) > 0:
+                    if log.topics[0].hex() == deployment_event_topic:
+                        print(f"✅ Found TREXSuiteDeployed event from Factory!")
+                        print(f"   Event data: {log.data.hex()}")
+                        print(f"   Data length: {len(log.data)} bytes")
+                        
+                        # Parse the Factory event data correctly
+                        # Factory event contains: [_ir, _irs, _tir, _ctr, _mc] (5 non-indexed addresses)
+                        # _token and _salt are indexed (in topics), not in data
+                        if len(log.data) >= 160:  # 5 addresses * 32 bytes each
+                            print(f"   📊 Parsing Factory event data:")
+                            print(f"     Topics: {[t.hex() for t in log.topics]}")
+                            print(f"     Data: {log.data.hex()}")
+                            
+                            # Extract addresses from data (non-indexed fields)
+                            ir_address = "0x" + log.data[0:32].hex()[-40:]
+                            irs_address = "0x" + log.data[32:64].hex()[-40:]
+                            tir_address = "0x" + log.data[64:96].hex()[-40:]
+                            ctr_address = "0x" + log.data[96:128].hex()[-40:]
+                            mc_address = "0x" + log.data[128:160].hex()[-40:]
+                            
+                            # Extract indexed fields from topics
+                            # Topic 0: event signature (indexed)
+                            # Topic 1: _token (indexed) 
+                            # Topic 2: _salt (indexed)
+                            token_address = "0x" + log.topics[1].hex()[-40:] if len(log.topics) > 1 else "0x0000000000000000000000000000000000000000"
+                            salt = log.topics[2].hex() if len(log.topics) > 2 else "0x0000000000000000000000000000000000000000000000000000000000000000"
+                            
+                            print(f"     📍 Extracted addresses:")
+                            print(f"       Token (from topic): {token_address}")
+                            print(f"       IR (from data): {ir_address}")
+                            print(f"       IRS (from data): {irs_address}")
+                            print(f"       TIR (from data): {tir_address}")
+                            print(f"       CTR (from data): {ctr_address}")
+                            print(f"       MC (from data): {mc_address}")
+                            print(f"       Salt (from topic): {salt}")
+                            
+                            deployed_addresses = {
+                                'token': token_address,
+                                'identity_registry': ir_address,
+                                'identity_registry_storage': irs_address,
+                                'trusted_issuers_registry': tir_address,
+                                'claim_topics_registry': ctr_address,
+                                'compliance': mc_address,
+                                'salt': salt
+                            }
+                            
+                            print(f"📋 Parsed Factory deployment addresses:")
+                            print(f"  Token: {token_address}")
+                            print(f"  Identity Registry: {ir_address}")
+                            print(f"  Identity Registry Storage: {irs_address}")
+                            print(f"  Trusted Issuers Registry: {tir_address}")
+                            print(f"  Claim Topics Registry: {ctr_address}")
+                            print(f"  Compliance: {mc_address}")
+                            print(f"  Salt: {salt}")
+                            
+                            return deployed_addresses
+                        else:
+                            print(f"❌ Event data too short: {len(log.data)} bytes (expected 160)")
+                            print(f"   Raw data: {log.data.hex()}")
             
-            # Set token details (exact same as JavaScript)
-            # Use the issuer address as owner and agents, not the deployer address
-            issuer_address = self.token_details.get('tokenAgents', [self.deployer_address])[0]
+            print("⚠️ TREXSuiteDeployed event from Factory not found in logs")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error parsing Factory deployment event: {e}")
+            return None
+    
+    def store_token_in_database(self, deployed_addresses, token_name, token_symbol, total_supply, issuer_address):
+        """Store token suite in database for dashboard display"""
+        # Note: Database storage is now handled by the Flask route
+        # This method is kept for compatibility but doesn't actually store
+        print(f"💾 Database storage will be handled by Flask route")
+        print(f"   Token: {token_name} ({token_symbol})")
+        print(f"   Address: {deployed_addresses['token']}")
+        return None
+    
+    def deploy(self, deployer_address=None):
+        """Main deployment function using TREXGateway V2"""
+        try:
+            print("🚀 Starting ERC-3643 Token Deployment via TREXGateway V2")
+            print("=" * 60)
+            
+            # Set deployer details from issuer
+            if deployer_address:
+                self.deployer_address = deployer_address
+                print(f"👤 Using issuer as deployer: {self.deployer_address}")
+                
+                # Get issuer's private key from database
+                try:
+                    from models import User
+                    issuer = User.query.filter_by(wallet_address=deployer_address).first()
+                    if issuer and issuer.private_key:
+                        self.deployer_private_key = issuer.private_key
+                        print(f"🔑 Using issuer's private key for deployment")
+                    else:
+                        raise Exception("Issuer not found or no private key")
+                except Exception as e:
+                    print(f"❌ Error getting issuer private key: {e}")
+                    return {
+                        'success': False,
+                        'error': f'Could not get issuer private key: {e}',
+                        'note': 'Issuer must be registered with private key'
+                    }
+            else:
+                raise Exception("Deployer address is required")
+            
+            # Get initial block number
+            initial_block = self.w3.eth.block_number
+            print(f"📦 Initial block number: {initial_block}")
+            
+            # Get contract addresses from database
+            try:
+                from models import Contract
+                gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+                gateway_address = gateway_contract.contract_address if gateway_contract else None
+                
+                factory_contract = Contract.query.filter_by(contract_type='TREXFactory').first()
+                trex_factory_address = factory_contract.contract_address if factory_contract else None
+                
+                if not gateway_address or not trex_factory_address:
+                    raise ValueError("Gateway or Factory not found in database")
+                    
+                print(f"🏛️ Using contract addresses from database:")
+                print(f"   Gateway: {gateway_address}")
+                print(f"   Factory: {trex_factory_address}")
+                
+                print(f"🏛️ Gateway Address: {gateway_address}")
+                print(f"🏭 Factory Address: {trex_factory_address}")
+                    
+            except Exception as e:
+                print(f"❌ Error getting contract addresses from database: {e}")
+                return {
+                    'success': False,
+                    'error': f'Could not get contract addresses: {e}',
+                    'note': 'Check if contracts are deployed and in database'
+                }
+            
+            # Check Gateway roles for deployer
+            print(f"\n🔍 Checking Gateway roles for {self.deployer_address}...")
+            try:
+                gateway_contract = self.w3.eth.contract(
+                    address=gateway_address,
+                    abi=self.contract_abis["TREXGateway"]
+                )
+                
+                is_deployer = gateway_contract.functions.isDeployer(self.deployer_address).call()
+                is_agent = gateway_contract.functions.isAgent(self.deployer_address).call()
+                gateway_owner = gateway_contract.functions.owner().call()
+                
+                print(f"   Is Deployer: {is_deployer}")
+                print(f"   Is Agent: {is_agent}")
+                print(f"   Gateway Owner: {gateway_owner}")
+                
+                if not is_deployer and not is_agent:
+                    print("❌ Deployer has no Gateway permissions!")
+                    return {
+                        'success': False,
+                        'error': 'Deployer has no Gateway permissions',
+                        'note': 'Contact admin to add deployer role'
+                    }
+                    
+            except Exception as e:
+                print(f"⚠️ Could not check Gateway roles: {e}")
+            
+            # Set token details (exact same as V1)
+            # Use the deployer address as owner and agents (this is the issuer)
+            issuer_address = self.deployer_address
             self.token_details['owner'] = issuer_address
             self.token_details['irs'] = "0x" + "0" * 40  # ethers.ZeroAddress
             self.token_details['ONCHAINID'] = "0x" + "0" * 40  # ethers.ZeroAddress
             
-            # Use the agents from config (issuer address) instead of overriding with deployer
-            # The config should already have the correct issuer address as agent
-            if not self.token_details['tokenAgents']:
-                self.token_details['tokenAgents'] = [self.deployer_address]
-            if not self.token_details['irAgents']:
-                self.token_details['irAgents'] = [self.deployer_address]
+            # Set the agents to the issuer address
+            self.token_details['tokenAgents'] = [issuer_address]
+            self.token_details['irAgents'] = [issuer_address]
             
             print("🔑 Auto-configured agents:")
             print(f"Token Agents: {self.token_details['tokenAgents']}")
             print(f"IR Agents: {self.token_details['irAgents']}")
             
-            # Deploy token suite (exact same as JavaScript)
+            # Deploy through Gateway (but use V1 TokenDetails structure)
             tx_receipt = self.send_contract_transaction(
-                trex_factory_address,
-                self.contract_abis["TREXFactory"],
+                gateway_address,
+                self.contract_abis["TREXGateway"],
                 "deployTREXSuite",
-                salt,
                 self.token_details,
-                claim_details
+                self.claim_details
             )
             
-            print(f"Transaction hash: {tx_receipt.transactionHash.hex()}")
-            print("✅ Token suite deployed!")
-            print(f"Gas used: {tx_receipt.gasUsed}")
+            print(f"✅ Gateway deployment transaction successful!")
+            print(f"📝 Transaction Hash: {tx_receipt.transactionHash.hex()}")
+            print(f"📊 Transaction Status: {tx_receipt.status}")
+            print(f"📊 Transaction Logs: {len(tx_receipt.logs)} logs")
             
-            # Get deployed addresses (exact same as JavaScript)
-            token_address = self.call_contract_function(
-                trex_factory_address,
-                self.contract_abis["TREXFactory"],
-                "getToken",
-                salt
-            )
+            # Debug: Show what logs the Gateway transaction produced
+            if tx_receipt.logs:
+                print(f"🔍 Gateway transaction logs:")
+                for i, log in enumerate(tx_receipt.logs):
+                    print(f"   Log {i}: topics={[t.hex() for t in log.topics]}, data_length={len(log.data)}")
+                    if log.topics and len(log.topics) > 0:
+                        print(f"     Topic 0: {log.topics[0].hex()}")
             
-            print(f"\n📦 Token Suite Components:")
-            print(f"Token Address: {token_address}")
+            # Parse deployment event to get contract addresses
+            print(f"\n🔍 Parsing deployment event for contract addresses...")
             
-            if token_address == "0x" + "0" * 40:
-                print("⚠️  Token address is zero - deployment may have failed")
-                return
+            # The Gateway calls the Factory, so we need to look for the Factory's TREXSuiteDeployed event
+            # Get the Factory address from the database
+            try:
+                from models import Contract
+                factory_contract = Contract.query.filter_by(contract_type='TREXFactory').first()
+                if not factory_contract:
+                    raise Exception("TREXFactory not found in database")
+                
+                factory_address = factory_contract.contract_address
+                print(f"🔍 Looking for Factory event at: {factory_address}")
+                
+                # Verify that the Gateway owns the Factory
+                try:
+                    factory_contract_instance = self.w3.eth.contract(
+                        address=factory_address, 
+                        abi=self.contract_abis["TREXFactory"]
+                    )
+                    factory_owner = factory_contract_instance.functions.owner().call()
+                    print(f"🔍 Factory owner: {factory_owner}")
+                    print(f"🔍 Gateway address: {gateway_address}")
+                    if factory_owner.lower() != gateway_address.lower():
+                        print(f"⚠️ WARNING: Factory is NOT owned by Gateway!")
+                        print(f"   Factory owner: {factory_owner}")
+                        print(f"   Gateway: {gateway_address}")
+                    else:
+                        print(f"✅ Factory is correctly owned by Gateway")
+                except Exception as e:
+                    print(f"⚠️ Could not verify Factory ownership: {e}")
+                
+                # Look for the Factory's TREXSuiteDeployed event in recent blocks
+                latest_block = self.w3.eth.block_number
+                deployment_event_topic = "0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41"
+                
+                print(f"🔍 Searching for Factory event in blocks {latest_block - 5} to {latest_block}")
+                
+                # Check the last few blocks for the Factory's event
+                for block_num in range(latest_block - 5, latest_block + 1):
+                    try:
+                        block = self.w3.eth.get_block(block_num, full_transactions=True)
+                        print(f"   Checking block {block_num} ({len(block.transactions)} transactions)")
+                        
+                        for tx in block.transactions:
+                            if tx.to and tx.to.lower() == factory_address.lower():
+                                print(f"     Found Factory transaction: {tx.hash.hex()}")
+                                # This is a Factory transaction
+                                receipt = self.w3.eth.get_transaction_receipt(tx.hash)
+                                if receipt.logs:
+                                    print(f"       Transaction has {len(receipt.logs)} logs")
+                                    for log in receipt.logs:
+                                        if log.topics and len(log.topics) > 0 and log.topics[0].hex() == deployment_event_topic:
+                                            print(f"✅ Found Factory TREXSuiteDeployed event in block {block_num}")
+                                            deployed_addresses = self.parse_deployment_event([log])
+                                            break
+                                    if deployed_addresses:
+                                        break
+                        if deployed_addresses:
+                            break
+                    except Exception as e:
+                        print(f"⚠️ Error checking block {block_num}: {e}")
+                        continue
+                
+                if not deployed_addresses:
+                    # Fallback: try to parse from Gateway logs (might contain Factory event)
+                    print(f"🔍 Fallback: checking Gateway logs for Factory event...")
+                    deployed_addresses = self.parse_deployment_event(tx_receipt.logs)
+                
+                if not deployed_addresses:
+                    # Second fallback: search more broadly for the event
+                    print(f"🔍 Second fallback: searching all recent blocks for Factory event...")
+                    try:
+                        # Search more blocks and also check for any transaction that might have emitted the event
+                        for block_num in range(latest_block - 10, latest_block + 1):
+                            try:
+                                block = self.w3.eth.get_block(block_num, full_transactions=False)
+                                # Just check if the block has any transactions to Factory
+                                if any(tx.get('to') and tx.get('to').lower() == factory_address.lower() for tx in block.transactions):
+                                    print(f"   Found Factory transaction in block {block_num}, getting full block...")
+                                    full_block = self.w3.eth.get_block(block_num, full_transactions=True)
+                                    for tx in full_block.transactions:
+                                        if tx.to and tx.to.lower() == factory_address.lower():
+                                            receipt = self.w3.eth.get_transaction_receipt(tx.hash)
+                                            if receipt.logs:
+                                                for log in receipt.logs:
+                                                    if log.topics and len(log.topics) > 0 and log.topics[0].hex() == deployment_event_topic:
+                                                        print(f"✅ Found Factory event in extended search!")
+                                                        deployed_addresses = self.parse_deployment_event([log])
+                                                        break
+                                                if deployed_addresses:
+                                                    break
+                                    if deployed_addresses:
+                                        break
+                            except Exception as e:
+                                continue
+                    except Exception as e:
+                        print(f"⚠️ Extended search failed: {e}")
+                
+            except Exception as e:
+                print(f"⚠️ Error looking for Factory event: {e}")
+                # Fallback: try to parse from Gateway logs
+                print(f"🔍 Fallback: checking Gateway logs...")
+                deployed_addresses = self.parse_deployment_event(tx_receipt.logs)
             
-            # Get the token contract instance
-            token_contract = self.w3.eth.contract(
-                address=token_address,
-                abi=self.contract_abis["Token"]
-            )
+            if not deployed_addresses:
+                print("❌ Could not parse deployment event - deployment may have failed")
+                return {
+                    'success': False,
+                    'error': 'Could not parse deployment event',
+                    'transaction_hash': tx_receipt.transactionHash.hex(),
+                    'note': 'Check transaction logs for deployment status'
+                }
             
-            # Get other contracts in the suite (exact same as JavaScript)
-            identity_registry = self.call_contract_function(
-                token_address,
-                self.contract_abis["Token"],
-                "identityRegistry"
-            )
-            compliance = self.call_contract_function(
-                token_address,
-                self.contract_abis["Token"],
-                "compliance"
-            )
+            # Note: Database storage is handled by the Flask route
+            print(f"\n💾 Database storage will be handled by Flask route")
+            print(f"   Token: {self.token_details['name']} ({self.token_details['symbol']})")
+            print(f"   Supply: {self.token_details['totalSupply']}")
+            print(f"   Deployed successfully on blockchain")
+            print(f"   Addresses extracted from deployment event")
             
-            # Get the Identity Registry contract to access CTR and TIR
-            identity_registry_contract = self.w3.eth.contract(
-                address=identity_registry,
-                abi=self.contract_abis["IdentityRegistry"]
-            )
-            claim_topics_registry = self.call_contract_function(
-                identity_registry,
-                self.contract_abis["IdentityRegistry"],
-                "topicsRegistry"
-            )
-            trusted_issuers_registry = self.call_contract_function(
-                identity_registry,
-                self.contract_abis["IdentityRegistry"],
-                "issuersRegistry"
-            )
-            
-            print(f"Identity Registry: {identity_registry}")
-            print(f"Compliance: {compliance}")
-            print(f"Claim Topics Registry: {claim_topics_registry}")
-            print(f"Trusted Issuers Registry: {trusted_issuers_registry}")
-            
-            # Verify token details (exact same as JavaScript)
-            token_name = self.call_contract_function(
-                token_address,
-                self.contract_abis["Token"],
-                "name"
-            )
-            token_symbol = self.call_contract_function(
-                token_address,
-                self.contract_abis["Token"],
-                "symbol"
-            )
-            token_decimals = self.call_contract_function(
-                token_address,
-                self.contract_abis["Token"],
-                "decimals"
-            )
-            
-            print(f"\n📋 Verified Token Details:")
-            print(f"Name: {token_name}")
-            print(f"Symbol: {token_symbol}")
-            print(f"Decimals: {token_decimals}")
-            
-            # Store token suite in database
-            # Commented out - the route will handle database storage
-            # self.store_token_in_database(
-            #     token_address, token_name, token_symbol, token_decimals,
-            #     identity_registry, compliance, claim_topics_registry,
-            #     trusted_issuers_registry, self.deployer_address, salt
-            # )
-            
-            # Check final block number
+            # Get final block number
             final_block = self.w3.eth.block_number
             print(f"\n📦 Final block number: {final_block}")
             print(f"📦 Blocks created: {final_block - initial_block}")
             
-            print("\n🎉 ERC-3643 Token Suite deployed successfully!")
-            print(f"\n📋 Token Address: {token_address}")
-            print(f"📋 Salt: {salt}")
-            print("📋 Token address will be stored by the route")
+            print("\n🎉 ERC-3643 Token Suite deployed successfully via TREXGateway V2!")
+            print(f"\n📋 Deployment Summary:")
+            print(f"   Token Address: {deployed_addresses['token']}")
+            print(f"   Identity Registry: {deployed_addresses['identity_registry']}")
+            print(f"   Compliance: {deployed_addresses['compliance']}")
+            print(f"   Claim Topics Registry: {deployed_addresses['claim_topics_registry']}")
+            print(f"   Trusted Issuers Registry: {deployed_addresses['trusted_issuers_registry']}")
+            print(f"   Salt: {deployed_addresses['salt']}")
+            print(f"   Transaction: {tx_receipt.transactionHash.hex()}")
             
             print("\n🚀 Next steps:")
             print("1. Configure compliance rules in the ModularCompliance contract")
@@ -378,20 +481,30 @@ class TokenDeployment:
             print("4. Mint tokens using token.mint()")
             print("5. Check the dashboard for deployment details")
             
-            # Return all contract addresses for the route to use
+            # Return success with all addresses for the Flask route to store in database
             return {
-                'token_address': token_address,
-                'identity_registry': identity_registry,
-                'compliance': compliance,
-                'claim_topics_registry': claim_topics_registry,
-                'trusted_issuers_registry': trusted_issuers_registry
+                'success': True,
+                'message': 'Token deployed successfully via TREXGateway V2',
+                'transaction_hash': tx_receipt.transactionHash.hex(),
+                'gateway_address': gateway_address,
+                'salt': deployed_addresses['salt'],
+                'token_address': deployed_addresses['token'],
+                'identity_registry': deployed_addresses['identity_registry'],
+                'compliance': deployed_addresses['compliance'],
+                'claim_topics_registry': deployed_addresses['claim_topics_registry'],
+                'trusted_issuers_registry': deployed_addresses['trusted_issuers_registry'],
+                'note': 'Token deployed via Gateway V2 - Flask route will store in database'
             }
             
         except Exception as e:
             print(f"❌ Token deployment failed: {e}")
             import traceback
             traceback.print_exc()
-            raise
+            return {
+                'success': False,
+                'error': f'Token deployment failed: {e}',
+                'note': 'Exception occurred during deployment process'
+            }
 
 def main():
     """Main function for standalone testing"""

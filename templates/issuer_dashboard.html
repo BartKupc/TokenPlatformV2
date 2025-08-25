@@ -286,26 +286,30 @@
                                         </h6>
                                         {% if selected_token.claim_topics %}
                                             {% set claim_topics = selected_token.claim_topics | from_json %}
-                                            <div class="d-flex flex-wrap gap-1">
-                                                {% for topic in claim_topics[:3] %}
-                                                    {% if topic == "1" %}
-                                                        <span class="badge bg-success">KYC</span>
-                                                    {% elif topic == "2" %}
-                                                        <span class="badge bg-info">Nationality</span>
-                                                    {% elif topic == "3" %}
-                                                        <span class="badge bg-warning">Age</span>
-                                                    {% elif topic == "4" %}
-                                                        <span class="badge bg-warning">Accredited</span>
-                                                    {% elif topic == "5" %}
-                                                        <span class="badge bg-info">Residency</span>
-                                                    {% elif topic == "6" %}
-                                                        <span class="badge bg-success">Compliance</span>
+                                            {% if claim_topics and claim_topics is sequence %}
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    {% for topic in claim_topics[:3] %}
+                                                        {% if topic == "1" %}
+                                                            <span class="badge bg-success">KYC</span>
+                                                        {% elif topic == "2" %}
+                                                            <span class="badge bg-info">Nationality</span>
+                                                        {% elif topic == "3" %}
+                                                            <span class="badge bg-warning">Age</span>
+                                                        {% elif topic == "4" %}
+                                                            <span class="badge bg-warning">Accredited</span>
+                                                        {% elif topic == "5" %}
+                                                            <span class="badge bg-info">Residency</span>
+                                                        {% elif topic == "6" %}
+                                                            <span class="badge bg-success">Compliance</span>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    {% if claim_topics|length > 3 %}
+                                                        <span class="badge bg-secondary">+{{ claim_topics|length - 3 }} more</span>
                                                     {% endif %}
-                                                {% endfor %}
-                                                {% if claim_topics|length > 3 %}
-                                                    <span class="badge bg-secondary">+{{ claim_topics|length - 3 }} more</span>
-                                                {% endif %}
-                                            </div>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">Invalid claim topics format</span>
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">No claims configured</span>
                                         {% endif %}

@@ -275,7 +275,12 @@ def token_actions(token_id):
     blockchain_paused = False
     try:
         web3_service = Web3Service(user.private_key)
-        blockchain_paused = web3_service.call_contract_function('Token', token.token_address, 'paused')
+        # Convert token address to checksum format
+        checksum_token_address = web3_service.w3.to_checksum_address(token.token_address)
+        print(f"🔍 Checking pause status for token:")
+        print(f"   Original address: {token.token_address}")
+        print(f"   Checksum address: {checksum_token_address}")
+        blockchain_paused = web3_service.call_contract_function('Token', checksum_token_address, 'paused')
     except Exception as e:
         print(f"Error getting blockchain pause status: {e}")
         blockchain_paused = token.is_paused  # Fallback to database status
@@ -2523,14 +2528,22 @@ def toggle_pause(token_id):
         return redirect(url_for('issuer.dashboard', tab_session=tab_session.session_id))
     
     try:
-        # Get current pause status from blockchain
+        # Create web3 service first
         web3_service = Web3Service(user.private_key)
-        current_paused = web3_service.call_contract_function('Token', token.token_address, 'paused')
+        
+        # Convert token address to checksum format
+        checksum_token_address = web3_service.w3.to_checksum_address(token.token_address)
+        print(f"🔍 Toggling pause for token:")
+        print(f"   Original address: {token.token_address}")
+        print(f"   Checksum address: {checksum_token_address}")
+        
+        # Get current pause status from blockchain
+        current_paused = web3_service.call_contract_function('Token', checksum_token_address, 'paused')
         
         # Determine what action to take
         if current_paused:
             # Token is paused, so unpause it
-            tx_hash = web3_service.transact_contract_function('Token', token.token_address, 'unpause')
+            tx_hash = web3_service.transact_contract_function('Token', checksum_token_address, 'unpause')
             receipt = web3_service.wait_for_transaction(tx_hash)
             
             if receipt.status == 1:
@@ -2541,7 +2554,7 @@ def toggle_pause(token_id):
                 flash('Failed to unpause token on blockchain', 'error')
         else:
             # Token is not paused, so pause it
-            tx_hash = web3_service.transact_contract_function('Token', token.token_address, 'pause')
+            tx_hash = web3_service.transact_contract_function('Token', checksum_token_address, 'pause')
             receipt = web3_service.wait_for_transaction(tx_hash)
             
             if receipt.status == 1:
@@ -2690,3 +2703,252 @@ def sync_onchainid_keys():
         flash(f'Error syncing OnchainID keys: {str(e)}', 'error')
     
     return redirect(url_for('issuer.onchainid_keys', tab_session=tab_session.session_id))
+
+@issuer_bp.route('/token/<int:token_id>/debug-database')
+def debug_token_database(token_id):
+    """Debug route to check database vs deployment addresses"""
+    try:
+        from models import Token
+        
+        token = Token.query.get(token_id)
+        if not token:
+            return jsonify({'error': 'Token not found'})
+        
+        # Get the deployment result from the logs
+        deployment_addresses = {
+            'database_token_address': token.token_address,
+            'database_identity_registry': token.identity_registry_address,
+            'database_compliance': token.compliance_address,
+            'database_claim_topics_registry': token.claim_topics_registry_address,
+            'database_trusted_issuers_registry': token.trusted_issuers_registry_address,
+        }
+        
+        # Check if addresses are valid contracts
+        from services.web3_service import Web3Service
+        web3_service = Web3Service()
+        
+        contract_checks = {}
+        for name, address in deployment_addresses.items():
+            if address:
+                try:
+                    code = web3_service.w3.eth.get_code(address)
+                    contract_checks[name] = {
+                        'address': address,
+                        'exists': code != b'',
+                        'code_size': len(code),
+                        'checksum_address': web3_service.w3.to_checksum_address(address)
+                    }
+                except Exception as e:
+                    contract_checks[name] = {
+                        'address': address,
+                        'error': str(e)
+                    }
+            else:
+                contract_checks[name] = {'address': None, 'exists': False}
+        
+        return jsonify({
+            'token_id': token_id,
+            'token_name': token.name,
+            'token_symbol': token.symbol,
+            'deployment_addresses': deployment_addresses,
+            'contract_checks': contract_checks
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+# ============================================================================
+# META MASK INTEGRATION ROUTES
+# ============================================================================
+
+@issuer_bp.route('/token/<int:token_id>/build-mint-transaction', methods=['POST'])
+def build_mint_transaction(token_id):
+    """Build mint transaction for MetaMask signing"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get(token_id)
+        if not token:
+            return jsonify({'success': False, 'error': 'Token not found'}), 404
+        
+        # Verify issuer owns this token
+        if token.issuer_address.lower() != user.wallet_address.lower():
+            return jsonify({'success': False, 'error': 'Not authorized to mint for this token'}), 403
+        
+        # Get transaction data from request
+        data = request.get_json()
+        to_address = data.get('to_address')
+        amount = data.get('amount')
+        
+        if not to_address or not amount:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Build transaction using TREX service
+        from services.trex_service import TREXService
+        trex_service = TREXService()
+        
+        # Build mint transaction (without signing)
+        transaction_data = trex_service.build_mint_transaction(
+            token_address=token.token_address,
+            to_address=to_address,
+            amount=amount
+        )
+        
+        return jsonify({
+            'success': True,
+            'transaction': transaction_data
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@issuer_bp.route('/token/<int:token_id>/submit-mint-transaction', methods=['POST'])
+def submit_mint_transaction(token_id):
+    """Submit signed mint transaction from MetaMask"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get(token_id)
+        if not token:
+            return jsonify({'success': False, 'error': 'Token not found'}), 404
+        
+        # Get transaction data from request
+        data = request.get_json()
+        signed_transaction = data.get('signed_transaction')
+        transaction_data = data.get('transaction_data')
+        
+        if not signed_transaction:
+            return jsonify({'success': False, 'error': 'Missing signed transaction'}), 400
+        
+        # Store transaction in database
+        from models.token import TokenTransaction
+        transaction = TokenTransaction(
+            token_id=token.id,
+            transaction_hash=signed_transaction,
+            transaction_type='mint',
+            from_address=user.wallet_address,
+            to_address=transaction_data.get('to_address'),
+            amount=transaction_data.get('amount'),
+            status='pending'
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Transaction submitted successfully',
+            'transaction_id': transaction.id
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@issuer_bp.route('/token/<int:token_id>/build-burn-transaction', methods=['POST'])
+def build_burn_transaction(token_id):
+    """Build burn transaction for MetaMask signing"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get(token_id)
+        if not token:
+            return jsonify({'success': False, 'error': 'Token not found'}), 404
+        
+        # Verify issuer owns this token
+        if token.issuer_address.lower() != user.wallet_address.lower():
+            return jsonify({'success': False, 'error': 'Not authorized to burn for this token'}), 403
+        
+        # Get transaction data from request
+        data = request.get_json()
+        from_address = data.get('from_address')
+        amount = data.get('amount')
+        
+        if not from_address or not amount:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Build transaction using TREX service
+        from services.trex_service import TREXService
+        trex_service = TREXService()
+        
+        # Build burn transaction (without signing)
+        transaction_data = trex_service.build_burn_transaction(
+            token_address=token.token_address,
+            from_address=from_address,
+            amount=amount
+        )
+        
+        return jsonify({
+            'success': True,
+            'transaction': transaction_data
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@issuer_bp.route('/token/<int:token_id>/submit-burn-transaction', methods=['POST'])
+def submit_burn_transaction(token_id):
+    """Submit signed burn transaction from MetaMask"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get(token_id)
+        if not token:
+            return jsonify({'success': False, 'error': 'Token not found'}), 404
+        
+        # Get transaction data from request
+        data = request.get_json()
+        signed_transaction = data.get('signed_transaction')
+        transaction_data = data.get('transaction_data')
+        
+        if not signed_transaction:
+            return jsonify({'success': False, 'error': 'Missing signed transaction'}), 400
+        
+        # Store transaction in database
+        from models.token import TokenTransaction
+        transaction = TokenTransaction(
+            token_id=token.id,
+            transaction_hash=signed_transaction,
+            transaction_type='burn',
+            from_address=transaction_data.get('from_address'),
+            to_address='0x0000000000000000000000000000000000000000',  # Burn address
+            amount=transaction_data.get('amount'),
+            status='pending'
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Transaction submitted successfully',
+            'transaction_id': transaction.id
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

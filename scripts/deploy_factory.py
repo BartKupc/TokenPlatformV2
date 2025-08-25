@@ -387,9 +387,10 @@ class TREXDeployment:
                                          "addTokenFactory", trex_factory)
             print("✅ Added TREXFactory to Identity Factory")
             
-            print("\n📋 Step 9: Deploying TREXGateway...")
+            print("\n📋 Step 9: Deploying TREXGateway (V2 Architecture)...")
             
             # Deploy TREXGateway (exact same as JavaScript)
+            # This will be the central access control point for all token deployments
             trex_gateway = self.deploy_contract("TREXGateway", trex_factory, True)
             self.store_contract_in_database("TREXGateway", trex_gateway, 
                                           "TREX Gateway", self.deployer_address, 
@@ -416,6 +417,32 @@ class TREXDeployment:
                                          "addDeployer", self.deployer_address)
             print("✅ Added deployer to approved list")
             
+            # Add deployer as agent for admin operations
+            self.send_contract_transaction(trex_gateway, 
+                                         self.contract_abis["TREXGateway"], 
+                                         "addAgent", self.deployer_address)
+            print("✅ Added deployer as agent for admin operations")
+            
+            # ============================================================================
+            # CRITICAL V2 STEP: Transfer Factory ownership to Gateway
+            # This makes Gateway the smart proxy that controls all Factory operations
+            # All token deployments must now go through Gateway.deployTREXSuite()
+            # ============================================================================
+            print("🔧 Transferring Factory ownership to Gateway...")
+            self.send_contract_transaction(trex_factory, 
+                                         self.contract_abis["TREXFactory"], 
+                                         "transferOwnership", trex_gateway)
+            print("✅ Factory ownership transferred to Gateway")
+            
+            # Verify Factory ownership transfer
+            new_factory_owner = self.call_contract_function(trex_factory, 
+                                                          self.contract_abis["TREXFactory"], 
+                                                          "owner")
+            if new_factory_owner.lower() == trex_gateway.lower():
+                print("✅ Factory ownership verification successful")
+            else:
+                raise ValueError(f"Factory ownership transfer failed! Expected: {trex_gateway}, Got: {new_factory_owner}")
+            
             print("\n📋 Step 11: Setting Back-References...")
             
             # Set back-references (exact same as JavaScript)
@@ -431,7 +458,7 @@ class TREXDeployment:
             
             print("\n📋 Step 12: Verifying Setup...")
             
-            # Verify setup (exact same as JavaScript)
+            # Verify setup (V2 Architecture: Gateway owns Factory)
             impl_auth_from_factory = self.call_contract_function(trex_factory, 
                                                                 self.contract_abis["TREXFactory"], 
                                                                 "getImplementationAuthority")
@@ -442,20 +469,23 @@ class TREXDeployment:
                                                self.contract_abis["TREXFactory"], 
                                                "owner")
             
-            print(f"✅ TREXFactory Owner: {owner}")
+            print(f"✅ TREXFactory Owner: {owner} (Expected: {trex_gateway} for V2)")
             print(f"✅ TREXFactory Implementation Authority: {impl_auth_from_factory}")
             print(f"✅ TREXFactory ID Factory: {id_factory_from_factory}")
             
-            # Verify TREXGateway configuration
+                        # Verify TREXGateway configuration
             factory_from_gateway = self.call_contract_function(trex_gateway, 
                                                               self.contract_abis["TREXGateway"], 
                                                               "getFactory")
             public_deployment_status = self.call_contract_function(trex_gateway, 
-                                                                  self.contract_abis["TREXGateway"], 
-                                                                  "getPublicDeploymentStatus")
+                                                                 self.contract_abis["TREXGateway"], 
+                                                                 "getPublicDeploymentStatus")
             is_deployer = self.call_contract_function(trex_gateway, 
                                                      self.contract_abis["TREXGateway"], 
                                                      "isDeployer", self.deployer_address)
+            is_agent = self.call_contract_function(trex_gateway, 
+                                                  self.contract_abis["TREXGateway"], 
+                                                  "isAgent", self.deployer_address)
             deployment_fee = self.call_contract_function(trex_gateway, 
                                                         self.contract_abis["TREXGateway"], 
                                                         "getDeploymentFee")
@@ -466,8 +496,19 @@ class TREXDeployment:
             print(f"✅ TREXGateway Factory: {factory_from_gateway}")
             print(f"✅ TREXGateway Public Deployment: {'Enabled' if public_deployment_status else 'Disabled'}")
             print(f"✅ TREXGateway Deployer Approved: {'Yes' if is_deployer else 'No'}")
+            print(f"✅ TREXGateway Agent Status: {'Yes' if is_agent else 'No'}")
             print(f"✅ TREXGateway Fee Enabled: {'Yes' if is_fee_enabled else 'No'}")
             print(f"✅ TREXGateway Fee Structure: {deployment_fee}")
+            
+            # Verify V2 Architecture: Gateway owns Factory
+            factory_owner = self.call_contract_function(trex_factory, 
+                                                       self.contract_abis["TREXFactory"], 
+                                                       "owner")
+            if factory_owner.lower() == trex_gateway.lower():
+                print("✅ V2 Architecture Verified: Gateway owns Factory")
+            else:
+                print(f"❌ V2 Architecture Error: Factory owner is {factory_owner}, expected {trex_gateway}")
+                raise ValueError("V2 Architecture setup incomplete - Gateway does not own Factory")
             
             # Verify all addresses match (exact same as JavaScript)
             if impl_auth_from_factory != trex_implementation_authority:
@@ -476,8 +517,9 @@ class TREXDeployment:
             if id_factory_from_factory != identity_factory:
                 raise ValueError("ID Factory mismatch")
             
-            if owner != self.deployer_address:
-                raise ValueError("Owner mismatch")
+            # V2 Architecture: Gateway should own Factory, not deployer
+            if owner != trex_gateway:
+                raise ValueError(f"V2 Architecture: Factory owner should be Gateway ({trex_gateway}), got {owner}")
             
             if factory_from_gateway != trex_factory:
                 raise ValueError("TREXGateway factory address mismatch")
@@ -490,11 +532,15 @@ class TREXDeployment:
             print(f"\n📦 Final block number: {final_block}")
             print(f"📦 Blocks created: {final_block - initial_block}")
             
-            print("\n🎉 TREXFactory and TREXGateway deployed successfully!")
-            print("\n📋 Contract Addresses:")
-            print(f"📋 Factory Address: {trex_factory}")
-            print(f"📋 Gateway Address: {trex_gateway}")
-            print(f"📋 Identity Factory: {identity_factory}")
+            print("\n🎉 V2 Architecture: TREXFactory and TREXGateway deployed successfully!")
+            print("\n📋 V2 Architecture Setup:")
+            print(f"🏭 Factory Address: {trex_factory}")
+            print(f"🏛️ Gateway Address: {trex_gateway}")
+            print(f"🔗 Factory Owner: Gateway (V2 Architecture)")
+            print(f"🔑 Identity Factory: {identity_factory}")
+            print("✅ All token deployments now go through Gateway")
+            print("✅ Gateway owns Factory for centralized access control")
+            print("✅ Admin (Account 0) has Agent role for management")
             print("📋 All addresses stored in TokenPlatform database")
             
         except Exception as e:

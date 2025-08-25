@@ -12,12 +12,16 @@ class TREXService:
         self.w3 = web3_service.w3
         
         # Load contract addresses from environment or use defaults
+        self.gateway_address = os.environ.get('TREX_GATEWAY_ADDRESS')
         self.factory_address = os.environ.get('TREX_FACTORY_ADDRESS')
         self.identity_registry_address = os.environ.get('IDENTITY_REGISTRY_ADDRESS')
         self.claim_topics_registry_address = os.environ.get('CLAIM_TOPICS_REGISTRY_ADDRESS')
         self.trusted_issuers_registry_address = os.environ.get('TRUSTED_ISSUERS_REGISTRY_ADDRESS')
         
         # Get contract instances
+        if self.gateway_address:
+            self.gateway_contract = self.web3.get_contract('TREXGateway', self.gateway_address)
+        
         if self.factory_address:
             self.factory_contract = self.web3.get_contract('TREXFactory', self.factory_address)
         
@@ -46,7 +50,8 @@ class TREXService:
                 'decimals': 18,
                 'totalSupply': str(total_supply),
                 'tokenAgents': [issuer_address] if token_agent == 'issuer' else [self.web3.default_account],
-                'irAgents': [issuer_address] if ir_agent == 'issuer' else [self.web3.default_account]
+                'irAgents': [issuer_address] if ir_agent == 'issuer' else [self.web3.default_account],
+                'complianceAgents': [issuer_address] if token_agent == 'issuer' else [self.web3.default_account]
             })
             
             # Determine claim issuer address
@@ -70,13 +75,29 @@ class TREXService:
                 'issuerClaims': [claim_topics_int]  # Array of arrays - each issuer gets all topics
             }
             
+            # Store claim issuer address for deployment script
+            deployment.claim_issuer_address = claim_issuer_address
+            
+            print(f"🔧 Token Details Structure:")
+            print(f"   Name: {deployment.token_details['name']}")
+            print(f"   Symbol: {deployment.token_details['symbol']}")
+            print(f"   Total Supply: {deployment.token_details['totalSupply']}")
+            print(f"   Token Agents: {deployment.token_details['tokenAgents']}")
+            print(f"   IR Agents: {deployment.token_details['irAgents']}")
+            print(f"   Compliance Agents: {deployment.token_details['complianceAgents']}")
+            
             print(f"🔧 Claim Details Structure:")
-            print(f"   claimTopics: {deployment.claim_details['claimTopics']}")
-            print(f"   issuers: {deployment.claim_details['issuers']}")
-            print(f"   issuerClaims: {deployment.claim_details['issuerClaims']}")
+            print(f"   Claim Topics: {deployment.claim_details['claimTopics']}")
+            print(f"   Issuers: {deployment.claim_details['issuers']}")
+            print(f"   Issuer Claims: {deployment.claim_details['issuerClaims']}")
+            print(f"   Claim Issuer Address: {claim_issuer_address}")
             
             # Deploy the token
             deployment_result = deployment.deploy(deployer_address=issuer_address)
+            
+            # Check if deployment was successful
+            if not deployment_result.get('success', False):
+                return deployment_result  # Return the error from deployment script
             
             # The deployment script now returns all contract addresses
             # The route will handle the database storage
@@ -91,6 +112,32 @@ class TREXService:
                 
         except Exception as e:
             return {'success': False, 'error': str(e)}
+    
+    def check_issuer_gateway_authorization(self, issuer_address):
+        """Check if an issuer is authorized to deploy through the Gateway"""
+        try:
+            if not self.gateway_address:
+                return {'authorized': False, 'reason': 'Gateway not deployed'}
+            
+            if not self.gateway_contract:
+                return {'authorized': False, 'reason': 'Gateway contract not loaded'}
+            
+            # Check if issuer is an approved deployer
+            is_deployer = self.gateway_contract.functions.isDeployer(issuer_address).call()
+            
+            if is_deployer:
+                return {'authorized': True, 'reason': 'Issuer is approved deployer'}
+            
+            # Check if public deployment is enabled
+            public_enabled = self.gateway_contract.functions.getPublicDeploymentStatus().call()
+            
+            if public_enabled:
+                return {'authorized': True, 'reason': 'Public deployment enabled'}
+            
+            return {'authorized': False, 'reason': 'Issuer not authorized and public deployment disabled'}
+            
+        except Exception as e:
+            return {'authorized': False, 'reason': f'Error checking authorization: {str(e)}'}
     
     def check_investor_compliance(self, wallet_address, required_claim_topics=None):
         """Check if an investor is compliant for token transfers based on required claim topics"""
@@ -348,68 +395,39 @@ class TREXService:
             return {'success': False, 'error': str(e)}
     
     def mint_tokens(self, token_address, to_address, amount):
-        """Mint tokens to a specific address"""
-        try:
-            # Parse amount to wei
-            amount_wei = self.web3.parse_units(amount, 18)
-            
-            # Mint tokens to the specified address
-            tx_hash = self.web3.transact_contract_function(
-                'Token',
-                token_address,
-                'mint',
-                to_address,
-                amount_wei
-            )
-            
-            receipt = self.web3.wait_for_transaction(tx_hash)
-            
-            if receipt.status == 1:
-                return {'success': True, 'tx_hash': tx_hash}
-            else:
-                return {'success': False, 'error': 'Transaction failed'}
-                
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        """Mint tokens to a specific address - DEPRECATED: Use build_mint_transaction instead"""
+        print("⚠️  WARNING: mint_tokens() is deprecated. Use build_mint_transaction() for MetaMask integration.")
+        return self.build_mint_transaction(token_address, to_address, amount)
     
     def burn_tokens(self, token_address, from_address, amount):
-        """Burn tokens from a specific address"""
-        try:
-            # Parse amount to wei
-            amount_wei = self.web3.parse_units(amount, 18)
-            
-            # Burn tokens from the specified address
-            tx_hash = self.web3.transact_contract_function(
-                'Token',
-                token_address,
-                'burn',
-                from_address,
-                amount_wei
-            )
-            
-            receipt = self.web3.wait_for_transaction(tx_hash)
-            
-            if receipt.status == 1:
-                return {'success': True, 'tx_hash': tx_hash}
-            else:
-                return {'success': False, 'error': 'Transaction failed'}
-                
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        """Burn tokens from a specific address - DEPRECATED: Use build_burn_transaction instead"""
+        print("⚠️  WARNING: burn_tokens() is deprecated. Use build_burn_transaction() for MetaMask integration.")
+        return self.build_burn_transaction(token_address, from_address, amount)
     
     def force_transfer(self, token_address, from_address, to_address, amount):
         """Force transfer tokens from one address to another"""
         try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_from_address = self.web3.to_checksum_address(from_address)
+            checksum_to_address = self.web3.to_checksum_address(to_address)
+            
+            print(f"🔍 Force transferring tokens:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   From address: {from_address} -> {checksum_from_address}")
+            print(f"   To address: {to_address} -> {checksum_to_address}")
+            print(f"   Amount: {amount}")
+            
             # Parse amount to wei
             amount_wei = self.web3.parse_units(amount, 18)
             
             # Force transfer tokens
             tx_hash = self.web3.transact_contract_function(
                 'Token',
-                token_address,
+                checksum_token_address,
                 'forceTransfer',
-                from_address,
-                to_address,
+                checksum_from_address,
+                checksum_to_address,
                 amount_wei
             )
             
@@ -426,16 +444,27 @@ class TREXService:
     def transfer_tokens(self, token_address, from_address, to_address, amount):
         """Force transfer tokens from one address to another (for agents)"""
         try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_from_address = self.web3.to_checksum_address(from_address)
+            checksum_to_address = self.web3.to_checksum_address(to_address)
+            
+            print(f"🔍 Transferring tokens:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   From address: {from_address} -> {checksum_from_address}")
+            print(f"   To address: {to_address} -> {checksum_to_address}")
+            print(f"   Amount: {amount}")
+            
             # Parse amount to wei
             amount_wei = self.web3.parse_units(amount, 18)
             
             # Force transfer tokens from one address to another
             tx_hash = self.web3.transact_contract_function(
                 'Token',
-                token_address,
+                checksum_token_address,
                 'forcedTransfer',
-                from_address,
-                to_address,
+                checksum_from_address,
+                checksum_to_address,
                 amount_wei
             )
             
@@ -452,13 +481,46 @@ class TREXService:
     def get_token_info(self, token_address):
         """Get comprehensive token information from blockchain"""
         try:
+            print(f"🔍 DEBUG: get_token_info called for token: {token_address}")
+            
+            # Convert address to checksum format
+            checksum_address = self.w3.to_checksum_address(token_address)
+            print(f"🔍 Converted to checksum address: {checksum_address}")
+            
+            # Ensure Token ABI is loaded
+            if 'Token' not in self.web3.contract_abis:
+                print(f"❌ Token ABI not loaded in web3 service")
+                return {'success': False, 'error': 'Token ABI not loaded'}
+            
+            print(f"✅ Token ABI loaded: {list(self.web3.contract_abis.keys())}")
+            
             # Basic token info
+            print(f"🔍 Calling token.name()...")
+            name = self.web3.call_contract_function('Token', checksum_address, 'name')
+            print(f"✅ Token name: {name}")
+            
+            print(f"🔍 Calling token.symbol()...")
+            symbol = self.web3.call_contract_function('Token', checksum_address, 'symbol')
+            print(f"✅ Token symbol: {symbol}")
+            
+            print(f"🔍 Calling token.decimals()...")
+            decimals = self.web3.call_contract_function('Token', checksum_address, 'decimals')
+            print(f"✅ Token decimals: {decimals}")
+            
+            print(f"🔍 Calling token.totalSupply()...")
+            totalSupply = self.web3.call_contract_function('Token', checksum_address, 'totalSupply')
+            print(f"✅ Token totalSupply: {totalSupply}")
+            
+            print(f"🔍 Calling token.owner()...")
+            owner = self.web3.call_contract_function('Token', checksum_address, 'owner')
+            print(f"✅ Token owner: {owner}")
+            
             token_info = {
-                'name': self.web3.call_contract_function('Token', token_address, 'name'),
-                'symbol': self.web3.call_contract_function('Token', token_address, 'symbol'),
-                'decimals': self.web3.call_contract_function('Token', token_address, 'decimals'),
-                'totalSupply': self.web3.call_contract_function('Token', token_address, 'totalSupply'),
-                'owner': self.web3.call_contract_function('Token', token_address, 'owner')
+                'name': name,
+                'symbol': symbol,
+                'decimals': decimals,
+                'totalSupply': totalSupply,
+                'owner': owner
             }
             
             # Format total supply
@@ -466,26 +528,37 @@ class TREXService:
             
             # Get compliance info
             try:
-                compliance_address = self.web3.call_contract_function('Token', token_address, 'compliance')
+                print(f"🔍 Calling token.compliance()...")
+                compliance_address = self.web3.call_contract_function('Token', checksum_address, 'compliance')
                 token_info['compliance_address'] = compliance_address
+                print(f"✅ Compliance address: {compliance_address}")
                 
                 # Get claim topics from compliance
+                print(f"🔍 Calling compliance.getClaimTopics()...")
                 claim_topics = self.web3.call_contract_function('Compliance', compliance_address, 'getClaimTopics')
                 token_info['claim_topics'] = claim_topics
-            except:
+                print(f"✅ Claim topics: {claim_topics}")
+            except Exception as e:
+                print(f"⚠️ Warning getting compliance info: {e}")
                 token_info['compliance_address'] = None
                 token_info['claim_topics'] = []
             
             # Get identity registry info
             try:
-                identity_registry = self.web3.call_contract_function('Token', token_address, 'identityRegistry')
+                print(f"🔍 Calling token.identityRegistry()...")
+                identity_registry = self.web3.call_contract_function('Token', checksum_address, 'identityRegistry')
                 token_info['identity_registry'] = identity_registry
-            except:
+                print(f"✅ Identity registry: {identity_registry}")
+            except Exception as e:
+                print(f"⚠️ Warning getting identity registry: {e}")
                 token_info['identity_registry'] = None
             
             return {'success': True, 'token_info': token_info}
             
         except Exception as e:
+            print(f"❌ Error in get_token_info: {e}")
+            import traceback
+            traceback.print_exc()
             return {'success': False, 'error': str(e)}
     
     def get_token_required_claims(self, token_address):
@@ -1088,11 +1161,15 @@ class TREXService:
             list: List of transaction dictionaries
         """
         try:
+            # Convert token address to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
             print(f"🔍 Getting token transactions for: {token_address}")
+            print(f"   Original address: {token_address}")
+            print(f"   Checksum address: {checksum_token_address}")
             
             # Get token contract
             token_contract = self.w3.eth.contract(
-                address=token_address,
+                address=checksum_token_address,
                 abi=self.web3.contract_abis.get('Token', [])
             )
             
@@ -1187,13 +1264,19 @@ class TREXService:
             dict: Success status and transaction details
         """
         try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_trusted_issuer_address = self.web3.to_checksum_address(trusted_issuer_address)
+            
             print(f"🔗 Adding trusted issuer {trusted_issuer_address} to token {token_address}")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   Trusted issuer address: {trusted_issuer_address} -> {checksum_trusted_issuer_address}")
             print(f"   Claim topics: {claim_topics}")
             
             # Get the token's Identity Registry contract
             # First, we need to get the Identity Registry address from the token
             token_contract = self.w3.eth.contract(
-                address=token_address,
+                address=checksum_token_address,
                 abi=self.web3.contract_abis.get('Token', [])
             )
             
@@ -1258,7 +1341,7 @@ class TREXService:
             
             # Build the transaction
             transaction = trusted_issuers_registry_contract.functions.addTrustedIssuer(
-                trusted_issuer_address,
+                checksum_trusted_issuer_address,
                 claim_topics_int
             ).build_transaction({
                 'from': current_account,
@@ -1446,11 +1529,17 @@ class TREXService:
             dict: Success status and transaction details
         """
         try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_agent_address = self.web3.to_checksum_address(agent_address)
+            
             print(f"🔗 Adding agent {agent_address} as {agent_type} to token {token_address}")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   Agent address: {agent_address} -> {checksum_agent_address}")
             
             # Get the token contract
             token_contract = self.w3.eth.contract(
-                address=token_address,
+                address=checksum_token_address,
                 abi=self.web3.contract_abis.get('Token', [])
             )
             
@@ -1540,11 +1629,17 @@ class TREXService:
             dict: Success status and transaction details
         """
         try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_agent_address = self.web3.to_checksum_address(agent_address)
+            
             print(f"🔗 Removing agent {agent_address} as {agent_type} from token {token_address}")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   Agent address: {agent_address} -> {checksum_agent_address}")
             
             # Get the token contract
             token_contract = self.w3.eth.contract(
-                address=token_address,
+                address=checksum_token_address,
                 abi=self.web3.contract_abis.get('Token', [])
             )
             
@@ -1619,4 +1714,138 @@ class TREXService:
                 
         except Exception as e:
             print(f"❌ Error removing agent from token: {str(e)}")
-            return {'success': False, 'error': f'Failed to remove agent: {str(e)}'} 
+            return {'success': False, 'error': f'Failed to remove agent: {str(e)}'}
+
+    # ============================================================================
+    # META MASK TRANSACTION BUILDING METHODS
+    # ============================================================================
+    
+    def build_mint_transaction(self, token_address, to_address, amount):
+        """
+        Build mint transaction for MetaMask signing (without executing)
+        
+        Args:
+            token_address (str): Token contract address
+            to_address (str): Address to mint tokens to
+            amount (str): Amount to mint (will be converted to wei)
+            
+        Returns:
+            dict: Transaction data for MetaMask signing
+        """
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_to_address = self.web3.to_checksum_address(to_address)
+            
+            print(f"🔍 Building mint transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   To address: {to_address} -> {checksum_to_address}")
+            print(f"   Amount: {amount}")
+            
+            # Parse amount to wei
+            amount_wei = self.web3.parse_units(amount, 18)
+            
+            # Get the token contract
+            token_contract = self.w3.eth.contract(
+                address=checksum_token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Build the mint transaction (without signing)
+            # Note: 'from' field will be overridden by MetaMask with the connected account
+            transaction = token_contract.functions.mint(
+                checksum_to_address,
+                amount_wei
+            ).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'nonce': 0,  # MetaMask will set the correct nonce
+                'gas': 150000,  # Adjust gas as needed
+                'gasPrice': '0x0',  # MetaMask will set the correct gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+            })
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex(),
+                    'value': hex(transaction['value']),
+                    'gas': hex(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if transaction['gasPrice'] != '0x0' else '0x0',
+                    'nonce': hex(transaction['nonce']),
+                    'chainId': hex(transaction['chainId'])
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building mint transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build mint transaction: {str(e)}'}
+    
+    def build_burn_transaction(self, token_address, from_address, amount):
+        """
+        Build burn transaction for MetaMask signing (without executing)
+        
+        Args:
+            token_address (str): Token contract address
+            from_address (str): Address to burn tokens from
+            amount (str): Amount to burn (will be converted to wei)
+            
+        Returns:
+            dict: Transaction data for MetaMask signing
+        """
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_from_address = self.web3.to_checksum_address(from_address)
+            
+            print(f"🔍 Building burn transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   From address: {from_address} -> {checksum_from_address}")
+            print(f"   Amount: {amount}")
+            
+            # Parse amount to wei
+            amount_wei = self.web3.parse_units(amount, 18)
+            
+            # Get the token contract
+            token_contract = self.w3.eth.contract(
+                address=checksum_token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Build the burn transaction (without signing)
+            # Note: 'from' field will be overridden by MetaMask with the connected account
+            transaction = token_contract.functions.burn(
+                checksum_from_address,
+                amount_wei
+            ).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'nonce': 0,  # MetaMask will set the correct nonce
+                'gas': 150000,  # Adjust gas as needed
+                'gasPrice': '0x0',  # MetaMask will set the correct gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+            })
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex(),
+                    'value': hex(transaction['value']),
+                    'gas': hex(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if transaction['gasPrice'] != '0x0' else '0x0',
+                    'nonce': hex(transaction['nonce']),
+                    'chainId': hex(transaction['chainId'])
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building burn transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build burn transaction: {str(e)}'} 

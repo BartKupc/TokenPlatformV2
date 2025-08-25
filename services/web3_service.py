@@ -94,6 +94,63 @@ class Web3Service:
                         print(f"✅ Loaded ClaimIssuer ABI from local T-REX")
                 except Exception as e:
                     print(f"Error loading ClaimIssuer ABI: {e}")
+            
+            # Load Token contract (T-REX token implementation)
+            token_path = trex_artifacts_dir / 'Token.json'
+            if token_path.exists():
+                try:
+                    with open(token_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['Token'] = abi_data['abi']
+                        print(f"✅ Loaded Token ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading Token ABI: {e}")
+            
+            # Load IdentityRegistry contract (T-REX identity management)
+            ir_path = trex_artifacts_dir / 'IdentityRegistry.json'
+            if ir_path.exists():
+                try:
+                    with open(ir_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['IdentityRegistry'] = abi_data['abi']
+                        print(f"✅ Loaded IdentityRegistry ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading IdentityRegistry ABI: {e}")
+            
+            # Load ModularCompliance contract (T-REX compliance engine)
+            compliance_path = trex_artifacts_dir / 'ModularCompliance.json'
+            if compliance_path.exists():
+                try:
+                    with open(compliance_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['Compliance'] = abi_data['abi']
+                        print(f"✅ Loaded Compliance ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading Compliance ABI: {e}")
+            
+            # Load TREXImplementationAuthority contract (T-REX implementation management)
+            impl_authority_path = trex_artifacts_dir / 'TREXImplementationAuthority.json'
+            if impl_authority_path.exists():
+                try:
+                    with open(impl_authority_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['TREXImplementationAuthority'] = abi_data['abi']
+                        print(f"✅ Loaded TREXImplementationAuthority ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading TREXImplementationAuthority ABI: {e}")
+            
+            # Load TREXGateway contract (V2: Gateway integration)
+            gateway_path = Path(__file__).parent.parent / 'artifacts' / 'contracts' / 'factory' / 'TREXGateway.sol' / 'TREXGateway.json'
+            if gateway_path.exists():
+                try:
+                    with open(gateway_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['TREXGateway'] = abi_data['abi']
+                        print(f"✅ Loaded TREXGateway ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading TREXGateway ABI: {e}")
+            else:
+                print(f"⚠️ TREXGateway ABI not found: {gateway_path}")
         else:
             print(f"Warning: Local T-REX artifacts directory not found: {trex_artifacts_dir}")
         
@@ -375,4 +432,103 @@ class Web3Service:
             
         except Exception as e:
             print(f"❌ Error initializing {contract_name}: {e}")
-            raise 
+            raise
+    
+    def add_deployer_to_gateway(self, gateway_address, deployer_address):
+        """Add deployer to Gateway using Account 0 (owner)"""
+        try:
+            # Convert addresses to checksum format
+            checksum_gateway = self.w3.to_checksum_address(gateway_address)
+            checksum_deployer = self.w3.to_checksum_address(deployer_address)
+            
+            # Create Gateway contract instance
+            gateway_contract = self.w3.eth.contract(
+                address=checksum_gateway,
+                abi=self.contract_abis['TREXGateway']
+            )
+            
+            # Call addDeployer function
+            tx = gateway_contract.functions.addDeployer(checksum_deployer).build_transaction({
+                'from': self.account.address,
+                'gas': 200000,
+                'gasPrice': self.w3.eth.gas_price,
+                'nonce': self.w3.eth.get_transaction_count(self.account.address)
+            })
+            
+            # Sign and send transaction
+            signed_tx = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for transaction receipt
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            if receipt.status == 1:
+                print(f"✅ Successfully added {deployer_address} as deployer to Gateway")
+                return tx_hash.hex()
+            else:
+                raise Exception(f"Transaction failed with status {receipt.status}")
+                
+        except Exception as e:
+            print(f"❌ Error adding deployer to Gateway: {e}")
+            raise e
+    
+    def remove_deployer_from_gateway(self, gateway_address, deployer_address):
+        """Remove deployer from Gateway using Account 0 (owner)"""
+        try:
+            # Convert addresses to checksum format
+            checksum_gateway = self.w3.to_checksum_address(gateway_address)
+            checksum_deployer = self.w3.to_checksum_address(deployer_address)
+            
+            # Create Gateway contract instance
+            gateway_contract = self.w3.eth.contract(
+                address=checksum_gateway,
+                abi=self.contract_abis['TREXGateway']
+            )
+            
+            # Call removeDeployer function
+            tx = gateway_contract.functions.removeDeployer(checksum_deployer).build_transaction({
+                'from': self.account.address,
+                'gas': 200000,
+                'gasPrice': self.w3.eth.gas_price,
+                'nonce': self.w3.eth.get_transaction_count(self.account.address)
+            })
+            
+            # Sign and send transaction
+            signed_tx = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for transaction receipt
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            if receipt.status == 1:
+                print(f"✅ Successfully removed {deployer_address} as deployer from Gateway")
+                return tx_hash.hex()
+            else:
+                raise Exception(f"Transaction failed with status {receipt.status}")
+                
+        except Exception as e:
+            print(f"❌ Error removing deployer from Gateway: {e}")
+            raise e
+    
+    def is_deployer_on_gateway(self, gateway_address, deployer_address):
+        """Check if address is a deployer on Gateway"""
+        try:
+            # Convert addresses to checksum format
+            checksum_gateway = self.w3.to_checksum_address(gateway_address)
+            checksum_deployer = self.w3.to_checksum_address(deployer_address)
+            
+            # Create Gateway contract instance
+            gateway_contract = self.w3.eth.contract(
+                address=checksum_gateway,
+                abi=self.contract_abis['TREXGateway']
+            )
+            
+            # Call isDeployer function (read-only, no transaction needed)
+            is_deployer = gateway_contract.functions.isDeployer(checksum_deployer).call()
+            
+            print(f"🔍 Checked deployer status for {deployer_address}: {is_deployer}")
+            return is_deployer
+            
+        except Exception as e:
+            print(f"❌ Error checking deployer status on Gateway: {e}")
+            raise e 

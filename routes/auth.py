@@ -7,6 +7,33 @@ import json
 
 auth_bp = Blueprint('auth', __name__)
 
+def add_issuer_to_gateway(user_id, wallet_address, user_type, password):
+    """Add issuer to Gateway as deployer using Account 0 (owner)"""
+    try:
+        from services.web3_service import Web3Service
+        from models.contract import Contract
+        
+        # Get Gateway contract address from database
+        gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+        if not gateway_contract:
+            return False, "Gateway contract not found in database"
+        
+        gateway_address = gateway_contract.contract_address
+        
+        # Use Account 0 (Gateway owner) to add deployer
+        account_0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(private_key=account_0_private_key)
+        
+        # Add deployer to Gateway
+        tx_hash = web3_service.add_deployer_to_gateway(gateway_address, wallet_address)
+        
+        print(f"✅ Successfully added {wallet_address} as deployer to Gateway. Transaction: {tx_hash}")
+        return True, tx_hash
+        
+    except Exception as e:
+        print(f"❌ Error adding issuer to Gateway: {e}")
+        return False, str(e)
+
 def create_user_onchainid(user_id, wallet_address, user_type, password):
     """Create OnchainID for a user using T-REX Factory"""
     try:
@@ -223,6 +250,23 @@ def register():
             flash(f'Error creating OnchainID: {onchainid_result}', 'error')
             return render_template('register.html', tab_session_id=request.args.get('tab_session'))
         
+        # Add issuer to Gateway as deployer (V2: Gateway role management)
+        if user_type in ['issuer', 'trusted_issuer']:
+            gateway_success, gateway_result = add_issuer_to_gateway(
+                new_user.id,
+                wallet_address,
+                user_type,
+                password
+            )
+            
+            if not gateway_success:
+                print(f"⚠️ Warning: Could not add issuer to Gateway: {gateway_result}")
+                # Don't fail registration, just log warning
+            else:
+                print(f"✅ Added {user_type} to Gateway as deployer")
+                # Mark user as deployer in database
+                new_user.is_gateway_deployer = True
+        
         # For trusted issuers, also create ClaimIssuer contract
         if user_type == 'trusted_issuer':
             print(f"🏭 Creating ClaimIssuer contract for trusted issuer: {wallet_address}")
@@ -333,4 +377,100 @@ def create_claimissuer_contract(user_id, wallet_address, password):
     except Exception as e:
         db.session.rollback()
         print(f"❌ Error creating ClaimIssuer contract: {str(e)}")
+        return False, str(e)
+
+def add_issuer_to_gateway(user_id, wallet_address, user_type, password):
+    """Add issuer to TREXGateway as deployer (V2: Gateway role management)"""
+    try:
+        from services.trex_service import TREXService
+        from services.web3_service import Web3Service
+        from utils.contract_utils import get_contract_address
+        
+        # Get user and decrypt their private key
+        user = User.query.get(user_id)
+        if not user:
+            return False, "User not found"
+        
+        # Get Gateway address from database
+        gateway_address = get_contract_address('TREXGateway')
+        if not gateway_address:
+            return False, "TREXGateway not found in database"
+        
+        print(f"🎯 Adding {user_type} to TREXGateway as deployer: {wallet_address}")
+        
+        # IMPORTANT: Use Gateway owner's account (Account 0) to add deployers
+        # Only the Gateway owner can call addDeployer/addAgent functions
+        gateway_owner_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        gateway_owner_address = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+        
+        # Initialize Web3 service with Gateway owner's private key
+        web3_service = Web3Service(gateway_owner_private_key)
+        
+        # Load TREXGateway ABI directly
+        try:
+            with open('artifacts/trex/TREXGateway.json', 'r') as f:
+                import json
+                abi_data = json.load(f)
+                gateway_abi = abi_data.get('abi', [])
+        except Exception as e:
+            return False, f"Failed to load TREXGateway ABI: {e}"
+        
+        # Get Gateway contract instance
+        gateway_contract = web3_service.w3.eth.contract(
+            address=gateway_address,
+            abi=gateway_abi
+        )
+        
+        # Add issuer as deployer using Gateway owner's account
+        if user_type == 'issuer':
+            # Regular issuer: can deploy for themselves
+            tx = gateway_contract.functions.addDeployer(wallet_address).build_transaction({
+                'from': gateway_owner_address,
+                'gas': 200000,
+                'gasPrice': web3_service.w3.eth.gas_price,
+                'nonce': web3_service.w3.eth.get_transaction_count(gateway_owner_address)
+            })
+            
+            # Sign and send transaction
+            signed_tx = web3_service.w3.eth.account.sign_transaction(tx, gateway_owner_private_key)
+            tx_hash = web3_service.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            print(f"✅ Added issuer as deployer: {tx_hash.hex()}")
+            
+        elif user_type == 'trusted_issuer':
+            # Trusted issuer: can deploy for themselves and others
+            tx = gateway_contract.functions.addDeployer(wallet_address).build_transaction({
+                'from': gateway_owner_address,
+                'gas': 200000,
+                'gasPrice': web3_service.w3.eth.gas_price,
+                'nonce': web3_service.w3.eth.get_transaction_count(gateway_owner_address)
+            })
+            
+            # Sign and send transaction
+            signed_tx = web3_service.w3.eth.account.sign_transaction(tx, gateway_owner_private_key)
+            tx_hash = web3_service.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            print(f"✅ Added trusted issuer as deployer: {tx_hash.hex()}")
+            
+            # Also add as agent if they have broader permissions
+            try:
+                agent_tx = gateway_contract.functions.addAgent(wallet_address).build_transaction({
+                    'from': gateway_owner_address,
+                    'gas': 200000,
+                    'gasPrice': web3_service.w3.eth.gas_price,
+                    'nonce': web3_service.w3.eth.get_transaction_count(gateway_owner_address)
+                })
+                
+                # Sign and send agent transaction
+                signed_agent_tx = web3_service.w3.eth.account.sign_transaction(agent_tx, gateway_owner_private_key)
+                agent_tx_hash = web3_service.w3.eth.send_raw_transaction(signed_agent_tx.rawTransaction)
+                
+                print(f"✅ Added trusted issuer as agent: {agent_tx_hash.hex()}")
+            except Exception as e:
+                print(f"⚠️ Could not add as agent: {e}")
+        
+        return True, f"Successfully added {user_type} to Gateway"
+        
+    except Exception as e:
+        print(f"❌ Error adding issuer to Gateway: {str(e)}")
         return False, str(e) 
