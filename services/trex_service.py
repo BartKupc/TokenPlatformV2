@@ -1763,7 +1763,7 @@ class TREXService:
                 'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
                 'nonce': 0,  # MetaMask will set the correct nonce
                 'gas': 150000,  # Adjust gas as needed
-                'gasPrice': '0x0',  # MetaMask will set the correct gas price
+                'gasPrice': 0,  # MetaMask will set the correct gas price
                 'chainId': 31337  # Hardhat local network (0x7a69 in hex)
             })
             
@@ -1775,7 +1775,7 @@ class TREXService:
                     'data': transaction['data'].hex(),
                     'value': hex(transaction['value']),
                     'gas': hex(transaction['gas']),
-                    'gasPrice': hex(transaction['gasPrice']) if transaction['gasPrice'] != '0x0' else '0x0',
+                    'gasPrice': hex(transaction['gasPrice']),
                     'nonce': hex(transaction['nonce']),
                     'chainId': hex(transaction['chainId'])
                 }
@@ -1828,7 +1828,7 @@ class TREXService:
                 'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
                 'nonce': 0,  # MetaMask will set the correct nonce
                 'gas': 150000,  # Adjust gas as needed
-                'gasPrice': '0x0',  # MetaMask will set the correct gas price
+                'gasPrice': 0,  # MetaMask will set the correct gas price
                 'chainId': 31337  # Hardhat local network (0x7a69 in hex)
             })
             
@@ -1840,7 +1840,7 @@ class TREXService:
                     'data': transaction['data'].hex(),
                     'value': hex(transaction['value']),
                     'gas': hex(transaction['gas']),
-                    'gasPrice': hex(transaction['gasPrice']) if transaction['gasPrice'] != '0x0' else '0x0',
+                    'gasPrice': hex(transaction['gasPrice']),
                     'nonce': hex(transaction['nonce']),
                     'chainId': hex(transaction['chainId'])
                 }

@@ -1909,7 +1909,7 @@ def approve_purchase(token_id, request_id):
 
 @issuer_bp.route('/token/<int:token_id>/mint-for-purchase/<int:request_id>', methods=['POST'])
 def mint_for_purchase(token_id, request_id):
-    """Mint tokens for an approved purchase request"""
+    """Build mint transaction for MetaMask signing (purchase request)"""
     # Get tab session ID from URL parameter
     tab_session_id = request.args.get('tab_session')
     
@@ -1920,8 +1920,7 @@ def mint_for_purchase(token_id, request_id):
     user = get_current_user_from_tab_session(tab_session.session_id)
     
     if not user or user.user_type != 'issuer':
-        flash('Issuer access required.', 'error')
-        return redirect(url_for('issuer.login', tab_session=tab_session.session_id))
+        return jsonify({'success': False, 'error': 'Issuer access required'}), 403
     
     # Get token and purchase request
     token = Token.query.get_or_404(token_id)
@@ -1929,78 +1928,93 @@ def mint_for_purchase(token_id, request_id):
     
     # Verify ownership
     if token.issuer_address != user.wallet_address:
-        flash('Access denied. You can only manage your own tokens.', 'error')
-        return redirect(url_for('issuer.dashboard', tab_session=tab_session.session_id))
+        return jsonify({'success': False, 'error': 'Access denied. You can only manage your own tokens.'}), 403
     
     # Verify request belongs to this token
     if purchase_request.token_id != token_id:
-        flash('Invalid purchase request.', 'error')
-        return redirect(url_for('issuer.purchase_requests', token_id=token_id, tab_session=tab_session.session_id))
-    
-    # Investor IR/KYC is handled at interest stage; no duplicate check here
+        return jsonify({'success': False, 'error': 'Invalid purchase request.'}), 400
     
     try:
         # Get investor
         investor = User.query.get(purchase_request.investor_id)
         
-        # Use issuer's private key
-        private_key = user.private_key
+        # Build mint transaction using TREX service
         from services.trex_service import TREXService
-        from services.web3_service import Web3Service
+        trex_service = TREXService()
         
-        web3_service = Web3Service(private_key)
-        trex_service = TREXService(web3_service)
-        
-        # Mint tokens to investor's account
-        result = trex_service.mint_tokens(
+        # Build mint transaction for MetaMask signing
+        result = trex_service.build_mint_transaction(
             token_address=token.token_address,
             to_address=investor.wallet_address,
             amount=purchase_request.amount_requested
         )
         
         if result['success']:
-            # Refresh on-chain verification status for record keeping
-            try:
-                verification_result = trex_service.check_user_verification(
-                    token_address=token.token_address,
-                    user_address=investor.wallet_address
-                )
-                if verification_result.get('success') and verification_result.get('verified'):
-                    purchase_request.verification_status = 'verified'
-                else:
-                    # Keep a failed marker if explicitly unverified
-                    if verification_result.get('success'):
-                        purchase_request.verification_status = 'failed'
-            except Exception:
-                pass
-            purchase_request.verification_checked_at = db.func.now()
-            purchase_request.verification_checked_by = user.id
-            # Update purchase request status
-            purchase_request.status = 'completed'
-            purchase_request.purchase_completed_at = db.func.now()
-            purchase_request.transaction_hash = result['tx_hash']
-            
-            # Create transaction record
-            transaction = TokenTransaction(
-                token_id=token_id,
-                transaction_type='mint',
-                to_address=investor.wallet_address,
-                amount=purchase_request.amount_requested,
-                purchase_request_id=request_id,
-                transaction_hash=result['tx_hash'],
-                executed_by=user.id
-            )
-            db.session.add(transaction)
-            db.session.commit()
-            
-            flash(f'Successfully minted {purchase_request.amount_requested} {token.symbol} to {investor.username}! Transaction: {result["tx_hash"][:10]}...', 'success')
+            # Return transaction data for frontend MetaMask signing
+            return jsonify({
+                'success': True,
+                'transaction': result['transaction'],
+                'purchase_request_id': request_id,
+                'token_id': token_id,
+                'investor_address': investor.wallet_address,
+                'amount': purchase_request.amount_requested
+            })
         else:
-            flash(f'Failed to mint tokens: {result["error"]}', 'error')
+            return jsonify({
+                'success': False,
+                'error': f'Failed to build mint transaction: {result["error"]}'
+            }), 400
         
     except Exception as e:
-        flash(f'Error minting tokens: {str(e)}', 'error')
-    
-    return redirect(url_for('issuer.purchase_requests', token_id=token_id, tab_session=tab_session.session_id))
+        return jsonify({'success': False, 'error': f'Error building mint transaction: {str(e)}'}), 500
+
+@issuer_bp.route('/token/<int:token_id>/submit-purchase-mint', methods=['POST'])
+def submit_purchase_mint(token_id):
+    """Submit signed mint transaction from MetaMask (purchase request)"""
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        tab_session = get_or_create_tab_session(tab_session_id)
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'issuer':
+            return jsonify({'success': False, 'error': 'Issuer access required'}), 403
+        
+        # Get token
+        token = Token.query.get(token_id)
+        if not token:
+            return jsonify({'success': False, 'error': 'Token not found'}), 404
+        
+        # Get transaction data from request
+        data = request.get_json()
+        signed_transaction = data.get('signed_transaction')
+        transaction_data = data.get('transaction_data')
+        
+        if not signed_transaction:
+            return jsonify({'success': False, 'error': 'Missing signed transaction'}), 400
+        
+        # Store transaction in database
+        from models.token import TokenTransaction
+        transaction = TokenTransaction(
+            token_id=token.id,
+            transaction_hash=signed_transaction,
+            transaction_type='mint',
+            from_address=user.wallet_address,
+            to_address=transaction_data.get('investor_address'),
+            amount=transaction_data.get('amount'),
+            status='pending'
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Transaction submitted successfully',
+            'transaction_id': transaction.id
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @issuer_bp.route('/api/purchase-request/<int:request_id>')
 def get_purchase_request_details(request_id):

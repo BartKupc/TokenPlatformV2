@@ -328,12 +328,12 @@
                         <p class="card-text text-muted">
                             Mint the requested amount directly to the investor's account. This is the standard approach.
                         </p>
-                        <form id="mintForm" method="POST" style="display: none;">
+                        <form id="mintForm" style="display: none;">
                             <div class="mb-3">
                                 <label for="mint_notes" class="form-label">Notes (Optional)</label>
                                 <textarea class="form-control" id="mint_notes" name="mint_notes" rows="2" placeholder="Add any notes about this mint..."></textarea>
                             </div>
-                            <button type="submit" class="btn btn-success">
+                            <button type="button" class="btn btn-success" onclick="executeMintTransaction()">
                                 <i class="fas fa-plus-circle me-2"></i>Mint to Account
                             </button>
                         </form>
@@ -476,6 +476,9 @@ function changeToken() {
 }
 
 function showProcessModal(requestId) {
+    // Store current request ID
+    currentRequestId = requestId;
+    
     // Load purchase request details
     loadPurchaseRequestDetails(requestId);
     
@@ -513,6 +516,13 @@ function loadPurchaseRequestDetails(requestId) {
             if (data.success) {
                 const request = data.purchase_request;
                 const investor = data.investor;
+                
+                // Store current request data for MetaMask minting
+                currentRequestData = {
+                    amount: request.amount_requested,
+                    investor_address: investor.wallet_address,
+                    request_id: request.id
+                };
                 
                 // Automatically populate the "To Address" field with investor's wallet
                 document.getElementById('to_address').value = investor.wallet_address;
@@ -679,6 +689,94 @@ function confirmPurchaseTransfer() {
     
     if (confirm(`Transfer tokens from ${fromAddress} to ${toAddress}?`)) {
         form.submit();
+    }
+}
+
+// Global variables to store current request data
+let currentRequestId = null;
+let currentRequestData = null;
+
+function executeMintTransaction() {
+    if (!currentRequestId || !currentRequestData) {
+        alert('No purchase request data available');
+        return;
+    }
+    
+    // Check MetaMask connection
+    if (!window.metaMaskService || !window.metaMaskService.isWalletConnected()) {
+        alert('Please connect your MetaMask wallet first');
+        return;
+    }
+    
+    if (confirm(`Mint ${currentRequestData.amount} {{ token.symbol }} tokens to ${currentRequestData.investor_address}?`)) {
+        // Show loading state
+        const mintButton = document.querySelector('#mintForm button[onclick="executeMintTransaction()"]');
+        const originalText = mintButton.innerHTML;
+        mintButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building Transaction...';
+        mintButton.disabled = true;
+        
+        try {
+            // Build the mint transaction
+            fetch(`{{ url_for('issuer.mint_for_purchase', token_id=token.id, request_id=0, tab_session=tab_session_id) }}`.replace('/0/', `/${currentRequestId}/`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    amount: currentRequestData.amount,
+                    to_address: currentRequestData.investor_address
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Sign transaction with MetaMask
+                    return window.metaMaskService.signTransaction(data.transaction);
+                } else {
+                    throw new Error(data.error || 'Failed to build transaction');
+                }
+            })
+            .then(result => {
+                if (result.success) {
+                    // Submit signed transaction
+                    return fetch(`{{ url_for('issuer.submit_purchase_mint', token_id=token.id, tab_session=tab_session_id) }}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            signed_transaction: result.txHash,
+                            transaction_data: currentRequestData
+                        })
+                    });
+                } else {
+                    throw new Error(result.error || 'Transaction signing failed');
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Transaction submitted successfully! Transaction ID: ' + data.transaction_id);
+                    // Close modal and refresh page
+                    bootstrap.Modal.getInstance(document.getElementById('processModal')).hide();
+                    location.reload();
+                } else {
+                    throw new Error(data.error || 'Transaction submission failed');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error: ' + error.message);
+            })
+            .finally(() => {
+                // Reset button state
+                mintButton.innerHTML = originalText;
+                mintButton.disabled = false;
+            });
+            
+        } catch (error) {
+            console.error('Error:', error);
+            alert('❌ Error: ' + error.message);
+            // Reset button state
+            mintButton.innerHTML = originalText;
+            mintButton.disabled = false;
+        }
     }
 }
 </script>
