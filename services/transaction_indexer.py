@@ -20,12 +20,21 @@ class TransactionIndexer:
     def __init__(self, web3_service: Web3Service = None):
         self.web3_service = web3_service or Web3Service()
         self.trex_service = TREXService(self.web3_service)
+        self._last_deployment_result = None
     
     def index_token_transaction(self, token_id, transaction_type, from_address=None, to_address=None, 
                                amount=None, transaction_hash=None, executed_by_user_id=None, 
-                               executed_by_address=None, purchase_request_id=None, notes=None):
+                               executed_by_address=None, purchase_request_id=None, notes=None, 
+                               deployment_data=None):
         """Index a token transaction in the database"""
         try:
+            # Special handling for deployment transactions
+            if transaction_type == 'deploy' and deployment_data:
+                return self._handle_deployment_transaction(
+                    deployment_data, transaction_hash, executed_by_user_id, executed_by_address, notes
+                )
+            
+            # Regular transaction indexing
             # Get token for symbol
             token = Token.query.get(token_id)
             if not token:
@@ -100,6 +109,139 @@ class TransactionIndexer:
             logger.error(f"Error creating balance snapshot: {e}")
             db.session.rollback()
             return False
+    
+    def _handle_deployment_transaction(self, deployment_data, transaction_hash, executed_by_user_id, executed_by_address, notes):
+        """Handle deployment transaction by parsing events and creating token record"""
+        try:
+            print(f"🔍 DEBUG: _handle_deployment_transaction called with:")
+            print(f"   deployment_data: {deployment_data}")
+            print(f"   transaction_hash: {transaction_hash}")
+            print(f"   executed_by_user_id: {executed_by_user_id}")
+            print(f"   executed_by_address: {executed_by_address}")
+            print(f"   notes: {notes}")
+            print(f"   deployment_data type: {type(deployment_data)}")
+            print(f"   transaction_hash type: {type(transaction_hash)}")
+            
+            # Parse deployment events to get real contract addresses
+            gateway_address = deployment_data.get('gateway_address')
+            if not gateway_address:
+                logger.error("Gateway address not found in deployment data")
+                return False
+            
+            print(f"🔍 CRITICAL: TransactionIndexer handling deployment:")
+            print(f"   transaction_hash: {transaction_hash}")
+            print(f"   gateway_address: {gateway_address}")
+            print(f"   deployment_data: {deployment_data}")
+            print(f"   executed_by_address: {executed_by_address}")
+            print(f"   issuer_address from deployment_data: {deployment_data.get('issuer_address')}")
+            
+            # Use TREXService to parse deployment events
+            print(f"🔍 DEBUG: Calling trex_service.parse_deployment_events...")
+            event_result = self.trex_service.parse_deployment_events(
+                transaction_hash, 
+                gateway_address, 
+                deployer_address=executed_by_address
+            )
+            print(f"🔍 DEBUG: parse_deployment_events returned:")
+            print(f"   event_result: {event_result}")
+            print(f"   event_result type: {type(event_result)}")
+            print(f"   event_result keys: {event_result.keys() if isinstance(event_result, dict) else 'Not a dict'}")
+            
+            if not event_result.get('verification_passed'):
+                logger.error(f"Failed to parse deployment events: {event_result.get('error', 'Unknown error')}")
+                return False
+                
+            # Extract contract addresses from parsed events
+            contract_addresses = event_result
+            
+            # Create token record in database with REAL addresses
+            import json
+            
+            # Set initial agents to the issuer's wallet address
+            issuer_address = deployment_data['issuer_address']
+            ir_agent = issuer_address
+            token_agent = issuer_address
+            
+            # Create token with real contract addresses
+            print(f"🔍 CRITICAL: Creating token in database:")
+            print(f"   token_address: {contract_addresses['token_address']}")
+            print(f"   issuer_address: {issuer_address}")
+            print(f"   ir_agent: {ir_agent}")
+            print(f"   token_agent: {token_agent}")
+            print(f"   identity_registry_address: {contract_addresses['identity_registry']}")
+            print(f"   identity_registry_storage: {contract_addresses.get('identity_registry_storage', 'N/A')}")
+            
+            token = Token(
+                token_address=contract_addresses['token_address'],
+                name=deployment_data['token_name'],
+                symbol=deployment_data['token_symbol'],
+                total_supply=int(deployment_data['total_supply']),
+                issuer_address=issuer_address,
+                description=deployment_data['description'],
+                price_per_token=float(deployment_data['price_per_token']) if deployment_data['price_per_token'] else 1.00,
+                ir_agent=ir_agent,
+                token_agent=token_agent,
+                claim_topics=','.join(map(str, deployment_data['claim_topics'])),
+                claim_issuer_id=deployment_data['claim_issuer_id'],
+                claim_issuer_type='trusted_issuer',
+                # Use REAL addresses from parsed events (corrected mapping)
+                identity_registry_address=contract_addresses['identity_registry'],
+                compliance_address=contract_addresses['compliance'],
+                claim_topics_registry_address=contract_addresses['claim_topics_registry'],
+                trusted_issuers_registry_address=contract_addresses['trusted_issuers_registry'],
+                agents=json.dumps({
+                    'identity_agents': [ir_agent],
+                    'token_agents': [token_agent],
+                    'compliance_agents': [],
+                    # Store IRS address in agents metadata for reference
+                    'identity_registry_storage': contract_addresses.get('identity_registry_storage')
+                })
+            )
+            
+            db.session.add(token)
+            db.session.commit()
+            
+            print(f"✅ Token created successfully in database:")
+            print(f"   Token ID: {token.id}")
+            print(f"   Token address: {token.token_address}")
+            print(f"   IR agent: {token.ir_agent}")
+            print(f"   Token agent: {token.token_agent}")
+            print(f"   Identity Registry: {token.identity_registry_address}")
+            
+            # Store deployment result for retrieval
+            self._last_deployment_result = {
+                'token_id': token.id,
+                'contract_addresses': contract_addresses
+            }
+            
+            # Create enhanced transaction record for deployment
+            transaction = TokenTransactionEnhanced(
+                token_id=token.id,
+                transaction_type='deploy',
+                from_address=executed_by_address,  # Issuer deploying
+                to_address=None,  # No recipient for deployment
+                amount=0,  # Set to 0 for deployment (no token transfer)
+                amount_formatted=Decimal(0),
+                transaction_hash=transaction_hash,
+                executed_by=executed_by_user_id,
+                executed_by_address=executed_by_address,
+                notes=notes
+            )
+            
+            db.session.add(transaction)
+            db.session.commit()
+            
+            logger.info(f"Successfully deployed token: {token.symbol} with address: {token.token_address}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error handling deployment transaction: {e}")
+            db.session.rollback()
+            return False
+    
+    def get_last_deployment_result(self):
+        """Get the result of the last deployment transaction"""
+        return getattr(self, '_last_deployment_result', None)
     
     def index_onchainid_key(self, onchainid_address, wallet_address, key_hash, key_type, 
                            owner_type, owner_id=None):

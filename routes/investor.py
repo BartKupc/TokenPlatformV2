@@ -9,6 +9,9 @@ from utils.auth_utils import hash_password
 from datetime import datetime
 from utils.claims_utils import get_user_missing_claims
 
+# Import the shared MetaMask handler
+from utils.metamask_handler import handle_metamask_transaction_core
+
 investor_bp = Blueprint('investor', __name__, url_prefix='/investor')
 
 @investor_bp.route('/login', methods=['GET', 'POST'])
@@ -693,3 +696,20 @@ def check_verification():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': f'Error checking verification: {str(e)}'})
+
+@investor_bp.route('/token/<int:token_id>/metamask-transaction', methods=['POST'])
+def handle_investor_metamask_transaction(token_id):
+    """MetaMask transaction handler for investor operations"""
+    # Get tab session ID from URL parameter
+    tab_session_id = request.args.get('tab_session')
+    
+    # Get or create tab session
+    tab_session = get_or_create_tab_session(tab_session_id)
+    
+    # Get current user from tab session
+    user = get_current_user_from_tab_session(tab_session.session_id)
+    
+    if not user or user.user_type != 'investor':
+        return jsonify({'success': False, 'error': 'Investor access required.'}), 401
+    
+    return handle_metamask_transaction_core(token_id, 'investor', user)

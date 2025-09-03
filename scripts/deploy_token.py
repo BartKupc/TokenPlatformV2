@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 """
 Token Deployment Script for TokenPlatform V2
 Uses TREXGateway for deployment and stores results in database
@@ -89,34 +89,34 @@ class TokenDeployment:
             print(f"   function_name: {function_name}")
             print(f"   deployer_address: {self.deployer_address}")
             
-            contract = self.w3.eth.contract(address=contract_address, abi=abi)
-            function = getattr(contract.functions, function_name)
-            
-            # Build transaction
+        contract = self.w3.eth.contract(address=contract_address, abi=abi)
+        function = getattr(contract.functions, function_name)
+        
+        # Build transaction
             tx = function(*args).build_transaction({
-                'from': self.deployer_address,
+            'from': self.deployer_address,
                 'gas': 5000000,  # High gas limit for deployment
-                'gasPrice': self.w3.eth.gas_price,
-                'nonce': self.w3.eth.get_transaction_count(self.deployer_address)
-            })
-            
+            'gasPrice': self.w3.eth.gas_price,
+            'nonce': self.w3.eth.get_transaction_count(self.deployer_address)
+        })
+        
             print(f"🔍 DEBUG: Transaction built:")
             print(f"   to: {tx.get('to')}")
             print(f"   from: {tx.get('from')}")
             print(f"   data: {tx.get('data')[:66]}...")
-            
-            # Sign and send transaction
+        
+        # Sign and send transaction
             signed_tx = self.w3.eth.account.sign_transaction(tx, self.deployer_private_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             
             print(f"📝 Transaction sent: {tx_hash.hex()}")
             
             # Wait for confirmation
-            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             
             if tx_receipt.status == 1:
                 print(f"✅ Transaction confirmed in block {tx_receipt.blockNumber}")
-                return tx_receipt
+        return tx_receipt
             else:
                 raise Exception("Transaction failed")
                 
@@ -212,6 +212,147 @@ class TokenDeployment:
         print(f"   Token: {token_name} ({token_symbol})")
         print(f"   Address: {deployed_addresses['token']}")
         return None
+    
+    def build_deployment_transaction(self, deployer_address=None):
+        """Build unsigned deployment transaction for MetaMask"""
+        try:
+            print("🚀 Building ERC-3643 Token Deployment transaction for MetaMask")
+            print("=" * 60)
+            
+            # Set deployer details from issuer
+            if deployer_address:
+                self.deployer_address = deployer_address
+                print(f"👤 Using issuer as deployer: {self.deployer_address}")
+            else:
+                raise Exception("Deployer address is required")
+            
+            # Get contract addresses from database
+            try:
+                from models import Contract
+                gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+                gateway_address = gateway_contract.contract_address if gateway_contract else None
+                
+                factory_contract = Contract.query.filter_by(contract_type='TREXFactory').first()
+                trex_factory_address = factory_contract.contract_address if factory_contract else None
+                
+                if not gateway_address or not trex_factory_address:
+                    raise ValueError("Gateway or Factory not found in database")
+                    
+                print(f"🏛️ Using contract addresses from database:")
+                print(f"   Gateway: {gateway_address}")
+                print(f"   Factory: {trex_factory_address}")
+                    
+            except Exception as e:
+                print(f"❌ Error getting contract addresses from database: {e}")
+                return {
+                    'success': False,
+                    'error': f'Could not get contract addresses: {e}',
+                    'note': 'Check if contracts are deployed and in database'
+                }
+            
+            # Check Gateway roles for deployer
+            print(f"\n🔍 Checking Gateway roles for {self.deployer_address}...")
+            try:
+                gateway_contract = self.w3.eth.contract(
+                    address=gateway_address,
+                    abi=self.contract_abis["TREXGateway"]
+                )
+                
+                is_deployer = gateway_contract.functions.isDeployer(self.deployer_address).call()
+                is_agent = gateway_contract.functions.isAgent(self.deployer_address).call()
+                gateway_owner = gateway_contract.functions.owner().call()
+                
+                print(f"   Is Deployer: {is_deployer}")
+                print(f"   Is Agent: {is_agent}")
+                print(f"   Gateway Owner: {gateway_owner}")
+                
+                if not is_deployer and not is_agent:
+                    print("❌ Deployer has no Gateway permissions!")
+                    return {
+                        'success': False,
+                        'error': 'Deployer has no Gateway permissions',
+                        'note': 'Contact admin to add deployer role'
+                    }
+                    
+            except Exception as e:
+                print(f"⚠️ Could not check Gateway roles: {e}")
+            
+            # Set token details (exact same as V1)
+            # Use the deployer address as owner and agents (this is the issuer)
+            issuer_address = self.deployer_address
+            self.token_details['owner'] = issuer_address
+            self.token_details['irs'] = "0x" + "0" * 40  # ethers.ZeroAddress
+            self.token_details['ONCHAINID'] = "0x" + "0" * 40  # ethers.ZeroAddress
+            
+            # Set the agents to the issuer address
+            self.token_details['tokenAgents'] = [issuer_address]
+            self.token_details['irAgents'] = [issuer_address]
+            
+            print("🔑 Auto-configured agents:")
+            print(f"Token Agents: {self.token_details['tokenAgents']}")
+            print(f"IR Agents: {self.token_details['irAgents']}")
+            
+            # Build unsigned transaction for MetaMask
+            print("🔧 Building unsigned deployment transaction...")
+            try:
+                gateway_contract = self.w3.eth.contract(
+                    address=gateway_address,
+                    abi=self.contract_abis["TREXGateway"]
+                )
+                
+                # Build the transaction
+                tx = gateway_contract.functions.deployTREXSuite(
+                    self.token_details,
+                    self.claim_details
+                ).build_transaction({
+                    'from': self.deployer_address,
+                    'gas': 5000000,  # High gas limit for deployment
+                    'gasPrice': self.w3.eth.gas_price,
+                    'nonce': self.w3.eth.get_transaction_count(self.deployer_address)
+                })
+                
+                print(f"✅ Transaction built successfully!")
+                print(f"   To: {tx.get('to')}")
+                print(f"   From: {tx.get('from')}")
+                print(f"   Gas: {tx.get('gas')}")
+                print(f"   Gas Price: {tx.get('gasPrice')}")
+                print(f"   Nonce: {tx.get('nonce')}")
+                print(f"   Data: {tx.get('data')[:66]}...")
+                
+                # Return the unsigned transaction for MetaMask
+                return {
+                    'success': True,
+                    'transaction': {
+                        'to': tx.get('to'),
+                        'data': tx.get('data'),
+                        'gas': tx.get('gas'),
+                        'gasPrice': tx.get('gasPrice'),
+                        'nonce': tx.get('nonce'),
+                        'value': tx.get('value', 0)
+                    },
+                    'gateway_address': gateway_address,
+                    'token_details': self.token_details,
+                    'claim_details': self.claim_details,
+                    'note': 'Transaction built for MetaMask signing'
+                }
+                
+            except Exception as e:
+                print(f"❌ Error building transaction: {e}")
+                return {
+                    'success': False,
+                    'error': f'Failed to build transaction: {e}',
+                    'note': 'Error occurred while building deployment transaction'
+                }
+                
+        except Exception as e:
+            print(f"❌ Token deployment transaction building failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': f'Token deployment transaction building failed: {e}',
+                'note': 'Exception occurred during transaction building process'
+            }
     
     def deploy(self, deployer_address=None):
         """Main deployment function using TREXGateway V2"""

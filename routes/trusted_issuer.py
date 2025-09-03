@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from models import db
 from models.user import User, TrustedIssuerApproval, UserOnchainID, UserClaim
 from utils.session_utils import get_or_create_tab_session, get_current_user_from_tab_session
@@ -11,6 +11,9 @@ from datetime import datetime
 from services.onchainid_key_manager import OnchainIDKeyManager
 from services.transaction_indexer import TransactionIndexer
 from models.enhanced_models import OnchainIDKey
+
+# Import the shared MetaMask handler
+from utils.metamask_handler import handle_metamask_transaction_core
 
 def standardize_nationality(nationality_input):
     """Standardize nationality input to blockchain-compatible values"""
@@ -792,3 +795,20 @@ def remove_claim(user_id):
         flash(f'Error removing claim: {str(e)}', 'error')
     
     return redirect(url_for('trusted_issuer.view_onchainid', user_id=user_id, tab_session=tab_session.session_id)) 
+
+@trusted_issuer_bp.route('/token/<int:token_id>/metamask-transaction', methods=['POST'])
+def handle_trusted_issuer_metamask_transaction(token_id):
+    """MetaMask transaction handler for trusted issuer operations"""
+    # Get tab session ID from URL parameter
+    tab_session_id = request.args.get('tab_session')
+    
+    # Get or create tab session
+    tab_session = get_or_create_tab_session(tab_session_id)
+    
+    # Get current user from tab session
+    user = get_current_user_from_tab_session(tab_session.session_id)
+    
+    if not user or user.user_type != 'trusted_issuer':
+        return jsonify({'success': False, 'error': 'Trusted Issuer access required.'}), 401
+    
+    return handle_metamask_transaction_core(token_id, 'trusted_issuer', user) 

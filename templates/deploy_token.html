@@ -20,7 +20,7 @@
                         This token will be deployed using the ERC-3643 T-REX standard.
                     </div>
                     
-                    <form method="POST">
+                    <form id="deployTokenForm">
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -226,7 +226,7 @@
                         </div>
                         
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg">
+                            <button type="button" id="deployButton" class="btn btn-primary btn-lg" onclick="deployToken()">
                                 <i class="fas fa-rocket me-2"></i>Deploy Token
                             </button>
                             <a href="{{ url_for('issuer.dashboard') }}" class="btn btn-outline-secondary">
@@ -273,5 +273,186 @@ document.addEventListener('DOMContentLoaded', function() {
         trustedIssuerSelect.addEventListener('change', showTrustedIssuerCapabilities);
     }
 });
+
+// MetaMask Integration for Token Deployment
+async function deployToken() {
+    try {
+        // Check if MetaMask is installed
+        if (typeof window.ethereum === 'undefined') {
+            alert('MetaMask is not installed. Please install MetaMask to deploy tokens.');
+            return;
+        }
+
+        // Request account access
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const userAccount = accounts[0];
+        
+        if (!userAccount) {
+            alert('Please connect your MetaMask wallet to deploy tokens.');
+            return;
+        }
+
+        // Get form data
+        // Get selected claim topics from checkboxes
+        const selectedClaimTopics = [];
+        const claimTopicCheckboxes = document.querySelectorAll('input[name="claim_topics"]:checked');
+        claimTopicCheckboxes.forEach(checkbox => {
+            selectedClaimTopics.push(parseInt(checkbox.value));
+        });
+        
+        console.log('🔍 DEBUG: Selected claim topics:', selectedClaimTopics);
+        console.log('🔍 DEBUG: Number of checked boxes:', claimTopicCheckboxes.length);
+
+        const formData = {
+            token_name: document.getElementById('token_name').value,
+            token_symbol: document.getElementById('token_symbol').value,
+            total_supply: document.getElementById('total_supply').value,
+            claim_issuer_id: document.getElementById('claim_issuer_id').value,
+            claim_topics: selectedClaimTopics, // Use actual selected claim topics
+            description: document.getElementById('description').value,
+            price_per_token: document.getElementById('price_per_token').value
+        };
+
+        // Validate form data
+        if (!formData.token_name || !formData.token_symbol || !formData.total_supply || !formData.claim_issuer_id) {
+            alert('Please fill in all required fields.');
+            return;
+        }
+        
+        // Validate that at least one claim topic is selected
+        if (selectedClaimTopics.length === 0) {
+            alert('Please select at least one claim topic (KYC, AML, etc.).');
+            return;
+        }
+
+        // Update button state
+        const deployButton = document.getElementById('deployButton');
+        deployButton.disabled = true;
+        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building Transaction...';
+
+        // Build deployment transaction
+        const tabSession = new URLSearchParams(window.location.search).get('tab_session');
+        const buildResponse = await fetch(`/issuer/token/0/metamask-transaction?tab_session=${tabSession}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                operation: 'deploy_token',
+                action: 'build',
+                target_type: 'actions',
+                target_id: 0,
+                ...formData
+            })
+        });
+
+        const buildResult = await buildResponse.json();
+        
+        if (!buildResult.success) {
+            throw new Error(buildResult.error || 'Failed to build deployment transaction');
+        }
+
+        // Update button state
+        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Confirming in MetaMask...';
+
+        // Send transaction to MetaMask
+        const transaction = buildResult.transaction;
+        
+        // CRITICAL DEBUG: Log exactly what we're sending to MetaMask
+        console.log('🔍 CRITICAL DEBUG - FRONTEND TRANSACTION DATA:');
+        console.log('   Backend transaction:', transaction);
+        console.log('   userAccount:', userAccount);
+        console.log('   MetaMask params:', {
+            from: userAccount,
+            to: transaction.to,
+            data: transaction.data,
+            gas: transaction.gas,
+            gasPrice: transaction.gasPrice,
+            value: transaction.value,
+            chainId: transaction.chainId
+        });
+        
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+                from: userAccount,  // Add the connected account address
+                to: transaction.to,
+                data: transaction.data,
+                gas: transaction.gas,
+                gasPrice: transaction.gasPrice,
+                value: transaction.value,
+                chainId: transaction.chainId
+            }]
+        });
+
+        // Update button state
+        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Waiting for Confirmation...';
+
+        // Wait for transaction confirmation
+        const receipt = await waitForTransaction(txHash);
+        
+        if (receipt.status === '0x1') {
+            // Confirm transaction completion
+            const confirmResponse = await fetch(`/issuer/token/0/metamask-transaction?tab_session=${tabSession}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: 'deploy_token',
+                    action: 'confirm',
+                    target_type: 'actions',
+                    target_id: 0,
+                    transaction_hash: txHash,
+                    status: 'success'
+                })
+            });
+
+            const confirmResult = await confirmResponse.json();
+            
+            if (confirmResult.success) {
+                alert(`✅ Token deployed successfully!\n\nTransaction Hash: ${txHash}\nToken ID: ${confirmResult.token_id}`);
+                window.location.href = `/issuer/dashboard?tab_session=${tabSession}`;
+            } else {
+                throw new Error(confirmResult.error || 'Failed to confirm deployment');
+            }
+        } else {
+            throw new Error('Transaction failed on blockchain');
+        }
+
+    } catch (error) {
+        console.error('Deployment error:', error);
+        alert(`❌ Deployment failed: ${error.message}`);
+        
+        // Reset button state
+        const deployButton = document.getElementById('deployButton');
+        deployButton.disabled = false;
+        deployButton.innerHTML = '<i class="fas fa-rocket me-2"></i>Deploy Token';
+    }
+}
+
+// Helper function to wait for transaction confirmation
+function waitForTransaction(txHash) {
+    return new Promise((resolve, reject) => {
+        const checkTransaction = async () => {
+            try {
+                const receipt = await window.ethereum.request({
+                    method: 'eth_getTransactionReceipt',
+                    params: [txHash]
+                });
+                
+                if (receipt && receipt.blockNumber) {
+                    resolve(receipt);
+                } else {
+                    setTimeout(checkTransaction, 2000); // Check again in 2 seconds
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        
+        checkTransaction();
+    });
+}
 </script>
 {% endblock %}

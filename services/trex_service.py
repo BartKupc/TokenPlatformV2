@@ -3,6 +3,7 @@ from eth_account import Account
 import json
 from pathlib import Path
 import os
+import time
 
 class TREXService:
     """Service for TREX (ERC-3643) specific operations"""
@@ -11,28 +12,44 @@ class TREXService:
         self.web3 = web3_service
         self.w3 = web3_service.w3
         
-        # Load contract addresses from environment or use defaults
-        self.gateway_address = os.environ.get('TREX_GATEWAY_ADDRESS')
-        self.factory_address = os.environ.get('TREX_FACTORY_ADDRESS')
-        self.identity_registry_address = os.environ.get('IDENTITY_REGISTRY_ADDRESS')
-        self.claim_topics_registry_address = os.environ.get('CLAIM_TOPICS_REGISTRY_ADDRESS')
-        self.trusted_issuers_registry_address = os.environ.get('TRUSTED_ISSUERS_REGISTRY_ADDRESS')
+        # Load contract addresses from database
+        self.gateway_address = self._get_contract_address('TREXGateway')
+        self.factory_address = self._get_contract_address('TREXFactory')
+        self.identity_registry_address = self._get_contract_address('IdentityRegistry')
+        self.claim_topics_registry_address = self._get_contract_address('ClaimTopicsRegistry')
+        self.trusted_issuers_registry_address = self._get_contract_address('TrustedIssuersRegistry')
+        self.implementation_authority_address = self._get_contract_address('TREXImplementationAuthority')
         
-        # Get contract instances
+        # Initialize contracts (only if addresses are available)
+        self.gateway_contract = None
         if self.gateway_address:
-            self.gateway_contract = self.web3.get_contract('TREXGateway', self.gateway_address)
+            self.gateway_contract = self.web3.get_contract(self.gateway_address, 'TREXGateway')
         
+        self.factory_contract = None
         if self.factory_address:
-            self.factory_contract = self.web3.get_contract('TREXFactory', self.factory_address)
+            self.factory_contract = self.web3.get_contract(self.factory_address, 'TREXFactory')
         
         if self.identity_registry_address:
-            self.identity_registry_contract = self.web3.get_contract('IdentityRegistry', self.identity_registry_address)
+            self.identity_registry_contract = self.web3.get_contract(self.identity_registry_address, 'IdentityRegistry')
         
         if self.claim_topics_registry_address:
-            self.claim_topics_registry_contract = self.web3.get_contract('ClaimTopicsRegistry', self.claim_topics_registry_address)
+            self.claim_topics_registry_contract = self.web3.get_contract(self.claim_topics_registry_address, 'ClaimTopicsRegistry')
         
         if self.trusted_issuers_registry_address:
-            self.trusted_issuers_registry_contract = self.web3.get_contract('TrustedIssuersRegistry', self.trusted_issuers_registry_address)
+            self.trusted_issuers_registry_contract = self.web3.get_contract(self.trusted_issuers_registry_address, 'TrustedIssuersRegistry')
+    
+    def _get_contract_address(self, contract_type):
+        """Get contract address from database"""
+        try:
+            from models import Contract
+            from flask import current_app
+            
+            with current_app.app_context():
+                contract = Contract.query.filter_by(contract_type=contract_type).first()
+                return contract.contract_address if contract else None
+        except Exception as e:
+            print(f"Warning: Could not load {contract_type} address from database: {e}")
+            return None
     
     def deploy_token(self, issuer_address, token_name, token_symbol, total_supply, 
                     ir_agent, token_agent, claim_topics, claim_issuer_type, claim_issuer_id=None):
@@ -60,7 +77,11 @@ class TREXService:
                 trusted_issuer = User.query.get(claim_issuer_id)
                 if not trusted_issuer:
                     return {'success': False, 'error': 'Trusted issuer not found'}
+                print(f"🔍 DEBUG: Trusted issuer found: {trusted_issuer.username}")
+                print(f"🔍 DEBUG: Wallet address: {trusted_issuer.wallet_address}")
+                print(f"🔍 DEBUG: Claim issuer address: {trusted_issuer.claim_issuer_address}")
                 claim_issuer_address = trusted_issuer.claim_issuer_address
+                print(f"🔍 DEBUG: Using claim_issuer_address: {claim_issuer_address}")
             elif claim_issuer_type == 'issuer':
                 claim_issuer_address = issuer_address
             else: # admin
@@ -68,15 +89,20 @@ class TREXService:
             
             # Set claim details directly - proper T-REX structure
             # issuerClaims should be an array of arrays, where each inner array contains the topics for that issuer
+            print(f"🔍 DEBUG: claim_topics parameter: {claim_topics}")
+            print(f"🔍 DEBUG: claim_topics type: {type(claim_topics)}")
             claim_topics_int = [int(topic) for topic in claim_topics]
+            print(f"🔍 DEBUG: claim_topics_int: {claim_topics_int}")
             deployment.claim_details = {
                 'claimTopics': claim_topics_int,
                 'issuers': [claim_issuer_address],
                 'issuerClaims': [claim_topics_int]  # Array of arrays - each issuer gets all topics
             }
+            print(f"🔍 DEBUG: deployment.claim_details: {deployment.claim_details}")
             
             # Store claim issuer address for deployment script
             deployment.claim_issuer_address = claim_issuer_address
+            print(f"🔍 DEBUG: Storing claim_issuer_address in deployment: {claim_issuer_address}")
             
             print(f"🔧 Token Details Structure:")
             print(f"   Name: {deployment.token_details['name']}")
@@ -295,12 +321,14 @@ class TREXService:
                 return {'success': False, 'verified': False, 'reason': 'Token has no Identity Registry'}
             
             # Check if user has an OnchainID registered
+            print(f"🔍 Calling identity() for user {user_address} on IR {identity_registry_address}")
             onchain_id_address = self.web3.call_contract_function(
                 'IdentityRegistry',
                 identity_registry_address,
                 'identity',
                 user_address
             )
+            print(f"🔍 identity() result: {onchain_id_address}")
             
             if onchain_id_address == '0x0000000000000000000000000000000000000000':
                 return {
@@ -310,12 +338,86 @@ class TREXService:
                 }
             
             # Check if user is verified using Identity Registry's isVerified() method
+            print(f"🔍 Calling isVerified for user {user_address} on IR {identity_registry_address}")
             is_verified = self.web3.call_contract_function(
                 'IdentityRegistry',
                 identity_registry_address,
                 'isVerified',
                 user_address
             )
+            print(f"🔍 isVerified result: {is_verified}")
+            
+            # If not verified, let's check what claim topics are required
+            if not is_verified:
+                try:
+                    # Get the compliance contract to check required claim topics
+                    compliance_address = token_info['token_info'].get('compliance')
+                    if compliance_address:
+                        print(f"🔍 Checking compliance contract: {compliance_address}")
+                        # Try to get claim topics from compliance
+                        try:
+                            # Try different compliance contract types
+                            for contract_type in ['Compliance', 'ModularCompliance']:
+                                try:
+                                    claim_topics = self.web3.call_contract_function(
+                                        contract_type,
+                                        compliance_address,
+                                        'getClaimTopics'
+                                    )
+                                    print(f"🔍 Required claim topics from {contract_type}: {claim_topics}")
+                                    break
+                                except Exception as e:
+                                    print(f"⚠️ {contract_type} doesn't have getClaimTopics: {e}")
+                        except Exception as e:
+                            print(f"⚠️ Could not get claim topics: {e}")
+                    
+                    # Check trusted issuers registry
+                    try:
+                        # Get the trusted issuers registry from the Identity Registry
+                        trusted_issuers_registry_address = self.web3.call_contract_function(
+                            'IdentityRegistry',
+                            identity_registry_address,
+                            'issuersRegistry'
+                        )
+                        print(f"🔍 Trusted Issuers Registry: {trusted_issuers_registry_address}")
+                        
+                        # Get the claim topics registry
+                        try:
+                            claim_topics_registry_address = self.web3.call_contract_function(
+                                'IdentityRegistry',
+                                identity_registry_address,
+                                'claimTopicsRegistry'
+                            )
+                            print(f"🔍 Claim Topics Registry: {claim_topics_registry_address}")
+                            
+                            # Get required claim topics
+                            try:
+                                required_topics = self.web3.call_contract_function(
+                                    'ClaimTopicsRegistry',
+                                    claim_topics_registry_address,
+                                    'getClaimTopics'
+                                )
+                                print(f"🔍 Required claim topics: {required_topics}")
+                            except Exception as e:
+                                print(f"⚠️ Could not get required claim topics: {e}")
+                        except Exception as e:
+                            print(f"⚠️ Could not get claim topics registry: {e}")
+                        
+                        # Get trusted issuers
+                        try:
+                            trusted_issuers = self.web3.call_contract_function(
+                                'TrustedIssuersRegistry',
+                                trusted_issuers_registry_address,
+                                'getTrustedIssuers'
+                            )
+                            print(f"🔍 Trusted issuers: {trusted_issuers}")
+                        except Exception as e:
+                            print(f"⚠️ Could not get trusted issuers: {e}")
+                            
+                    except Exception as e:
+                        print(f"⚠️ Error checking trusted issuers: {e}")
+                except Exception as e:
+                    print(f"⚠️ Error checking compliance: {e}")
             
             if is_verified:
                 return {
@@ -425,7 +527,7 @@ class TREXService:
             tx_hash = self.web3.transact_contract_function(
                 'Token',
                 checksum_token_address,
-                'forceTransfer',
+                'forcedTransfer',
                 checksum_from_address,
                 checksum_to_address,
                 amount_wei
@@ -881,7 +983,7 @@ class TREXService:
         """Get existing OnchainID address for a wallet"""
         try:
             # Get identity factory contract - use Factory (not IIdFactory interface)
-            identity_factory = self.web3.get_contract('Factory', identity_factory_address)
+            identity_factory = self.web3.get_contract(identity_factory_address, 'Factory')
             
             # Check if identity exists
             identity_address = identity_factory.functions.getIdentity(wallet_address).call()
@@ -898,7 +1000,7 @@ class TREXService:
             import time
             
             # Get identity factory contract - use Factory (not IIdFactory interface)
-            identity_factory = self.web3.get_contract('Factory', identity_factory_address)
+            identity_factory = self.web3.get_contract(identity_factory_address, 'Factory')
             
             # Use the deployer account (first Hardhat account) to call createIdentity
             # The IdFactory is owned by the deployer, so only the deployer can call createIdentity
@@ -1204,6 +1306,14 @@ class TREXService:
                     elif event['args']['to'] == '0x0000000000000000000000000000000000000000':
                         tx_type = 'burn'
                     
+                    # Debug logging for transaction classification
+                    print(f"🔍 Transaction {tx_hash[:10]}... classification:")
+                    print(f"   From: {event['args']['from']}")
+                    print(f"   To: {event['args']['to']}")
+                    print(f"   Type: {tx_type}")
+                    print(f"   Amount: {event['args']['value']}")
+                    print(f"   Executed by: {tx['from']}")
+                    
                     # Format amount
                     decimals = 18  # Default to 18
                     try:
@@ -1234,6 +1344,7 @@ class TREXService:
                         continue
                     
                     transactions.append(transaction)
+                    print(f"✅ Added transaction: {tx_type} - {tx_hash[:10]}...")
                     
                 except Exception as e:
                     print(f"⚠️ Error processing transaction {event['transactionHash'].hex()}: {e}")
@@ -1243,6 +1354,17 @@ class TREXService:
             transactions.sort(key=lambda x: x['timestamp'], reverse=True)
             
             print(f"✅ Returned {len(transactions)} token transactions")
+            
+            # Debug: Print first few transactions to see structure
+            for i, tx in enumerate(transactions[:3]):
+                print(f"🔍 Transaction {i+1}:")
+                print(f"   Hash: {tx['transaction_hash'][:10]}...")
+                print(f"   Type: {tx['transaction_type']}")
+                print(f"   From: {tx['from_address']}")
+                print(f"   To: {tx['to_address']}")
+                print(f"   Amount: {tx['amount_formatted']}")
+                print(f"   Executed by: {tx['executed_by_address']}")
+            
             return transactions
             
         except Exception as e:
@@ -1720,7 +1842,7 @@ class TREXService:
     # META MASK TRANSACTION BUILDING METHODS
     # ============================================================================
     
-    def build_mint_transaction(self, token_address, to_address, amount):
+    def build_mint_transaction(self, token_address, to_address, amount, user_address=None):
         """
         Build mint transaction for MetaMask signing (without executing)
         
@@ -1728,6 +1850,7 @@ class TREXService:
             token_address (str): Token contract address
             to_address (str): Address to mint tokens to
             amount (str): Amount to mint (will be converted to wei)
+            user_address (str): User's wallet address for gas estimation
             
         Returns:
             dict: Transaction data for MetaMask signing
@@ -1756,28 +1879,55 @@ class TREXService:
             
             # Build the mint transaction (without signing)
             # Note: 'from' field will be overridden by MetaMask with the connected account
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the mint operation
+            estimated_gas = token_contract.functions.mint(
+                checksum_to_address,
+                amount_wei
+            ).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for mint: {estimated_gas}, Using: {gas_with_buffer}")
+            
             transaction = token_contract.functions.mint(
                 checksum_to_address,
                 amount_wei
             ).build_transaction({
                 'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
-                'nonce': 0,  # MetaMask will set the correct nonce
-                'gas': 150000,  # Adjust gas as needed
-                'gasPrice': 0,  # MetaMask will set the correct gas price
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
                 'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
             })
+            
+            # Debug: Print transaction object
+            print(f"🔍 Built mint transaction object:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            # Note: 'nonce' is not included - MetaMask will handle it automatically
             
             # Return transaction data for MetaMask signing
             return {
                 'success': True,
                 'transaction': {
                     'to': transaction['to'],
-                    'data': transaction['data'].hex(),
-                    'value': hex(transaction['value']),
-                    'gas': hex(transaction['gas']),
-                    'gasPrice': hex(transaction['gasPrice']),
-                    'nonce': hex(transaction['nonce']),
-                    'chainId': hex(transaction['chainId'])
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - MetaMask will handle it automatically
                 }
             }
             
@@ -1785,7 +1935,7 @@ class TREXService:
             print(f"❌ Error building mint transaction: {str(e)}")
             return {'success': False, 'error': f'Failed to build mint transaction: {str(e)}'}
     
-    def build_burn_transaction(self, token_address, from_address, amount):
+    def build_burn_transaction(self, token_address, from_address, amount, user_address=None):
         """
         Build burn transaction for MetaMask signing (without executing)
         
@@ -1793,6 +1943,7 @@ class TREXService:
             token_address (str): Token contract address
             from_address (str): Address to burn tokens from
             amount (str): Amount to burn (will be converted to wei)
+            user_address (str): User's wallet address for gas estimation
             
         Returns:
             dict: Transaction data for MetaMask signing
@@ -1820,16 +1971,33 @@ class TREXService:
                 return {'success': False, 'error': 'Token contract ABI not found'}
             
             # Build the burn transaction (without signing)
-            # Note: 'from' field will be overridden by MetaMask with the connected account
+            # Note: 'from' field will be set by MetaMask with the connected account
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the burn operation
+            estimated_gas = token_contract.functions.burn(
+                checksum_from_address,
+                amount_wei
+            ).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for burn: {estimated_gas}, Using: {gas_with_buffer}")
+            
             transaction = token_contract.functions.burn(
                 checksum_from_address,
                 amount_wei
             ).build_transaction({
                 'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
-                'nonce': 0,  # MetaMask will set the correct nonce
-                'gas': 150000,  # Adjust gas as needed
-                'gasPrice': 0,  # MetaMask will set the correct gas price
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
                 'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
             })
             
             # Return transaction data for MetaMask signing
@@ -1837,15 +2005,1688 @@ class TREXService:
                 'success': True,
                 'transaction': {
                     'to': transaction['to'],
-                    'data': transaction['data'].hex(),
-                    'value': hex(transaction['value']),
-                    'gas': hex(transaction['gas']),
-                    'gasPrice': hex(transaction['gasPrice']),
-                    'nonce': hex(transaction['nonce']),
-                    'chainId': hex(transaction['chainId'])
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - MetaMask will handle it automatically
                 }
             }
             
         except Exception as e:
             print(f"❌ Error building burn transaction: {str(e)}")
-            return {'success': False, 'error': f'Failed to build burn transaction: {str(e)}'} 
+            return {'success': False, 'error': f'Failed to build burn transaction: {str(e)}'}
+
+    def build_transfer_transaction(self, token_address, from_address, to_address, amount, user_address=None):
+        """Build transfer transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_from_address = self.web3.to_checksum_address(from_address)
+            checksum_to_address = self.web3.to_checksum_address(to_address)
+            
+            # Parse amount to wei
+            amount_wei = self.web3.parse_units(amount, 18)
+            
+            # Get the token contract
+            token_contract = self.w3.eth.contract(
+                address=checksum_token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Build the transfer transaction (without signing)
+            # Note: 'from' field will be set by MetaMask with the connected account
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the transfer operation
+            estimated_gas = token_contract.functions.transfer(
+                checksum_to_address,
+                amount_wei
+            ).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for transfer: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = token_contract.functions.transfer(
+                checksum_to_address,
+                amount_wei
+            ).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - MetaMask will handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building transfer transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build transfer transaction: {str(e)}'}
+
+    def build_add_to_ir_transaction(self, token_address, user_address, onchain_id_address, user_address_for_gas=None):
+        """
+        Build Add to Identity Registry transaction for MetaMask signing (without executing)
+        
+        Args:
+            token_address (str): Token contract address
+            user_address (str): Address to add to Identity Registry
+            onchain_id_address (str): OnchainID address
+            user_address_for_gas (str): User's wallet address for gas estimation
+            
+        Returns:
+            dict: Transaction data for MetaMask signing
+        """
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_user_address = self.web3.to_checksum_address(user_address)
+            checksum_onchain_id_address = self.web3.to_checksum_address(onchain_id_address)
+            
+            print(f"🔍 Building Add to IR transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   User address: {user_address} -> {checksum_user_address}")
+            print(f"   OnchainID address: {onchain_id_address} -> {checksum_onchain_id_address}")
+            
+            # Get the token contract to get the Identity Registry address
+            token_contract = self.w3.eth.contract(
+                address=checksum_token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Get the Identity Registry address from the token
+            identity_registry_address = token_contract.functions.identityRegistry().call()
+            print(f"   Identity Registry address: {identity_registry_address}")
+            
+            # Get the Identity Registry contract
+            identity_registry_contract = self.w3.eth.contract(
+                address=identity_registry_address,
+                abi=self.web3.contract_abis.get('IdentityRegistry', [])
+            )
+            
+            if not identity_registry_contract:
+                return {'success': False, 'error': 'Identity Registry ABI not found'}
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address_for_gas if user_address_for_gas else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # Use the correct function name that works in V1: registerIdentity
+            estimated_gas = identity_registry_contract.functions.registerIdentity(
+                checksum_user_address,
+                checksum_onchain_id_address,
+                840  # Default country code (US)
+            ).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for registerIdentity: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            # Build the transaction using the correct function name
+            transaction = identity_registry_contract.functions.registerIdentity(
+                checksum_user_address,
+                checksum_onchain_id_address,
+                840  # Default country code (US)
+            ).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: 'nonce' is not included - let MetaMask handle it automatically
+            })
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': str(transaction['data']),  # Already a string, no need to call .hex()
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - let MetaMask handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building Add to IR transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build Add to IR transaction: {str(e)}'}
+
+    def build_verify_kyc_transaction(self, token_address, user_address, user_address_for_gas=None):
+        """
+        Build Verify KYC transaction for MetaMask signing (without executing)
+        
+        Args:
+            token_address (str): Token contract address
+            user_address (str): Address to verify KYC for
+            user_address_for_gas (str): User's wallet address for gas estimation
+            
+        Returns:
+            dict: Transaction data for MetaMask signing
+        """
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_user_address = self.web3.to_checksum_address(user_address)
+            
+            print(f"🔍 Building Verify KYC transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   User address: {user_address} -> {checksum_user_address}")
+            
+            # Get the token contract to get the Identity Registry address
+            token_contract = self.w3.eth.contract(
+                address=checksum_token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Get the Identity Registry address from the token
+            identity_registry_address = token_contract.functions.identityRegistry().call()
+            print(f"   Identity Registry address: {identity_registry_address}")
+            
+            # Get the Identity Registry contract
+            identity_registry_contract = self.w3.eth.contract(
+                address=identity_registry_address,
+                abi=self.web3.contract_abis.get('IdentityRegistry', [])
+            )
+            
+            if not identity_registry_contract:
+                return {'success': False, 'error': 'Identity Registry ABI not found'}
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address_for_gas if user_address_for_gas else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # For KYC verification, we need to check if the user is verified
+            # This is typically done by calling isVerified() on the Identity Registry
+            # However, since isVerified is read-only, we'll create a transaction that can be used
+            # to verify the user's KYC status on-chain
+            
+            # Estimate gas for a verification check (we'll use a simple call to estimate gas)
+            try:
+                # Try to estimate gas for isVerified call
+                estimated_gas = identity_registry_contract.functions.isVerified(checksum_user_address).estimate_gas({
+                    'from': estimate_from
+                })
+                print(f"📊 Estimated gas for isVerified check: {estimated_gas}")
+            except Exception as e:
+                print(f"⚠️ Could not estimate gas for isVerified, using default: {e}")
+                estimated_gas = 50000  # Default gas for simple verification
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Using gas: {gas_with_buffer}")
+            
+            # For KYC verification, we'll create a transaction that can be used to verify the user
+            # Since this is typically a read operation, we'll create a minimal transaction
+            # that can be used to trigger verification logic
+            
+            # Build a verification transaction (this could be a call to a verification function)
+            # For now, we'll use a simple transaction that can be used for verification
+            transaction = {
+                'to': checksum_token_address,  # Send to token contract
+                'data': '0x',  # Empty data (no function call)
+                'value': 0,  # No ETH transfer
+                'gas': gas_with_buffer,
+                'gasPrice': self.w3.eth.gas_price,
+                'chainId': 31337
+            }
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'],
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - let MetaMask handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building Verify KYC transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build Verify KYC transaction: {str(e)}'}
+
+    def build_pause_transaction(self, token_address, user_address=None):
+        """Build pause transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            
+            # Get the token contract
+            print(f"🔍 Creating pause token contract:")
+            print(f"   Address: {checksum_token_address}")
+            print(f"   ABI loaded: {'Token' in self.web3.contract_abis}")
+            print(f"   ABI length: {len(self.web3.contract_abis.get('Token', []))}")
+            
+            token_contract = self.web3.get_contract(checksum_token_address, 'Token')
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            print(f"   Contract created: {token_contract is not None}")
+            print(f"   Contract address: {token_contract.address}")
+            
+            # Build the pause transaction (without signing)
+            # Note: 'from' field will be overridden by MetaMask with the connected account
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the pause operation
+            estimated_gas = token_contract.functions.pause().estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for pause: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = token_contract.functions.pause().build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Debug: Print transaction object
+            print(f"🔍 Built pause transaction object:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            # Note: 'nonce' is not included - MetaMask will handle it automatically
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - MetaMask will handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building pause transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build pause transaction: {str(e)}'}
+
+    def build_unpause_transaction(self, token_address, user_address=None):
+        """Build unpause transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            
+            # Get the token contract
+            token_contract = self.web3.get_contract(checksum_token_address, 'Token')
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Build the unpause transaction (without signing)
+            # Note: 'from' field will be set by MetaMask with the connected account
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the unpause operation
+            estimated_gas = token_contract.functions.unpause().estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for unpause: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = token_contract.functions.unpause().build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - MetaMask will handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building unpause transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build unpause transaction: {str(e)}'}
+
+    def build_force_transfer_transaction(self, token_address, from_address, to_address, amount, user_address=None):
+        """Build force transfer transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_from_address = self.web3.to_checksum_address(from_address)
+            checksum_to_address = self.web3.to_checksum_address(to_address)
+            
+            # Get the token contract
+            token_contract = self.web3.get_contract(checksum_token_address, 'Token')
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Parse amount to wei
+            amount_wei = self.web3.parse_units(amount, 18)
+            
+            # Build the force transfer transaction (without signing)
+            # Note: 'from' field will be set by MetaMask with the connected account
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the force transfer operation
+            estimated_gas = token_contract.functions.forcedTransfer(
+                checksum_from_address,
+                checksum_to_address,
+                amount_wei
+            ).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for force transfer: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = token_contract.functions.forcedTransfer(
+                checksum_from_address,
+                checksum_to_address,
+                amount_wei
+            ).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Debug: Print transaction object
+            print(f"🔍 Built force transfer transaction object:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            # Note: 'nonce' is not included - MetaMask will handle it automatically
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - MetaMask will handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building force transfer transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build force transfer transaction: {str(e)}'} 
+
+    def build_add_ir_agent_transaction(self, token_address, agent_address, user_address=None):
+        """Build add IR agent transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_agent_address = self.web3.to_checksum_address(agent_address)
+            
+            print(f"🔍 Building add IR agent transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   Agent address: {agent_address} -> {checksum_agent_address}")
+            
+            # Get the Identity Registry address from the database (like V1 did)
+            # Since we know the deployment worked and we have the real addresses, use them directly
+            try:
+                from models import Token
+                token_record = Token.query.filter_by(token_address=token_address).first()
+                if not token_record:
+                    return {'success': False, 'error': 'Token not found in database'}
+                
+                identity_registry_address = token_record.identity_registry_address
+                if not identity_registry_address:
+                    return {'success': False, 'error': 'Identity Registry address not found in token record'}
+                
+                print(f"🔍 Using Identity Registry address from database: {identity_registry_address}")
+                print(f"🔍 Token address: {token_address}")
+                print(f"🔍 Token name: {token_record.name if token_record else 'Unknown'}")
+                print(f"🔍 Token symbol: {token_record.symbol if token_record else 'Unknown'}")
+                
+            except Exception as e:
+                print(f"❌ Error getting Identity Registry address from database: {e}")
+                return {'success': False, 'error': f'Could not get Identity Registry address: {str(e)}'}
+            
+            # Get the Identity Registry contract
+            ir_contract = self.web3.get_contract(identity_registry_address, 'IdentityRegistry')
+            if not ir_contract:
+                return {'success': False, 'error': 'Identity Registry contract ABI not found'}
+            
+            print(f"🔍 Identity Registry contract loaded successfully")
+            print(f"🔍 IR contract address: {identity_registry_address}")
+            print(f"🔍 IR contract ABI: {len(ir_contract.abi) if hasattr(ir_contract, 'abi') else 'Unknown'} functions")
+            
+            # CHECK ISSUER PERMISSIONS
+            print(f"🔍 CHECKING ISSUER PERMISSIONS:")
+            
+            # Check if issuer can add agents to IR
+            try:
+                # Check if issuer is IR owner or has admin role
+                ir_owner = ir_contract.functions.owner().call()
+                print(f"   IR owner: {ir_owner}")
+                print(f"   Issuer address: {user_address if user_address else 'Not provided'}")
+                if user_address:
+                    print(f"   Issuer is IR owner: {ir_owner.lower() == user_address.lower()}")
+            except Exception as e:
+                print(f"   ❌ Error checking IR owner: {e}")
+            
+            # Check if issuer is already an agent
+            if user_address:
+                try:
+                    is_agent = ir_contract.functions.isAgent(user_address).call()
+                    print(f"   Issuer is already IR agent: {is_agent}")
+                    
+                    # If issuer is NOT an agent, we can't add new agents
+                    if not is_agent:
+                        print(f"   ❌ ISSUER IS NOT AN IR AGENT! Cannot add new agents.")
+                        print(f"   This means the deployment did NOT properly set the issuer as an IR agent.")
+                        return {'success': False, 'error': 'Issuer is not an IR agent. Cannot add new agents.'}
+                    else:
+                        print(f"   ✅ ISSUER IS AN IR AGENT! Can proceed with adding new agent.")
+                        
+                except Exception as e:
+                    print(f"   ❌ Error checking if issuer is agent: {e}")
+                    return {'success': False, 'error': f'Could not verify issuer agent status: {e}'}
+            else:
+                print(f"   ⚠️ No user address provided for agent check")
+                return {'success': False, 'error': 'User address required to verify agent status'}
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the addAgent operation
+            estimated_gas = ir_contract.functions.addAgent(checksum_agent_address).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for add IR agent: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = ir_contract.functions.addAgent(checksum_agent_address).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Debug: Print transaction object
+            print(f"🔍 Built add IR agent transaction object:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            
+            # PRINT EXACT PARAMETERS BEING SENT TO METAMASK
+            print(f"🔍 EXACT PARAMETERS BEING SENT TO METAMASK:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': str(transaction['data']),  # Already a string, no need to call .hex()
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building add IR agent transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build add IR agent transaction: {str(e)}'}
+
+    def build_add_token_agent_transaction(self, token_address, agent_address, user_address=None):
+        """Build add token agent transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_agent_address = self.web3.to_checksum_address(agent_address)
+            
+            print(f"🔍 Building add token agent transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   Agent address: {agent_address} -> {checksum_agent_address}")
+            
+            # Get the token contract
+            token_contract = self.web3.get_contract(checksum_token_address, 'Token')
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the addAgent operation
+            estimated_gas = token_contract.functions.addAgent(checksum_agent_address).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for add token agent: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = token_contract.functions.addAgent(checksum_agent_address).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Debug: Print transaction object
+            print(f"🔍 Built add token agent transaction object:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building add token agent transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build add token agent transaction: {str(e)}'}
+
+    def build_add_trusted_issuer_transaction(self, token_address, trusted_issuer_address, claim_topics, user_address=None):
+        """Build add trusted issuer transaction for MetaMask signing"""
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_trusted_issuer_address = self.web3.to_checksum_address(trusted_issuer_address)
+            
+            print(f"🔍 Building add trusted issuer transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   Trusted issuer address: {trusted_issuer_address} -> {checksum_trusted_issuer_address}")
+            print(f"   Claim topics: {claim_topics}")
+            
+            # Get the token's Identity Registry address first
+            token_info = self.get_token_info(token_address)
+            if not token_info.get('success') or not token_info.get('token_info'):
+                return {'success': False, 'error': 'Failed to get token info'}
+            
+            identity_registry_address = token_info['token_info'].get('identity_registry')
+            if not identity_registry_address:
+                return {'success': False, 'error': 'Token has no Identity Registry'}
+            
+            # Get the TrustedIssuersRegistry address from the Identity Registry
+            ir_contract = self.web3.get_contract(identity_registry_address, 'IdentityRegistry')
+            if not ir_contract:
+                return {'success': False, 'error': 'Identity Registry contract ABI not found'}
+            
+            # Get the TrustedIssuersRegistry address
+            trusted_issuers_registry_address = ir_contract.functions.issuersRegistry().call()
+            if not trusted_issuers_registry_address:
+                return {'success': False, 'error': 'Token has no TrustedIssuersRegistry'}
+            
+            # Get the TrustedIssuersRegistry contract
+            tir_contract = self.web3.get_contract(trusted_issuers_registry_address, 'TrustedIssuersRegistry')
+            if not tir_contract:
+                return {'success': False, 'error': 'TrustedIssuersRegistry contract ABI not found'}
+            
+            # Use actual user address for gas estimation if provided, otherwise use placeholder
+            estimate_from = user_address if user_address else '0x0000000000000000000000000000000000000000'
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # First estimate gas for the addTrustedIssuer operation
+            estimated_gas = tir_contract.functions.addTrustedIssuer(
+                checksum_trusted_issuer_address,
+                claim_topics
+            ).estimate_gas({
+                'from': estimate_from
+            })
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Estimated gas for add trusted issuer: {estimated_gas}, Using: {gas_with_buffer}")
+            
+            transaction = tir_contract.functions.addTrustedIssuer(
+                checksum_trusted_issuer_address,
+                claim_topics
+            ).build_transaction({
+                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'gas': gas_with_buffer,  # Estimated gas with buffer
+                'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'chainId': 31337  # Hardhat local network (0x7a69 in hex)
+                # Note: Removed 'nonce' - let MetaMask handle it automatically
+            })
+            
+            # Debug: Print transaction object
+            print(f"🔍 Built add trusted issuer transaction object:")
+            print(f"   to: {transaction['to']}")
+            print(f"   data: {transaction['data']}")
+            print(f"   value: {transaction['value']}")
+            print(f"   gas: {transaction['gas']}")
+            print(f"   gasPrice: {transaction['gasPrice']}")
+            print(f"   chainId: {transaction['chainId']}")
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'to': transaction['to'],
+                    'data': transaction['data'].hex() if hasattr(transaction['data'], 'hex') else str(transaction['data']),
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building add trusted issuer transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build add trusted issuer transaction: {str(e)}'}
+
+    def build_deployment_transaction(self, deployer_address, token_name, token_symbol, total_supply, claim_topics, claim_issuer_address):
+        print(f"🔍 DEBUG: build_deployment_transaction called with claim_issuer_address: {claim_issuer_address}")
+        """Build unsigned deployment transaction for MetaMask"""
+        try:
+            print("🚀 Building ERC-3643 Token Deployment transaction for MetaMask")
+            print("=" * 60)
+            
+            # Get contract addresses from database
+            try:
+                from models import Contract
+                gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+                gateway_address = gateway_contract.contract_address if gateway_contract else None
+                
+                factory_contract = Contract.query.filter_by(contract_type='TREXFactory').first()
+                trex_factory_address = factory_contract.contract_address if factory_contract else None
+                
+                if not gateway_address or not trex_factory_address:
+                    raise ValueError("Gateway or Factory not found in database")
+                    
+                print(f"🏛️ Using contract addresses from database:")
+                print(f"   Gateway: {gateway_address}")
+                print(f"   Factory: {trex_factory_address}")
+                    
+            except Exception as e:
+                print(f"❌ Error getting contract addresses from database: {e}")
+                return {
+                    'success': False,
+                    'error': f'Could not get contract addresses: {e}',
+                    'note': 'Check if contracts are deployed and in database'
+                }
+            
+            # Get Gateway contract instance once and reuse it
+            print(f"\n🔍 Getting Gateway contract instance...")
+            try:
+                gateway_contract = self.web3.get_contract(gateway_address, 'TREXGateway')
+                if not gateway_contract:
+                    raise ValueError("Failed to get Gateway contract instance")
+                print(f"✅ Gateway contract instance obtained successfully")
+            except Exception as e:
+                print(f"❌ Error getting Gateway contract: {e}")
+                return {
+                    'success': False,
+                    'error': f'Could not get Gateway contract: {e}',
+                    'note': 'Check if Gateway contract is deployed and ABI is loaded'
+                }
+            
+            # Check Gateway roles for deployer
+            print(f"\n🔍 Checking Gateway roles for {deployer_address}...")
+            try:
+                is_deployer = gateway_contract.functions.isDeployer(deployer_address).call()
+                is_agent = gateway_contract.functions.isAgent(deployer_address).call()
+                gateway_owner = gateway_contract.functions.owner().call()
+                
+                print(f"   Is Deployer: {is_deployer}")
+                print(f"   Is Agent: {is_agent}")
+                print(f"   Gateway Owner: {gateway_owner}")
+                
+                if not is_deployer and not is_agent:
+                    print("❌ Deployer has no Gateway permissions!")
+                    return {
+                        'success': False,
+                        'error': 'Deployer has no Gateway permissions',
+                        'note': 'Contact admin to add deployer role'
+                    }
+                    
+            except Exception as e:
+                print(f"⚠️ Could not check Gateway roles: {e}")
+            
+            # Build token details structure - MUST match TREX Gateway ABI exactly
+            token_details = {
+                'owner': deployer_address,
+                'name': token_name,
+                'symbol': token_symbol,
+                'decimals': 18,
+                'irs': "0x" + "0" * 40,  # ethers.ZeroAddress
+                'ONCHAINID': "0x" + "0" * 40,  # ethers.ZeroAddress
+                'irAgents': [deployer_address],
+                'tokenAgents': [deployer_address],
+                'complianceModules': [],  # Empty array as per ABI
+                'complianceSettings': []  # Empty array as per ABI
+            }
+            
+            # Build claim details structure
+            claim_topics_int = [int(topic) for topic in claim_topics]
+            claim_details = {
+                'claimTopics': claim_topics_int,
+                'issuers': [claim_issuer_address],
+                'issuerClaims': [claim_topics_int]  # Array of arrays - each issuer gets all topics
+            }
+            
+            print(f"🔧 Token Details Structure:")
+            print(f"   Owner: {token_details['owner']}")
+            print(f"   Name: {token_details['name']}")
+            print(f"   Symbol: {token_details['symbol']}")
+            print(f"   Decimals: {token_details['decimals']}")
+            print(f"   Token Agents: {token_details['tokenAgents']}")
+            print(f"   IR Agents: {token_details['irAgents']}")
+            print(f"   Compliance Modules: {token_details['complianceModules']}")
+            print(f"   Compliance Settings: {token_details['complianceSettings']}")
+            
+            print(f"🔧 Claim Details Structure:")
+            print(f"   Claim Topics: {claim_details['claimTopics']}")
+            print(f"   Issuers: {claim_details['issuers']}")
+            print(f"   Issuer Claims: {claim_details['issuerClaims']}")
+            print(f"   Claim Issuer Address: {claim_issuer_address}")
+            
+            # CRITICAL: Add post-deployment minting step
+            print(f"🔧 Post-Deployment Plan:")
+            print(f"   1. Deploy token suite via Gateway")
+            print(f"   2. Mint initial supply to owner: {total_supply} tokens")
+            print(f"   3. Verify token responds to identityRegistry() calls")
+            print(f"   4. Verify token responds to compliance() calls")
+            
+            # Build unsigned transaction for MetaMask
+            print("🔧 Building unsigned deployment transaction...")
+            try:
+                # Reuse the same gateway_contract instance from above
+                
+                # Build the transaction
+                print(f"🔍 CRITICAL: About to call deployTREXSuite with:")
+                print(f"   token_details: {token_details}")
+                print(f"   claim_details: {claim_details}")
+                print(f"   deployer_address: {deployer_address}")
+                
+                # Verify the structure matches the ABI exactly
+                print(f"🔍 VERIFYING STRUCTURE MATCHES ABI:")
+                print(f"   token_details keys: {list(token_details.keys())}")
+                print(f"   claim_details keys: {list(claim_details.keys())}")
+                
+
+                # Try to estimate gas first, with fallback to reasonable limit
+                try:
+                    estimated_gas = gateway_contract.functions.deployTREXSuite(
+                        token_details,
+                        claim_details
+                    ).estimate_gas({'from': deployer_address})
+                    gas_limit = int(estimated_gas * 1.2)  # Add 20% buffer
+                    print(f"✅ Gas estimated: {estimated_gas}, using: {gas_limit}")
+                except Exception as gas_error:
+                    print(f"⚠️ Gas estimation failed: {gas_error}")
+                    gas_limit = 2000000  # Fallback to 2M gas limit
+                    print(f"🔄 Using fallback gas limit: {gas_limit}")
+
+                tx = gateway_contract.functions.deployTREXSuite(
+                    token_details,
+                    claim_details
+                ).build_transaction({
+                    'from': deployer_address,
+                    'gas': gas_limit,
+                    'gasPrice': self.web3.w3.eth.gas_price,
+                    'nonce': self.web3.w3.eth.get_transaction_count(deployer_address)
+                })
+                
+                print(f"✅ Transaction built successfully!")
+                print(f"   To: {tx.get('to')}")
+                print(f"   From: {tx.get('from')}")
+                print(f"   Gas: {tx.get('gas')}")
+                print(f"   Gas Price: {tx.get('gasPrice')}")
+                print(f"   Nonce: {tx.get('nonce')}")
+                print(f"   Data: {tx.get('data')[:66]}...")
+                
+                # CRITICAL: Print the exact transaction data being sent to MetaMask
+                print(f"🔍 CRITICAL DEBUG - EXACT TRANSACTION DATA:")
+                print(f"   Raw data length: {len(tx.get('data'))}")
+                print(f"   Raw data type: {type(tx.get('data'))}")
+                print(f"   Raw data: {tx.get('data')}")
+                # Only try to get hex if it's bytes, otherwise it's already a string
+                if hasattr(tx.get('data'), 'hex'):
+                    print(f"   Raw data (hex): {tx.get('data').hex()}")
+                    print(f"   Function selector: {tx.get('data')[:10].hex()}")
+                else:
+                    print(f"   Raw data (already string): {tx.get('data')[:100]}...")
+                    print(f"   Function selector: {tx.get('data')[:10]}")
+                
+                # Decode the function call to see what's actually being sent
+                try:
+                    # Get the function signature from the ABI
+                    deploy_function = gateway_contract.functions.deployTREXSuite
+                    print(f"   Function name: deployTREXSuite")
+                    print(f"   Function signature: {deploy_function.fn_name}")
+                    
+                    # Decode the input data to verify parameters
+                    # Use the contract's decode_function_result method instead
+                    try:
+                        # Try to decode using the contract's built-in method
+                        decoded_input = gateway_contract.decode_function_result('deployTREXSuite', tx.get('data'))
+                        print(f"   Decoded function result: {decoded_input}")
+                    except Exception as decode_error:
+                        print(f"   Could not decode using contract method: {decode_error}")
+                        # Fallback: manually parse the data to extract agent addresses
+                        print(f"   🔍 MANUAL AGENT ADDRESS EXTRACTION:")
+                        data_str = tx.get('data')
+                        if data_str and len(data_str) > 10:
+                            # Look for our issuer address in the data
+                            issuer_address_lower = deployer_address.lower()[2:]  # Remove 0x prefix
+                            if issuer_address_lower in data_str.lower():
+                                print(f"      ✅ Found issuer address {deployer_address} in transaction data!")
+                            else:
+                                print(f"      ❌ Issuer address {deployer_address} NOT found in transaction data!")
+                                print(f"      This would explain why agent permissions are not set!")
+                        else:
+                            print(f"      ❌ Transaction data is empty or too short")
+                    
+                    # CRITICAL: Check if our issuer address is in the transaction data
+                    print(f"   🔍 CRITICAL AGENT VERIFICATION:")
+                    print(f"      deployer_address: {deployer_address}")
+                    print(f"      deployer_address type: {type(deployer_address)}")
+                    print(f"      deployer_address checksum: {self.web3.to_checksum_address(deployer_address) if deployer_address else 'None'}")
+                    
+                    # Manual verification that our agent addresses are in the transaction data
+                    data_str = tx.get('data')
+                    if data_str and len(data_str) > 10:
+                        # Look for our issuer address in the data
+                        issuer_address_lower = deployer_address.lower()[2:]  # Remove 0x prefix
+                        if issuer_address_lower in data_str.lower():
+                            print(f"      ✅ Found issuer address {deployer_address} in transaction data!")
+                            print(f"      This confirms our agent parameters are being sent correctly!")
+                        else:
+                            print(f"      ❌ Issuer address {deployer_address} NOT found in transaction data!")
+                            print(f"      This would explain why agent permissions are not set!")
+                    else:
+                        print(f"      ❌ Transaction data is empty or too short")
+                        
+                except Exception as decode_error:
+                    print(f"   ❌ Error decoding transaction data: {decode_error}")
+                    import traceback
+                    traceback.print_exc()
+                
+                # Print the exact MetaMask transaction parameters
+                metamask_transaction = {
+                    'to': tx.get('to'),
+                    'data': tx.get('data').hex() if hasattr(tx.get('data'), 'hex') else tx.get('data'),
+                    'gas': hex(tx.get('gas')) if isinstance(tx.get('gas'), int) else str(tx.get('gas')),
+                    'gasPrice': hex(tx.get('gasPrice')) if isinstance(tx.get('gasPrice'), int) else str(tx.get('gasPrice')),
+                    # Remove nonce - let MetaMask calculate it automatically
+                    'value': '0x0',
+                    'chainId': '0x7a69'
+                }
+                print(f"🔍 META MASK TRANSACTION PARAMETERS:")
+                print(f"   {json.dumps(metamask_transaction, indent=2)}")
+                
+                # CRITICAL: Verify the transaction data integrity
+                print(f"🔍 CRITICAL: Transaction data integrity check:")
+                print(f"   Original tx data type: {type(tx.get('data'))}")
+                print(f"   Original tx data length: {len(tx.get('data')) if tx.get('data') else 0}")
+                print(f"   MetaMask data type: {type(metamask_transaction['data'])}")
+                print(f"   MetaMask data length: {len(metamask_transaction['data']) if metamask_transaction['data'] else 0}")
+                
+                # Verify the data conversion didn't lose information
+                if tx.get('data'):
+                    if hasattr(tx.get('data'), 'hex'):
+                        original_hex = tx.get('data').hex()
+                        metamask_hex = metamask_transaction['data']
+                        print(f"   Data conversion check:")
+                        print(f"      Original hex: {original_hex[:100]}...")
+                        print(f"      MetaMask hex: {metamask_hex[:100]}...")
+                        print(f"      Are they equal? {original_hex == metamask_hex}")
+                    else:
+                        print(f"   Data conversion check:")
+                        print(f"      Original data (string): {tx.get('data')[:100]}...")
+                        print(f"      MetaMask data: {metamask_transaction['data'][:100]}...")
+                        print(f"      Are they equal? {tx.get('data') == metamask_transaction['data']}")
+                
+                # Return the unsigned transaction for MetaMask (MetaMask expects specific formats)
+                return {
+                    'success': True,
+                    'transaction': {
+                        'to': tx.get('to'),
+                        'data': tx.get('data').hex() if hasattr(tx.get('data'), 'hex') else tx.get('data'),
+                        'gas': hex(tx.get('gas')) if isinstance(tx.get('gas'), int) else str(tx.get('gas')),
+                        'gasPrice': hex(tx.get('gasPrice')) if isinstance(tx.get('gasPrice'), int) else str(tx.get('gasPrice')),
+                        # Remove nonce - let MetaMask calculate it automatically
+                        'value': '0x0',  # MetaMask expects hex string for value
+                        'chainId': '0x7a69'  # MetaMask expects hex string for chainId
+                    },
+                    'gateway_address': gateway_address,
+                    'note': 'Transaction built for MetaMask signing'
+                }
+                
+            except Exception as e:
+                print(f"❌ Error building transaction: {e}")
+                return {
+                    'success': False,
+                    'error': f'Failed to build transaction: {e}',
+                    'note': 'Error occurred while building deployment transaction'
+                }
+                
+        except Exception as e:
+            print(f"❌ Token deployment transaction building failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': f'Token deployment transaction building failed: {e}',
+                'note': 'Exception occurred during transaction building process'
+            }
+    
+    def post_deployment_mint_and_verify(self, token_address, deployer_address, total_supply):
+        """
+        Post-deployment steps: mint initial supply and verify token functionality
+        
+        Args:
+            token_address (str): Deployed token address
+            deployer_address (str): Token owner/deployer address
+            total_supply (str): Total supply to mint
+            
+        Returns:
+            dict: Success status and verification results
+        """
+        try:
+            print(f"🔧 POST-DEPLOYMENT: Minting and verifying token {token_address}")
+            print(f"   Deployer: {deployer_address}")
+            print(f"   Total Supply: {total_supply}")
+            
+            # Step 1: Verify token is properly deployed
+            print(f"\n📋 Step 1: Verifying token deployment...")
+            token_info = self.get_token_info(token_address)
+            if not token_info['success']:
+                return {'success': False, 'error': f'Token verification failed: {token_info["error"]}'}
+            
+            print(f"✅ Token verified: {token_info['token_info']['name']} ({token_info['token_info']['symbol']})")
+            
+            # Step 2: Check if token responds to identityRegistry() calls
+            print(f"\n📋 Step 2: Testing identityRegistry() call...")
+            try:
+                identity_registry = self.web3.call_contract_function(
+                    'Token', 
+                    token_address, 
+                    'identityRegistry'
+                )
+                print(f"✅ identityRegistry() call successful: {identity_registry}")
+            except Exception as e:
+                print(f"❌ identityRegistry() call failed: {e}")
+                return {'success': False, 'error': f'Token does not respond to identityRegistry() calls: {e}'}
+            
+            # Step 3: Check if token responds to compliance() calls
+            print(f"\n📋 Step 3: Testing compliance() call...")
+            try:
+                compliance = self.web3.call_contract_function(
+                    'Token', 
+                    token_address, 
+                    'compliance'
+                )
+                print(f"✅ compliance() call successful: {compliance}")
+            except Exception as e:
+                print(f"❌ compliance() call failed: {e}")
+                return {'success': False, 'error': f'Token does not respond to compliance() calls: {e}'}
+            
+            # Step 4: Mint initial supply if total_supply > 0
+            if int(total_supply) > 0:
+                print(f"\n📋 Step 4: Minting initial supply...")
+                try:
+                    # Check if deployer is a token agent
+                    is_agent = self.web3.call_contract_function(
+                        'Token', 
+                        token_address, 
+                        'isAgent', 
+                        deployer_address
+                    )
+                    
+                    if not is_agent:
+                        print(f"⚠️ Deployer is not a token agent, cannot mint")
+                        return {
+                            'success': False, 
+                            'error': 'Deployer is not a token agent. Token deployed but cannot mint initial supply.',
+                            'token_verified': True,
+                            'identity_registry': identity_registry,
+                            'compliance': compliance
+                        }
+                    
+                    # Mint tokens to deployer
+                    amount_wei = self.web3.parse_units(total_supply, 18)
+                    tx_hash = self.web3.transact_contract_function(
+                        'Token',
+                        token_address,
+                        'mint',
+                        deployer_address,
+                        amount_wei
+                    )
+                    
+                    receipt = self.web3.wait_for_transaction(tx_hash)
+                    
+                    if receipt.status == 1:
+                        print(f"✅ Successfully minted {total_supply} tokens to {deployer_address}")
+                        
+                        # Verify minting worked
+                        balance = self.web3.call_contract_function(
+                            'Token',
+                            token_address,
+                            'balanceOf',
+                            deployer_address
+                        )
+                        balance_formatted = self.web3.format_units(balance, 18)
+                        print(f"✅ Deployer balance after mint: {balance_formatted} tokens")
+                        
+                        return {
+                            'success': True,
+                            'token_verified': True,
+                            'identity_registry': identity_registry,
+                            'compliance': compliance,
+                            'minted': True,
+                            'mint_tx_hash': tx_hash.hex(),
+                            'deployer_balance': balance_formatted
+                        }
+                    else:
+                        print(f"❌ Minting transaction failed")
+                        return {
+                            'success': False,
+                            'error': 'Minting transaction failed',
+                            'token_verified': True,
+                            'identity_registry': identity_registry,
+                            'compliance': compliance
+                        }
+                        
+                except Exception as e:
+                    print(f"❌ Error during minting: {e}")
+                    return {
+                        'success': False,
+                        'error': f'Minting failed: {e}',
+                        'token_verified': True,
+                        'identity_registry': identity_registry,
+                        'compliance': compliance
+                    }
+            else:
+                print(f"\n📋 Step 4: Skipping minting (total_supply = 0)")
+                return {
+                    'success': True,
+                    'token_verified': True,
+                    'identity_registry': identity_registry,
+                    'compliance': compliance,
+                    'minted': False,
+                    'note': 'Token deployed with 0 total supply (minting skipped)'
+                }
+                
+        except Exception as e:
+            print(f"❌ Post-deployment verification failed: {e}")
+            return {'success': False, 'error': f'Post-deployment verification failed: {e}'}
+
+    def parse_deployment_events(self, transaction_hash, gateway_address, deployer_address=None):
+        """
+        Parse deployment events to get contract addresses using V1 approach
+        Instead of parsing events, use direct contract calls like original TokenPlatform
+        """
+        try:
+            print(f"🔍 V1 APPROACH: Using direct contract calls (like original TokenPlatform)...")
+            
+            # Get the Factory address from the database
+            from models.contract import Contract
+            factory_contract = Contract.query.filter_by(contract_type='TREXFactory').first()
+            if not factory_contract:
+                print(f"❌ TREXFactory not found in database")
+                return None
+            
+            factory_address = factory_contract.contract_address
+            print(f"🔍 Using Factory address: {factory_address}")
+            
+            # Get the Gateway address from the database
+            gateway_contract = Contract.query.filter_by(contract_type='TREXGateway').first()
+            if not gateway_contract:
+                print(f"❌ TREXGateway not found in database")
+                return None
+            
+            gateway_address_db = gateway_contract.contract_address
+            print(f"🔍 Gateway address from DB: {gateway_address_db}")
+            
+            # Verify that the Gateway owns the Factory
+            try:
+                # Try to get the Factory ABI - handle missing method gracefully
+                try:
+                    factory_abi = self.web3.get_contract_abi('TREXFactory')
+                except AttributeError:
+                    print(f"⚠️ Web3Service missing get_contract_abi method, using fallback...")
+                    # Fallback: try to get ABI from contract_abis if available
+                    if hasattr(self.web3, 'contract_abis') and 'TREXFactory' in self.web3.contract_abis:
+                        factory_abi = self.web3.contract_abis['TREXFactory']
+                    else:
+                        print(f"⚠️ No Factory ABI available, skipping ownership check")
+                        factory_abi = None
+                
+                if factory_abi:
+                    factory_contract_instance = self.w3.eth.contract(
+                        address=factory_address, 
+                        abi=factory_abi
+                    )
+                    factory_owner = factory_contract_instance.functions.owner().call()
+                    print(f"🔍 Factory owner: {factory_owner}")
+                    print(f"🔍 Gateway address: {gateway_address_db}")
+                    if factory_owner.lower() != gateway_address_db.lower():
+                        print(f"⚠️ WARNING: Factory is NOT owned by Gateway!")
+                        print(f"   Factory owner: {factory_owner}")
+                        print(f"   Gateway: {gateway_address_db}")
+                    else:
+                        print(f"✅ Factory is correctly owned by Gateway")
+                else:
+                    print(f"⚠️ Could not verify Factory ownership - no ABI available")
+                    
+            except Exception as e:
+                print(f"⚠️ Could not verify Factory ownership: {e}")
+                print(f"   Continuing with deployment address extraction...")
+            
+            # ROBUST EVENT-DRIVEN INDEXING: Gateway-first with Factory fallback
+            # This is the most reliable way to index deployments
+            
+            print(f"\n🔍 ROBUST EVENT-DRIVEN INDEXING: Gateway-first with Factory fallback...")
+            
+            # Get the transaction receipt
+            receipt = self.w3.eth.get_transaction_receipt(transaction_hash)
+            if receipt.status != 1:
+                print(f"❌ Transaction failed, cannot get addresses")
+                return None
+                
+            # Step 1: Try to parse TREXSuiteDeployed from Gateway (primary source)
+            print(f"🔍 Step 1: Parsing Gateway deployment events...")
+            gateway_addresses = [gateway_address_db]  # Primary: the Gateway we used
+            
+            # Add Factory as fallback (some versions only emit there)
+            if factory_address:
+                gateway_addresses.append(factory_address)
+                print(f"🔍 Added Factory as fallback: {factory_address}")
+            
+            # DEBUG: Show all logs to see what we're actually getting
+            print(f"🔍 DEBUG: Transaction has {len(receipt.logs)} logs")
+            print(f"🔍 DEBUG: Looking for TREXSuiteDeployed event...")
+            
+            # Define event signatures to try - using ACTUAL events from ABIs
+            event_signatures = [
+                # Gateway events (from TREXGateway.json)
+                "GatewaySuiteDeploymentProcessed(address,address,uint256)",
+                
+                # Check those interesting topic hashes we saw multiple times in logs
+                # 0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41
+                # 0x3ddb07c2df247d32c71cd94e46f101dd4a4bcd5ce07afc925673aa63ba24960e
+                
+                # Fallback to generic names (in case ABIs are incomplete)
+                "TREXSuiteDeployed(address,bytes32,address,address,address,address,address)",
+                "TREXSuiteDeployed(address,address,address,address,address,address)",
+                "SuiteDeployed(address,address,address,address,address,address)",
+                "DeploymentCompleted(address,address,address,address,address,address)"
+            ]
+            
+            deployed_addresses = None
+            
+            # Also check those specific topic hashes we saw multiple times in logs
+            interesting_topics = [
+                "0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41",
+                "0x3ddb07c2df247d32c71cd94e46f101dd4a4bcd5ce07afc925673aa63ba24960e"
+            ]
+            
+            for gateway_address in gateway_addresses:
+                print(f"🔍 Checking {gateway_address} for deployment events...")
+                
+                # Try the event signatures
+                try:
+                    for event_sig in event_signatures:
+                        try:
+                            topic0 = self.w3.keccak(text=event_sig).hex()
+                            
+                            for log in receipt.logs:
+                                if log.topics and len(log.topics) > 0:
+                                    log_topic0 = log.topics[0].hex()
+                                    
+                                    if log_topic0 == topic0:
+                                        print(f"✅ Found matching event on {gateway_address}!")
+                                        print(f"   Event signature: {event_sig}")
+                                        print(f"   Log address: {log.address}")
+                                        print(f"   Log topics: {[t.hex() for t in log.topics]}")
+                                        print(f"   Log data length: {len(log.data)}")
+                                        
+                                        # Parse the event data using web3.py's event decoder
+                                        try:
+                                            from web3._utils.events import get_event_data
+                                            
+                                            # Define the event structure based on signature
+                                            if "GatewaySuiteDeploymentProcessed" in event_sig:
+                                                # Actual Gateway event from ABI
+                                                GATEWAY_EVENT = {
+                                                    "anonymous": False,
+                                                    "inputs": [
+                                                        {"indexed": True, "internalType": "address", "name": "requester", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "intendedOwner", "type": "address"},
+                                                        {"indexed": False, "internalType": "uint256", "name": "feeApplied", "type": "uint256"},
+                                                    ],
+                                                    "name": "GatewaySuiteDeploymentProcessed",
+                                                    "type": "event"
+                                                }
+                                            
+                                                # Decode the Gateway event
+                                                decoded_event = get_event_data(self.w3.codec, GATEWAY_EVENT, log)
+                                                args = decoded_event["args"]
+                                                
+                                                print(f"✅ Gateway event decoded successfully!")
+                                                print(f"   Requester: {args['requester']}")
+                                                print(f"   Intended Owner: {args['intendedOwner']}")
+                                                print(f"   Fee Applied: {args['feeApplied']}")
+                                                
+                                                # For Gateway events, we need to extract addresses from log data
+                                                # This event doesn't contain the deployed addresses directly
+                                                print(f"🔄 Gateway event found, but need to extract addresses from log data...")
+                                                
+                                                # Try manual parsing of the log data
+                                                deployed_addresses = self._parse_deployment_event_log_fallback([log], deployer_address)
+                                                if deployed_addresses:
+                                                    deployed_addresses['source'] = f'gateway_{gateway_address}_gateway_event'
+                                                    deployed_addresses['method_used'] = 'gateway_event_parsing'
+                                                    deployed_addresses['event_signature'] = event_sig
+                                                    deployed_addresses['gateway_requester'] = args['requester']
+                                                    deployed_addresses['gateway_intended_owner'] = args['intendedOwner']
+                                                    deployed_addresses['gateway_fee_applied'] = args['feeApplied']
+                                                
+                                                break
+                                            
+                                            elif "bytes32" in event_sig:
+                                                # Full signature with salt
+                                                TREX_SUITE_DEPLOYED = {
+                                                    "anonymous": False,
+                                                    "inputs": [
+                                                        {"indexed": True, "internalType": "address", "name": "factory", "type": "address"},
+                                                        {"indexed": True, "internalType": "bytes32", "name": "salt", "type": "bytes32"},
+                                                        {"indexed": False, "internalType": "address", "name": "token", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "identityRegistry", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "compliance", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "claimTopicsRegistry", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "trustedIssuersRegistry", "type": "address"},
+                                                    ],
+                                                    "name": "TREXSuiteDeployed",
+                                                    "type": "event"
+                                                }
+                                            else:
+                                                # Simplified signature without salt
+                                                TREX_SUITE_DEPLOYED = {
+                                                    "anonymous": False,
+                                                    "inputs": [
+                                                        {"indexed": False, "internalType": "address", "name": "token", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "identityRegistry", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "compliance", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "claimTopicsRegistry", "type": "address"},
+                                                        {"indexed": False, "internalType": "address", "name": "trustedIssuersRegistry", "type": "address"},
+                                                    ],
+                                                    "name": "TREXSuiteDeployed",
+                                                    "type": "event"
+                                                }
+                                        
+                                            # Decode the event
+                                            decoded_event = get_event_data(self.w3.codec, TREX_SUITE_DEPLOYED, log)
+                                            args = decoded_event["args"]
+                                            
+                                            print(f"✅ Event decoded successfully!")
+                                            if "factory" in args:
+                                                print(f"   Factory: {args['factory']}")
+                                                print(f"   Salt: {args['salt'].hex()}")
+                                            print(f"   Token: {args['token']}")
+                                            print(f"   Identity Registry: {args['identityRegistry']}")
+                                            print(f"   Compliance: {args['compliance']}")
+                                            print(f"   Claim Topics Registry: {args['claimTopicsRegistry']}")
+                                            print(f"   Trusted Issuers Registry: {args['trustedIssuersRegistry']}")
+                                            
+                                            deployed_addresses = {
+                                                'token_address': args['token'],
+                                                'identity_registry': args['identityRegistry'],
+                                                'compliance': args['compliance'],
+                                                'claim_topics_registry': args['claimTopicsRegistry'],
+                                                'trusted_issuers_registry': args['trustedIssuersRegistry'],
+                                                'source': f'gateway_{gateway_address}',
+                                                'method_used': 'gateway_event_parsing',
+                                                'event_signature': event_sig
+                                            }
+                                            
+                                            if "factory" in args:
+                                                deployed_addresses.update({
+                                                    'factory': args['factory'],
+                                                    'salt': args['salt'].hex()
+                                                })
+                                            
+                                            break
+                                        
+                                        except Exception as e:
+                                            print(f"❌ Error decoding event: {e}")
+                                            print(f"🔄 Falling back to manual parsing...")
+                                            
+                                            # Fallback: manual parsing if web3.py decoder fails
+                                            deployed_addresses = self._parse_deployment_event_log_fallback([log], deployer_address)
+                                            if deployed_addresses:
+                                                deployed_addresses['source'] = f'gateway_{gateway_address}_manual'
+                                                deployed_addresses['method_used'] = 'gateway_event_manual_fallback'
+                                                deployed_addresses['event_signature'] = event_sig
+                                            
+                                            break
+                                        
+                        except Exception as e:
+                            print(f"⚠️ Error with event signature {event_sig}: {e}")
+                            continue
+                    
+                    if deployed_addresses:
+                        break
+                        
+                except Exception as e:
+                    print(f"⚠️ Error checking {gateway_address}: {e}")
+                    continue
+            
+            # Step 1.5: If Gateway events didn't work, try Factory events directly
+            if not deployed_addresses:
+                print(f"🔍 Step 1.5: Gateway events didn't work, trying Factory events directly...")
+                
+                # Get Factory address from database
+                try:
+                    from models import Contract
+                    factory_contract = Contract.query.filter_by(contract_type='TREXFactory').first()
+                    if factory_contract:
+                        factory_address = factory_contract.contract_address
+                        print(f"🔍 Checking Factory {factory_address} for TREXSuiteDeployed event...")
+                        
+                        # Look for TREXSuiteDeployed event in Factory logs
+                        trex_suite_deployed_topic = "0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41"
+                        
+                        for log in receipt.logs:
+                            if (log.address.lower() == factory_address.lower() and 
+                                log.topics and log.topics[0].hex() == trex_suite_deployed_topic):
+                                print(f"✅ Found TREXSuiteDeployed event in Factory logs!")
+                                print(f"   Log address: {log.address}")
+                                print(f"   Log topics: {[t.hex() for t in log.topics]}")
+                                print(f"   Log data length: {len(log.data)}")
+                                
+                                # Parse the Factory event
+                                deployed_addresses = self._parse_deployment_event_log(log, deployer_address)
+                                if deployed_addresses:
+                                    deployed_addresses['source'] = f'factory_{factory_address}'
+                                    deployed_addresses['method_used'] = 'factory_event_direct'
+                                    deployed_addresses['event_signature'] = 'TREXSuiteDeployed'
+                                    break
+                        
+                        if not deployed_addresses:
+                            print(f"❌ No TREXSuiteDeployed event found in Factory logs")
+                    else:
+                        print(f"❌ Factory contract not found in database")
+                        
+                except Exception as e:
+                    print(f"❌ Error checking Factory events: {e}")
+            
+            # Step 2: Enrich with on-chain reads (defensive checks)
+            if deployed_addresses:
+                print(f"\n🔍 Step 2: Enriching with on-chain reads and defensive checks...")
+                
+                try:
+                    # Get Token contract and verify it's actually a T-REX Token
+                    token_address = deployed_addresses['token_address']
+                    token_contract = self.w3.eth.contract(
+                        address=token_address,
+                        abi=self.web3.get_contract_abi('Token')
+                    )
+                    
+                    print(f"🔧 Verifying Token contract...")
+                    token_name = token_contract.functions.name().call()
+                    token_symbol = token_contract.functions.symbol().call()
+                    token_decimals = token_contract.functions.decimals().call()
+                    token_owner = token_contract.functions.owner().call()
+                    
+                    print(f"✅ Token verified: {token_name} ({token_symbol}) - {token_decimals} decimals")
+                    print(f"   Owner: {token_owner}")
+                    
+                    # Verify the addresses match what we got from events
+                    token_ir = token_contract.functions.identityRegistry().call()
+                    token_compliance = token_contract.functions.compliance().call()
+                    
+                    if (token_ir.lower() == deployed_addresses['identity_registry'].lower() and
+                        token_compliance.lower() == deployed_addresses['compliance'].lower()):
+                        print(f"✅ Token addresses match event data!")
+                    else:
+                        print(f"⚠️ WARNING: Token addresses don't match event data!")
+                        print(f"   Event IR: {deployed_addresses['identity_registry']}")
+                        print(f"   Token IR: {token_ir}")
+                        print(f"   Event Compliance: {deployed_addresses['compliance']}")
+                        print(f"   Token Compliance: {token_compliance}")
+                    
+                    # Get Identity Registry contract and verify
+                    ir_address = deployed_addresses['identity_registry']
+                    ir_contract = self.w3.eth.contract(
+                        address=ir_address,
+                        abi=self.web3.get_contract_abi('IdentityRegistry')
+                    )
+                    
+                    print(f"🔧 Verifying Identity Registry contract...")
+                    ir_owner = ir_contract.functions.owner().call()
+                    ir_ctr = ir_contract.functions.topicsRegistry().call()
+                    ir_tir = ir_contract.functions.issuersRegistry().call()
+                    
+                    print(f"✅ IR verified - Owner: {ir_owner}")
+                    print(f"   CTR: {ir_ctr}")
+                    print(f"   TIR: {ir_tir}")
+                    
+                    # Verify IR addresses match event data
+                    if (ir_ctr.lower() == deployed_addresses['claim_topics_registry'].lower() and
+                        ir_tir.lower() == deployed_addresses['trusted_issuers_registry'].lower()):
+                        print(f"✅ IR addresses match event data!")
+                    else:
+                        print(f"⚠️ WARNING: IR addresses don't match event data!")
+                    
+                    # Defensive checks: verify issuer permissions
+                    print(f"🔧 Defensive checks: verifying issuer permissions...")
+                    issuer_is_token_agent = token_contract.functions.isAgent(deployer_address).call()
+                    issuer_is_ir_agent = ir_contract.functions.isAgent(deployer_address).call()
+                    
+                    print(f"   Issuer is Token Agent: {issuer_is_token_agent}")
+                    print(f"   Issuer is IR Agent: {issuer_is_ir_agent}")
+                    
+                    if issuer_is_token_agent and issuer_is_ir_agent:
+                        print(f"✅ All permissions correctly set!")
+                    else:
+                        print(f"⚠️ WARNING: Some permissions not set correctly!")
+                        print(f"   This may indicate a deployment configuration issue")
+                    
+                    # Add enriched data to results
+                    deployed_addresses.update({
+                        'token_name': token_name,
+                        'token_symbol': token_symbol,
+                        'token_decimals': token_decimals,
+                        'token_owner': token_owner,
+                        'ir_owner': ir_owner,
+                        'issuer_is_token_agent': issuer_is_token_agent,
+                        'issuer_is_ir_agent': issuer_is_ir_agent,
+                        'verification_passed': True
+                    })
+                    
+                except Exception as e:
+                    print(f"❌ Error during enrichment: {e}")
+                    print(f"   Addresses from events may be incorrect")
+                    deployed_addresses['verification_passed'] = False
+                    deployed_addresses['verification_error'] = str(e)
+            
+            # Show final results
+            if deployed_addresses:
+                print(f"\n✅ SUCCESS: Addresses retrieved and verified!")
+                print(f"   Token: {deployed_addresses.get('token_address', 'N/A')}")
+                print(f"   Identity Registry: {deployed_addresses.get('identity_registry', 'N/A')}")
+                print(f"   Compliance: {deployed_addresses.get('compliance', 'N/A')}")
+                print(f"   Claim Topics Registry: {deployed_addresses.get('claim_topics_registry', 'N/A')}")
+                print(f"   Trusted Issuers Registry: {deployed_addresses.get('trusted_issuers_registry', 'N/A')}")
+                print(f"🎯 METHOD: {deployed_addresses.get('method_used', 'unknown')}")
+                print(f"📡 SOURCE: {deployed_addresses.get('source', 'unknown')}")
+                print(f"✅ VERIFICATION: {'PASSED' if deployed_addresses.get('verification_passed', False) else 'FAILED'}")
+            else:
+                print(f"❌ Could not get addresses using any method")
+            
+            return deployed_addresses
+            
+        except Exception as e:
+            print(f"❌ Error in V1 approach: {e}")
+            return None
+
+    def _parse_deployment_event_log_fallback(self, logs, deployer_address=None):
+        """Fallback method for event parsing if direct calls fail"""
+        try:
+            print(f"🔍 Fallback: Parsing deployment event logs...")
+            
+            # Look for TREXSuiteDeployed event
+            deployment_event_topic = "0x057adae5fa3e9caa8a0d584edff60f61558d33f073412ec2d66d558b739e0a41"
+            
+            for log in logs:
+                if log.topics and len(log.topics) > 0 and log.topics[0].hex() == deployment_event_topic:
+                    print(f"✅ Found TREXSuiteDeployed event in logs!")
+                    return self._parse_deployment_event_log(log, deployer_address)
+            
+            print(f"❌ No TREXSuiteDeployed event found in logs")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Fallback event parsing failed: {e}")
+            return None
+
+    def _parse_deployment_event_log(self, log, deployer_address=None):
+        """Parse a single TREXSuiteDeployed event log"""
+        try:
+            print(f"🔍 Parsing deployment event log:")
+            print(f"   Topics: {[t.hex() for t in log.topics]}")
+            print(f"   Data length: {len(log.data)}")
+            print(f"   Event data: {log.data.hex()}")
+            
+            # CORRECTED: TREXSuiteDeployed event structure:
+            # - Token address is in Topic 1 (indexed)
+            # - Data field contains: [IR, IRS, TIR, CTR, MC] in that order
+            # - Each address is 32 bytes (padded to 32 bytes)
+            
+            # Extract token address from Topic 1 (indexed field)
+            if len(log.topics) < 2:
+                print(f"❌ Not enough topics in event log")
+                return None
+                
+            token_address = self.w3.to_checksum_address(log.topics[1][-20:])
+            print(f"🔍 Token address from Topic 1: {token_address}")
+            
+            # Extract addresses from data field (5 addresses: IR, IRS, TIR, CTR, MC)
+            data = log.data
+            if len(data) < 160:  # 5 addresses * 32 bytes each
+                print(f"❌ Not enough data in event log: {len(data)} bytes")
+                return None
+            
+            # Extract addresses from data field in correct order
+            data_addresses = []
+            for i in range(0, 160, 32):  # Only first 5 addresses (160 bytes)
+                address_bytes = data[i:i+32]
+                address = self.w3.to_checksum_address(address_bytes[-20:])
+                data_addresses.append(address)
+            
+            print(f"🔍 Data addresses: {data_addresses}")
+            
+            # Map addresses correctly based on our testing
+            if len(data_addresses) >= 5:
+                return {
+                    'token_address': token_address,  # From Topic 1
+                    'identity_registry': data_addresses[0],  # IR (first in data)
+                    'identity_registry_storage': data_addresses[1],  # IRS (second in data)
+                    'trusted_issuers_registry': data_addresses[2],  # TIR (third in data)
+                    'claim_topics_registry': data_addresses[3],  # CTR (fourth in data)
+                    'compliance': data_addresses[4],  # MC (fifth in data)
+                    'direct_calls_used': False,
+                    'method_used': 'event_parsing_corrected'
+                }
+            else:
+                print(f"⚠️ Not enough addresses extracted from data: {len(data_addresses)}")
+                return None
+            
+        except Exception as e:
+            print(f"❌ Error parsing deployment event log: {e}")
+            return None

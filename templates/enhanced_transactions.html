@@ -36,6 +36,10 @@
                                 </thead>
                                 <tbody>
                                     {% for transaction in transactions %}
+                                    <!-- Debug: Show transaction data structure -->
+                                    <!-- Transaction keys: {{ transaction.keys() | list }} -->
+                                    <!-- Transaction type: {{ transaction.transaction_type }} -->
+                                    <!-- Transaction amount: {{ transaction.amount_formatted }} -->
                                     <tr>
                                         <td>
                                             <small class="text-muted">

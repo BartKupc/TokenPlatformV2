@@ -508,6 +508,32 @@
 <script>
 // Debug: Page loaded
 console.log('🔍 Agents & TI page loaded');
+
+// Helper function to wait for transaction confirmation
+async function waitForTransaction(txHash) {
+    console.log('⏳ Waiting for transaction confirmation...');
+    
+    while (true) {
+        try {
+            const receipt = await window.ethereum.request({
+                method: 'eth_getTransactionReceipt',
+                params: [txHash]
+            });
+            
+            if (receipt && receipt.blockNumber) {
+                console.log('✅ Transaction confirmed in block:', receipt.blockNumber);
+                return receipt;
+            }
+            
+            // Wait 2 seconds before checking again
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+        } catch (error) {
+            console.error('Error checking transaction status:', error);
+            throw error;
+        }
+    }
+}
 function changeToken() {
     console.log('🔍 changeToken function called');
     const tokenSelector = document.getElementById('tokenSelector');
@@ -560,7 +586,12 @@ function addComplianceAgent() {
     new bootstrap.Modal(document.getElementById('addAgentModal')).show();
 }
 
-function confirmAddAgent() {
+async function confirmAddAgent() {
+    if (!window.ethereum) {
+        alert('MetaMask not detected. Please install MetaMask and refresh the page.');
+        return;
+    }
+    
     const address = document.getElementById('agentAddress').value;
     const type = document.getElementById('agentType').value;
     
@@ -569,48 +600,132 @@ function confirmAddAgent() {
         return;
     }
     
-    // Map agent type to backend field
-    let agent_type;
+    // Map agent type to operation
+    let operation;
     if (type === 'identity') {
-        agent_type = 'ir_agent';
+        operation = 'add_ir_agent';
     } else if (type === 'token') {
-        agent_type = 'token_agent';
+        operation = 'add_token_agent';
     } else {
         alert('Invalid agent type');
         return;
     }
     
-    // Prepare data for submission
-    const formData = {
-        agent_type: agent_type,
-        agent_role: address,
-        token_id: '{{ token.id }}',
-        tab_session: '{{ tab_session_id }}'
-    };
-    
-    // Submit to backend
-    fetch('{{ url_for("issuer.add_agent_to_token", token_id=token.id) }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Agent added successfully!');
+    try {
+        // Show loading state
+        const addBtn = document.querySelector('#addAgentModal .btn-primary');
+        const originalText = addBtn.innerHTML;
+        addBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Building Transaction...`;
+        addBtn.disabled = true;
+        
+        // Build transaction via generic MetaMask route
+        const buildUrl = `{{ url_for('issuer.handle_metamask_transaction', token_id=token.id, tab_session=tab_session_id) }}`;
+        const buildRes = await fetch(buildUrl, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                operation: operation,
+                action: 'build',
+                target_type: 'actions',
+                target_id: 0,
+                agent_address: address
+            })
+        });
+        
+        const buildData = await buildRes.json();
+        if (!buildData.success) {
+            throw new Error(buildData.error || 'Failed to build transaction');
+        }
+        
+        console.log('🔍 Transaction built successfully:', buildData.transaction);
+        
+        // Show MetaMask for signing
+        addBtn.innerHTML = `<i class="fas fa-wallet"></i> Sign with MetaMask...`;
+        
+        // Get the connected account address
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const fromAddress = accounts[0];
+        
+        // Add the 'from' field to the transaction
+        const transactionWithFrom = {
+            ...buildData.transaction,
+            from: fromAddress
+        };
+        
+        console.log('🔍 Transaction with from field:', transactionWithFrom);
+        
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [transactionWithFrom]
+        });
+        
+        console.log('🔍 Transaction sent successfully:', txHash);
+        
+        // Wait for transaction confirmation
+        console.log('⏳ Waiting for transaction confirmation...');
+        const receipt = await waitForTransaction(txHash);
+        console.log('✅ Transaction confirmed:', receipt);
+        
+        // Update database status via generic backend API
+        const updateUrl = `{{ url_for('issuer.handle_metamask_transaction', token_id=token.id, tab_session=tab_session_id) }}`;
+        const updateRes = await fetch(updateUrl, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                operation: operation,
+                action: 'confirm',
+                target_type: 'actions',
+                target_id: 0,
+                transaction_hash: txHash,
+                status: 'success',
+                agent_address: address
+            })
+        });
+        
+        const updateData = await updateRes.json();
+        if (updateData.success) {
+            alert(`✅ Agent added successfully! Transaction: ${txHash.substring(0, 10)}...`);
+            // Close modal and refresh
             bootstrap.Modal.getInstance(document.getElementById('addAgentModal')).hide();
-            // Reload page to show updated list
             location.reload();
         } else {
-            alert('Error: ' + data.error);
+            throw new Error(updateData.error || 'Failed to update database status');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error adding agent. Please try again.');
-    });
+        
+    } catch (error) {
+        console.error('Add agent error:', error);
+        
+        // Parse MetaMask errors for user-friendly messages
+        let errorMessage = error.message;
+        if (error.code === 4001) {
+            errorMessage = 'Transaction was rejected by user';
+        } else if (error.code === 4902) {
+            errorMessage = 'Wrong network detected. Please switch to the correct network in MetaMask';
+        } else if (error.code === -32603) {
+            if (error.message && error.message.includes('Internal JSON-RPC error')) {
+                errorMessage = 'Transaction failed on blockchain. This usually means: 1) Wrong nonce, 2) Insufficient gas, 3) Contract revert, or 4) Wrong network. Check the console for details.';
+            } else {
+                errorMessage = 'Network error: Please try again or check your MetaMask connection';
+            }
+        } else if (error.message && error.message.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds for gas fees. Please ensure you have enough ETH for transaction fees';
+        } else if (error.message && error.message.includes('execution reverted')) {
+            errorMessage = 'Transaction failed: The contract rejected this operation. This usually means insufficient permissions or invalid parameters.';
+        }
+        
+        alert(`❌ Error adding agent: ${errorMessage}`);
+    } finally {
+        // Reset button state
+        const addBtn = document.querySelector('#addAgentModal .btn-primary');
+        addBtn.innerHTML = originalText;
+        addBtn.disabled = false;
+    }
     
     // Clear form
     document.getElementById('agentAddress').value = '';
@@ -619,47 +734,12 @@ function confirmAddAgent() {
 
 function removeAgent(address, type) {
     if (confirm(`Are you sure you want to remove ${type} agent at ${address}?`)) {
-        // Map agent type to backend field
-        let agent_type;
-        if (type === 'identity') {
-            agent_type = 'ir_agent';
-        } else if (type === 'token') {
-            agent_type = 'token_agent';
-        } else {
-            alert('Invalid agent type');
-            return;
-        }
+        // TODO: Implement agent removal with MetaMask integration
+        // For now, show a message that this functionality needs to be implemented
+        alert('Agent removal functionality is coming soon with MetaMask integration. Please contact support for immediate removal if needed.');
         
-        // Prepare data for submission - set to empty to remove
-        const formData = {
-            agent_type: agent_type,
-            agent_role: '',  // Empty to remove
-            token_id: '{{ token.id }}',
-            tab_session: '{{ tab_session_id }}'
-        };
-        
-        // Submit to backend
-        fetch('{{ url_for("issuer.add_agent_to_token", token_id=token.id) }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Agent removed successfully!');
-                // Reload page to show updated list
-                location.reload();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error removing agent. Please try again.');
-        });
+        // Note: Agent removal requires blockchain interaction to call removeAgent() on the contracts
+        // This will be implemented in the next update using the generic MetaMask routing system
     }
 }
 
@@ -668,7 +748,12 @@ function addTrustedIssuer() {
     new bootstrap.Modal(document.getElementById('addTrustedIssuerModal')).show();
 }
 
-function confirmAddTrustedIssuer() {
+async function confirmAddTrustedIssuer() {
+    if (!window.ethereum) {
+        alert('MetaMask not detected. Please install MetaMask and refresh the page.');
+        return;
+    }
+    
     const trustedIssuerId = document.getElementById('trustedIssuerSelect').value;
     const selectedTopics = [];
     
@@ -696,46 +781,123 @@ function confirmAddTrustedIssuer() {
     const trustedIssuerAddress = selectedOption.dataset.address;  // ← This is now the ClaimIssuer contract address!
     const trustedIssuerWallet = selectedOption.dataset.wallet;   // ← Keep wallet address for display purposes
     
-    // Prepare data for submission
-    const formData = {
-        trusted_issuer_id: trustedIssuerId,
-        trusted_issuer_address: trustedIssuerAddress,  // ← This should now be the ClaimIssuer contract address
-        claim_topics: selectedTopics,
-        token_id: '{{ token.id }}',
-        tab_session: '{{ tab_session_id }}'
-    };
-    
-    // Debug logging
-    console.log('🔍 Frontend Debug - Form Data:', {
-        trusted_issuer_id: trustedIssuerId,
-        trusted_issuer_address: trustedIssuerAddress,
-        trusted_issuer_wallet: trustedIssuerWallet,
-        claim_topics: selectedTopics
-    });
-    
-    // Submit to backend
-    fetch('{{ url_for("issuer.add_trusted_issuer_to_token", token_id=token.id) }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Trusted issuer added successfully!');
+    try {
+        // Show loading state
+        const addBtn = document.querySelector('#addTrustedIssuerModal .btn-primary');
+        const originalText = addBtn.innerHTML;
+        addBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Building Transaction...`;
+        addBtn.disabled = true;
+        
+        // Build transaction via generic MetaMask route
+        const buildUrl = `{{ url_for('issuer.handle_metamask_transaction', token_id=token.id, tab_session=tab_session_id) }}`;
+        const buildRes = await fetch(buildUrl, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                operation: 'add_trusted_issuer',
+                action: 'build',
+                target_type: 'actions',
+                target_id: 0,
+                trusted_issuer_address: trustedIssuerAddress,
+                claim_topics: selectedTopics
+            })
+        });
+        
+        const buildData = await buildRes.json();
+        if (!buildData.success) {
+            throw new Error(buildData.error || 'Failed to build transaction');
+        }
+        
+        console.log('🔍 Transaction built successfully:', buildData.transaction);
+        
+        // Show MetaMask for signing
+        addBtn.innerHTML = `<i class="fas fa-wallet"></i> Sign with MetaMask...`;
+        
+        // Get the connected account address
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const fromAddress = accounts[0];
+        
+        // Add the 'from' field to the transaction
+        const transactionWithFrom = {
+            ...buildData.transaction,
+            from: fromAddress
+        };
+        
+        console.log('🔍 Transaction with from field:', transactionWithFrom);
+        
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [transactionWithFrom]
+        });
+        
+        console.log('🔍 Transaction sent successfully:', txHash);
+        
+        // Wait for transaction confirmation
+        console.log('⏳ Waiting for transaction confirmation...');
+        const receipt = await waitForTransaction(txHash);
+        console.log('✅ Transaction confirmed:', receipt);
+        
+        // Update database status via generic backend API
+        const updateUrl = `{{ url_for('issuer.handle_metamask_transaction', token_id=token.id, tab_session=tab_session_id) }}`;
+        const updateRes = await fetch(updateUrl, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                operation: 'add_trusted_issuer',
+                action: 'confirm',
+                target_type: 'actions',
+                target_id: 0,
+                transaction_hash: txHash,
+                status: 'success',
+                trusted_issuer_address: trustedIssuerAddress,
+                claim_topics: selectedTopics
+            })
+        });
+        
+        const updateData = await updateRes.json();
+        if (updateData.success) {
+            alert(`✅ Trusted issuer added successfully! Transaction: ${txHash.substring(0, 10)}...`);
+            // Close modal and refresh
             bootstrap.Modal.getInstance(document.getElementById('addTrustedIssuerModal')).hide();
-            // Reload page to show updated list
             location.reload();
         } else {
-            alert('Error: ' + data.error);
+            throw new Error(updateData.error || 'Failed to update database status');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error adding trusted issuer. Please try again.');
-    });
+        
+    } catch (error) {
+        console.error('Add trusted issuer error:', error);
+        
+        // Parse MetaMask errors for user-friendly messages
+        let errorMessage = error.message;
+        if (error.code === 4001) {
+            errorMessage = 'Transaction was rejected by user';
+        } else if (error.code === 4902) {
+            errorMessage = 'Wrong network detected. Please switch to the correct network in MetaMask';
+        } else if (error.code === -32603) {
+            if (error.message && error.message.includes('Internal JSON-RPC error')) {
+                errorMessage = 'Transaction failed on blockchain. This usually means: 1) Wrong nonce, 2) Insufficient gas, 3) Contract revert, or 4) Wrong network. Check the console for details.';
+            } else {
+                errorMessage = 'Network error: Please try again or check your MetaMask connection';
+            }
+        } else if (error.message && error.message.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds for gas fees. Please ensure you have enough ETH for transaction fees';
+        } else if (error.message && error.message.includes('execution reverted')) {
+            errorMessage = 'Transaction failed: The contract rejected this operation. This usually means insufficient permissions or invalid parameters.';
+        }
+        
+        alert(`❌ Error adding trusted issuer: ${errorMessage}`);
+    } finally {
+        // Reset button state
+        const addBtn = document.querySelector('#addTrustedIssuerModal .btn-primary');
+        addBtn.innerHTML = originalText;
+        addBtn.disabled = false;
+    }
 }
 
 function editTrustedIssuer(trustedIssuerId) {
@@ -745,33 +907,12 @@ function editTrustedIssuer(trustedIssuerId) {
 
 function removeTrustedIssuer(trustedIssuerId) {
     if (confirm('Are you sure you want to remove this trusted issuer from the token?')) {
-        // Submit removal request
-        const formData = {
-            trusted_issuer_id: trustedIssuerId,
-            token_id: '{{ token.id }}',
-            tab_session: '{{ tab_session_id }}'
-        };
+        // TODO: Implement trusted issuer removal with MetaMask integration
+        // For now, show a message that this functionality needs to be implemented
+        alert('Trusted issuer removal functionality is coming soon with MetaMask integration. Please contact support for immediate removal if needed.');
         
-        fetch('{{ url_for("issuer.remove_trusted_issuer_from_token", token_id=token.id) }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Trusted issuer removed successfully!');
-                location.reload();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error removing trusted issuer. Please try again.');
-        });
+        // Note: Trusted issuer removal requires blockchain interaction to call removeTrustedIssuer() on the contracts
+        // This will be implemented in the next update using the generic MetaMask routing system
     }
 }
 </script>

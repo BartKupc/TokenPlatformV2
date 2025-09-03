@@ -139,8 +139,8 @@ class Web3Service:
                 except Exception as e:
                     print(f"Error loading TREXImplementationAuthority ABI: {e}")
             
-            # Load TREXGateway contract (V2: Gateway integration)
-            gateway_path = Path(__file__).parent.parent / 'artifacts' / 'contracts' / 'factory' / 'TREXGateway.sol' / 'TREXGateway.json'
+            # Load TREX Gateway contract
+            gateway_path = trex_artifacts_dir / 'TREXGateway.json'
             if gateway_path.exists():
                 try:
                     with open(gateway_path, 'r') as f:
@@ -149,8 +149,28 @@ class Web3Service:
                         print(f"✅ Loaded TREXGateway ABI from local T-REX")
                 except Exception as e:
                     print(f"Error loading TREXGateway ABI: {e}")
-            else:
-                print(f"⚠️ TREXGateway ABI not found: {gateway_path}")
+            
+            # Load TREX Factory contract
+            factory_path = trex_artifacts_dir / 'TREXFactory.json'
+            if factory_path.exists():
+                try:
+                    with open(factory_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['TREXFactory'] = abi_data['abi']
+                        print(f"✅ Loaded TREXFactory ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading TREXFactory ABI: {e}")
+            
+            # Load IdentityRegistryStorage contract (T-REX identity storage)
+            irs_path = trex_artifacts_dir / 'IdentityRegistryStorage.json'
+            if irs_path.exists():
+                try:
+                    with open(irs_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['IdentityRegistryStorage'] = abi_data['abi']
+                        print(f"✅ Loaded IdentityRegistryStorage ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading IdentityRegistryStorage ABI: {e}")
         else:
             print(f"Warning: Local T-REX artifacts directory not found: {trex_artifacts_dir}")
         
@@ -172,7 +192,7 @@ class Web3Service:
     def transact_contract_function(self, contract_name, contract_address, function_name, *args):
         """Execute a contract function that requires a transaction"""
         try:
-            contract = self.get_contract(contract_name, contract_address)
+            contract = self.get_contract(contract_address, contract_name)
             if not contract:
                 raise ValueError(f"Contract {contract_name} not found")
             
@@ -225,7 +245,7 @@ class Web3Service:
     def call_contract_function(self, contract_name, contract_address, function_name, *args):
         """Call a contract function (read-only)"""
         try:
-            contract = self.get_contract(contract_name, contract_address)
+            contract = self.get_contract(contract_address, contract_name)
             if not contract:
                 raise ValueError(f"Contract {contract_name} not found")
             
@@ -266,7 +286,7 @@ class Web3Service:
     def get_contract_events(self, contract_name, contract_address, event_name, from_block=0, to_block='latest'):
         """Get events from a contract"""
         try:
-            contract = self.get_contract(contract_name, contract_address)
+            contract = self.get_contract(contract_address, contract_name)
             if not contract:
                 raise ValueError(f"Contract {contract_name} not found")
             
@@ -293,14 +313,24 @@ class Web3Service:
         """Get the user's account for signing transactions"""
         return self.account
 
-    def get_contract(self, contract_name, contract_address):
+    def get_contract_abi(self, contract_name):
+        """Get contract ABI by name"""
+        if contract_name in self.contract_abis:
+            return self.contract_abis[contract_name]
+        else:
+            raise ValueError(f"ABI not found for contract: {contract_name}")
+    
+    def get_contract(self, address, contract_name):
         """Get a contract instance by name and address"""
         try:
             if contract_name not in self.contract_abis:
                 raise ValueError(f"ABI not found for contract: {contract_name}")
             
+            # Convert address to checksum format
+            checksum_address = self.w3.to_checksum_address(address)
+            
             contract = self.w3.eth.contract(
-                address=contract_address,
+                address=checksum_address,
                 abi=self.contract_abis[contract_name]
             )
             return contract
@@ -531,4 +561,29 @@ class Web3Service:
             
         except Exception as e:
             print(f"❌ Error checking deployer status on Gateway: {e}")
+            raise e
+    
+    def send_transaction(self, transaction_data):
+        """Send a transaction using the account's private key"""
+        try:
+            # Build transaction with current nonce and gas price
+            tx = {
+                'to': transaction_data['to'],
+                'data': transaction_data['data'],
+                'gas': int(transaction_data['gas'], 16) if isinstance(transaction_data['gas'], str) else transaction_data['gas'],
+                'gasPrice': int(transaction_data['gasPrice'], 16) if isinstance(transaction_data['gasPrice'], str) else transaction_data['gasPrice'],
+                'nonce': transaction_data['nonce'],
+                'value': int(transaction_data['value'], 16) if isinstance(transaction_data['value'], str) else transaction_data['value'],
+                'chainId': int(transaction_data['chainId'], 16) if isinstance(transaction_data['chainId'], str) else transaction_data['chainId']
+            }
+            
+            # Sign and send transaction
+            signed_tx = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            print(f"✅ Transaction sent successfully: {tx_hash.hex()}")
+            return tx_hash
+            
+        except Exception as e:
+            print(f"❌ Error sending transaction: {e}")
             raise e 

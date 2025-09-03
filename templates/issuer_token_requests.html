@@ -3,6 +3,45 @@
 {% block title %}Requests - {{ token.name }}{% endblock %}
 
 {% block content %}
+<script>
+// Helper function to wait for transaction confirmation
+async function waitForTransaction(txHash) {
+    console.log('⏳ Waiting for transaction confirmation...');
+    
+    // Simple polling approach - wait for transaction to be mined
+    let attempts = 0;
+    const maxAttempts = 60; // Wait up to 5 minutes
+    
+    while (attempts < maxAttempts) {
+        try {
+            // Use MetaMask's provider to check transaction status
+            const response = await window.ethereum.request({
+                method: 'eth_getTransactionReceipt',
+                params: [txHash]
+            });
+            
+            if (response && response.blockNumber) {
+                console.log('✅ Transaction confirmed in block:', response.blockNumber);
+                return { status: 1, transactionHash: txHash, blockNumber: response.blockNumber };
+            }
+            
+            // Wait 2 seconds before next check
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempts++;
+            
+            if (attempts % 10 === 0) {
+                console.log(`⏳ Still waiting... (${attempts}/${maxAttempts} attempts)`);
+            }
+        } catch (error) {
+            console.log('Error checking transaction status:', error);
+            attempts++;
+        }
+    }
+    
+    throw new Error('Transaction confirmation timeout after 5 minutes');
+}
+</script>
+
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
@@ -152,20 +191,16 @@
                                             {% else %}
                                                 <!-- Step 1: Add to Identity Registry -->
                                                 {% if interest.ir_status != 'added' %}
-                                                    <form method="POST" action="{{ url_for('issuer.add_to_identity_registry_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" style="display: inline;">
-                                                        <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Add {{ interest.investor.username }} to Identity Registry?')">
+                                                    <button type="button" class="btn btn-warning btn-sm" onclick="addToIdentityRegistryInterest('{{ token.id }}', '{{ interest.id }}', '{{ tab_session_id }}')">
                                                             <i class="fas fa-user-plus"></i> Add to IR
                                                         </button>
-                                                    </form>
                                                 {% endif %}
                                                 
                                                 <!-- Step 2: Verify KYC (only if added to IR) -->
                                                 {% if interest.ir_status == 'added' %}
-                                                    <form method="POST" action="{{ url_for('issuer.verify_kyc_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" style="display: inline;">
-                                                        <button type="submit" class="btn btn-info btn-sm" onclick="return confirm('Verify KYC for {{ interest.investor.username }}?')">
+                                                    <button type="button" class="btn btn-info btn-sm" onclick="verifyKYCInterest('{{ token.id }}', '{{ interest.id }}', '{{ tab_session_id }}')">
                                                             <i class="fas fa-user-check"></i> Verify KYC
                                                         </button>
-                                                    </form>
                                                 {% endif %}
                                                 
                                                 <a href="{{ url_for('issuer.reject_token_interest', token_id=token.id, interest_id=interest.id, tab_session=tab_session_id) }}" 
@@ -318,6 +353,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{{ url_for('static', filename='js/metamask.js') }}"></script>
 <script>
 function changeToken() {
     const tokenId = document.getElementById('tokenSelector').value;
@@ -354,6 +390,69 @@ function changeToken() {
 
 const tabSessionId = '{{ tab_session_id }}';
 
+function parseMetaMaskError(error, expectedAccount) {
+    console.log('🔍 Parsing MetaMask error:', error);
+    
+    // Check for user rejection
+    if (error.code === 4001) {
+        return 'Transaction was rejected by user';
+    }
+    
+    // Check for wrong network
+    if (error.code === 4902) {
+        return 'Wrong network detected. Please switch to the correct network in MetaMask';
+    }
+    
+    // Check for insufficient funds
+    if (error.message && error.message.includes('insufficient funds')) {
+        return 'Insufficient funds for gas fees. Please ensure you have enough ETH for transaction fees';
+    }
+    
+    // Check for wrong wallet address
+    if (error.message && error.message.includes('from address')) {
+        return `Wrong wallet connected. Expected: ${expectedAccount?.substring(0, 6)}...${expectedAccount?.substring(-4)}, but got different address`;
+    }
+    
+    // Check for contract revert errors
+    if (error.message && error.message.includes('execution reverted')) {
+        if (error.message.includes('AccessControl')) {
+            return 'Access denied: You do not have permission to perform this action';
+        }
+        if (error.message.includes('ERC20')) {
+            return 'Token operation failed: Check if you have sufficient tokens or proper permissions';
+        }
+        if (error.message.includes('IdentityRegistry')) {
+            return 'Identity verification failed: You may not be registered in the token\'s identity registry';
+        }
+        return 'Transaction failed: The contract rejected this operation. This usually means insufficient permissions or invalid parameters';
+    }
+    
+    // Check for gas estimation failures
+    if (error.message && error.message.includes('gas required exceeds allowance')) {
+        return 'Transaction requires more gas than allowed. This usually means the operation is too complex or will fail';
+    }
+    
+    // Check for nonce issues
+    if (error.message && error.message.includes('nonce')) {
+        return 'Nonce error: Please refresh the page and try again, or wait a moment for the network to sync';
+    }
+    
+    // Check for RPC errors
+    if (error.code === -32603) {
+        if (error.message.includes('Internal JSON-RPC error')) {
+            return 'Network error: Please check your connection and try again. If the problem persists, try switching networks in MetaMask';
+        }
+        return 'Network error: Please try again or check your MetaMask connection';
+    }
+    
+    // Generic error handling
+    if (error.message) {
+        return `Transaction failed: ${error.message}`;
+    }
+    
+    return 'Transaction failed: Unknown error occurred. Please try again';
+}
+
 function openPurchaseProcessModalFromBtn(btn) {
     const requestId = Number(btn.dataset.reqId);
     const investorUsername = btn.dataset.username;
@@ -375,18 +474,20 @@ function openPurchaseProcessModal(requestId, investorUsername, investorWallet, a
     // Set form actions to existing real endpoints
     const mintForm = document.getElementById('pp_mint_form');
     const transferForm = document.getElementById('pp_transfer_form');
-    // Submit mint using purchase-linked route so DB status updates to completed
-    mintForm.action = `/issuer/token/{{ token.id }}/mint-for-purchase/${requestId}?tab_session={{ tab_session_id }}`;
-    // Force transfer posts directly to route
-    transferForm.action = `/issuer/token/{{ token.id }}/force-transfer-for-purchase/${requestId}?tab_session={{ tab_session_id }}`;
-    transferForm.method = 'POST';
+    // Set request ID for mint form
+    mintForm.setAttribute('data-request-id', requestId);
+    // Force transfer now uses MetaMask - no form action needed
+    transferForm.removeAttribute('action');
+    transferForm.removeAttribute('method');
     modal.show();
 }
 
-function confirmPurchaseTransferFromRequests() {
-    const form = document.getElementById('pp_transfer_form');
+async function confirmPurchaseTransferFromRequests() {
     const fromAddress = document.getElementById('pp_from').value;
     const toAddress = document.getElementById('pp_to').value;
+    const requestId = document.getElementById('pp_mint_form').getAttribute('data-request-id');
+    const amountText = document.getElementById('pp_amount').textContent;
+    const amount = parseInt(amountText.replace(/,/g, ''));
     
     if (!fromAddress || !toAddress) {
         alert('Please fill in all required fields');
@@ -394,7 +495,562 @@ function confirmPurchaseTransferFromRequests() {
     }
     
     if (confirm(`Transfer tokens from ${fromAddress} to ${toAddress}?`)) {
-        form.submit();
+        // Check MetaMask connection
+        if (!window.ethereum) {
+            alert('MetaMask not detected. Please install MetaMask and refresh the page.');
+            return;
+        }
+        
+        const btn = document.querySelector('#pp_transfer_form button');
+        const originalText = btn.innerHTML;
+        
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building...';
+            
+            // 1) Get user account (ensure wallet is connected)
+            const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            console.log('🔍 Connected account:', account);
+            
+            // 2) Ask backend to build force transfer tx params
+            const buildUrl = `/issuer/token/{{ token.id }}/metamask-transaction?tab_session={{ tab_session_id }}`;
+            console.log('🔍 Building force transfer transaction via:', buildUrl);
+            
+            const res = await fetch(buildUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'force_transfer',
+                    action: 'build',
+                    target_type: 'purchase',
+                    target_id: requestId,
+                    from_address: fromAddress,
+                    to_address: toAddress,
+                    amount: amount
+                })
+            });
+            
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to build transaction');
+            }
+            
+            console.log('🔍 Force transfer transaction built successfully:', data.transaction);
+            
+            // 3) Ensure `from` matches connected account and prepare for MetaMask
+            const tx = { 
+                ...data.transaction, 
+                from: account
+                // Let MetaMask handle gas, gasPrice, nonce, and chainId automatically
+            };
+            
+            console.log('🔍 Sending force transfer transaction via MetaMask:', tx);
+            
+            // 4) Send via MetaMask
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [tx]
+            });
+            
+            console.log('🔍 Force transfer transaction sent successfully:', txHash);
+            
+            // 5) Wait for transaction confirmation
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Confirming...';
+            await waitForTransaction(txHash);
+            
+            // 6) Notify backend for bookkeeping
+            const confirmUrl = `/issuer/token/{{ token.id }}/metamask-transaction?tab_session={{ tab_session_id }}`;
+            await fetch(confirmUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'force_transfer',
+                    action: 'confirm',
+                    target_type: 'purchase',
+                    target_id: requestId,
+                    transaction_hash: txHash,
+                    status: 'success'
+                })
+            });
+            
+            // 7) Show success and refresh
+            btn.innerHTML = '<i class="fas fa-check me-2"></i>Success!';
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+            
+        } catch (error) {
+            console.error('❌ Error executing force transfer:', error);
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            
+            if (error.code === 4001) {
+                alert('Transaction cancelled by user');
+            } else if (error.code === -32603) {
+                alert('Transaction failed. Please check your balance and try again.');
+            } else {
+                alert(`Error: ${error.message || 'Unknown error occurred'}`);
+            }
+        }
+    }
+}
+
+async function executeMintFromRequests() {
+    // Get data from the modal
+    const requestId = document.getElementById('pp_mint_form').getAttribute('data-request-id');
+    const investorWallet = document.getElementById('pp_wallet').textContent;
+    const amountText = document.getElementById('pp_amount').textContent;
+    const amount = parseInt(amountText.replace(/,/g, ''));
+    
+    console.log('🔍 executeMintFromRequests - requestId:', requestId);
+    console.log('🔍 executeMintFromRequests - investorWallet:', investorWallet);
+    console.log('🔍 executeMintFromRequests - amount:', amount);
+    
+    if (!requestId || !investorWallet || !amount) {
+        alert('Missing request data');
+        return;
+    }
+    
+    // Check MetaMask connection
+    if (!window.ethereum) {
+        alert('MetaMask not detected. Please install MetaMask and refresh the page.');
+        return;
+    }
+    
+    if (confirm(`Mint ${amount.toLocaleString()} {{ token.symbol }} tokens to ${investorWallet}?`)) {
+        const btn = document.querySelector('#pp_mint_form button');
+        const originalText = btn.innerHTML;
+        
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building...';
+            
+            // 1) Get user account (ensure wallet is connected)
+            const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            console.log('🔍 Connected account:', account);
+            
+            // 2) Verify the connected wallet matches the issuer's wallet
+            const expectedIssuerWallet = '{{ token.issuer_address }}';
+            if (account.toLowerCase() !== expectedIssuerWallet.toLowerCase()) {
+                throw new Error(`Wrong wallet connected! Expected issuer wallet: ${expectedIssuerWallet.substring(0, 6)}...${expectedIssuerWallet.substring(-4)}, but got: ${account.substring(0, 6)}...${account.substring(-4)}`);
+            }
+            
+            // 3) Ask backend to build tx params via generic MetaMask route
+            const buildUrl = `/issuer/token/{{ token.id }}/metamask-transaction?tab_session={{ tab_session_id }}`;
+            console.log('🔍 Building transaction via generic route:', buildUrl);
+            
+            const res = await fetch(buildUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'mint',
+                    action: 'build',
+                    target_type: 'purchase',
+                    target_id: requestId,
+                    to_address: investorWallet,
+                    amount: amount
+                })
+            });
+            
+            const data = await res.json();
+            console.log('🔍 Backend response:', data);
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to build transaction');
+            }
+            
+            console.log('🔍 Transaction built successfully:', data.transaction);
+            
+            // 4) Ensure `from` matches connected account and prepare for MetaMask
+            const tx = { 
+                ...data.transaction, 
+                from: account
+                // Let MetaMask handle gas, gasPrice, nonce, and chainId automatically
+            };
+            
+            console.log('🔍 Transaction data from backend:', data.transaction);
+            console.log('🔍 Final transaction for MetaMask:', tx);
+            console.log('🔍 Transaction details:');
+            console.log('   - to:', tx.to);
+            console.log('   - from:', tx.from);
+            console.log('   - data:', tx.data);
+            console.log('   - value:', tx.value);
+            console.log('   - gas:', tx.gas);
+            console.log('   - gasPrice:', tx.gasPrice);
+            console.log('   - nonce:', tx.nonce);
+            console.log('   - chainId:', tx.chainId);
+            
+            // 5) Send via MetaMask
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+            console.log('🔍 About to call MetaMask eth_sendTransaction with:', tx);
+            
+            let txHash;
+            try {
+                txHash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [tx]
+                });
+                
+                console.log('🔍 Transaction sent successfully:', txHash);
+            } catch (metamaskError) {
+                console.error('🔍 MetaMask error details:', metamaskError);
+                
+                // Parse MetaMask error and provide user-friendly message
+                const userFriendlyError = parseMetaMaskError(metamaskError, account);
+                throw new Error(userFriendlyError);
+            }
+            
+            // 6) Wait for transaction confirmation and update database
+            console.log('⏳ Waiting for transaction confirmation...');
+            
+            // Wait for transaction to be mined
+            const receipt = await waitForTransaction(txHash);
+            console.log('✅ Transaction confirmed:', receipt);
+            
+            // 7) Update database status via generic backend API
+            const updateUrl = `/issuer/token/{{ token.id }}/metamask-transaction?tab_session={{ tab_session_id }}`;
+            const updateRes = await fetch(updateUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'mint',
+                    action: 'confirm',
+                    target_type: 'purchase',
+                    target_id: requestId,
+                    transaction_hash: txHash,
+                    status: 'success'
+                })
+            });
+            
+            const updateData = await updateRes.json();
+            if (updateData.success) {
+                alert(`✅ Tokens minted successfully! Transaction: ${txHash.substring(0, 10)}...`);
+                // Close modal and refresh page
+                bootstrap.Modal.getInstance(document.getElementById('purchaseProcessModal')).hide();
+                location.reload();
+            } else {
+                throw new Error(updateData.error || 'Failed to update database status');
+            }
+            
+        } catch (e) {
+            console.error('❌ Error:', e);
+            
+            // Show user-friendly error message
+            let errorMessage = e.message;
+            
+            // Add additional context for common errors
+            if (e.message.includes('Wrong wallet connected')) {
+                errorMessage += '\n\nPlease connect the correct issuer wallet in MetaMask.';
+            } else if (e.message.includes('insufficient funds')) {
+                errorMessage += '\n\nPlease ensure you have enough ETH for gas fees.';
+            } else if (e.message.includes('Access denied')) {
+                errorMessage += '\n\nYou may not have the required permissions for this token.';
+            } else if (e.message.includes('Identity verification failed')) {
+                errorMessage += '\n\nThe investor may not be properly registered in the token\'s identity registry.';
+            }
+            
+            alert('❌ Error: ' + errorMessage);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+async function addToIdentityRegistryInterest(tokenId, interestId, tabSessionId) {
+    console.log('🔍 addToIdentityRegistryInterest called');
+    console.log('🔍 tokenId:', tokenId);
+    console.log('🔍 interestId:', interestId);
+    console.log('🔍 tabSessionId:', tabSessionId);
+    
+    if (confirm('Add investor to Identity Registry? This will require MetaMask approval.')) {
+        // Check MetaMask connection
+        if (!window.ethereum) {
+            alert('MetaMask not detected. Please install MetaMask and refresh the page.');
+            return;
+        }
+        
+        try {
+            // 1) Get user account (ensure wallet is connected)
+            const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            console.log('🔍 Connected account:', account);
+            
+            // 2) Ask backend to build tx params via generic route
+            const buildUrl = `/issuer/token/${tokenId}/metamask-transaction?tab_session=${tabSessionId}`;
+            console.log('🔍 Building Add to IR transaction via generic route:', buildUrl);
+            
+            const res = await fetch(buildUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'add_to_ir',
+                    action: 'build',
+                    target_type: 'interest',
+                    target_id: interestId
+                })
+            });
+            
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to build transaction');
+            }
+            
+            console.log('🔍 Add to IR transaction built successfully:', data.transaction);
+            
+            // 3) Ensure `from` matches connected account and prepare for MetaMask
+            const tx = { 
+                ...data.transaction, 
+                from: account
+                // Let MetaMask handle gas, gasPrice, nonce, and chainId automatically
+            };
+            
+            console.log('🔍 Sending Add to IR transaction via MetaMask:', tx);
+            
+            // 4) Send via MetaMask
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [tx]
+            });
+            
+            console.log('🔍 Add to IR transaction sent successfully:', txHash);
+            
+            // 5) Wait for transaction confirmation and update database
+            console.log('⏳ Waiting for transaction confirmation...');
+            
+            // Wait for transaction to be mined
+            const receipt = await waitForTransaction(txHash);
+            console.log('✅ Transaction confirmed:', receipt);
+            
+            // 6) Update database status via generic backend API
+            const updateUrl = `/issuer/token/${tokenId}/metamask-transaction?tab_session=${tabSessionId}`;
+            const updateRes = await fetch(updateUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'add_to_ir',
+                    action: 'confirm',
+                    target_type: 'interest',
+                    target_id: interestId,
+                    transaction_hash: txHash,
+                    status: 'success'
+                })
+            });
+            
+            const updateData = await updateRes.json();
+            if (updateData.success) {
+                alert(`✅ Investor added to Identity Registry successfully! Transaction: ${txHash.substring(0, 10)}...`);
+                // Refresh the page to show updated status
+                location.reload();
+            } else {
+                throw new Error(updateData.error || 'Failed to update database status');
+            }
+            
+        } catch (e) {
+            console.error('❌ Error adding to Identity Registry:', e);
+            
+            // Provide user-friendly error messages
+            let errorMessage = '❌ Error adding to Identity Registry: ';
+            if (e.code === 4001) {
+                errorMessage += 'Transaction rejected by user';
+            } else if (e.code === 4902) {
+                errorMessage += 'Wrong network. Please switch to the correct network in MetaMask';
+            } else if (e.code === -32603) {
+                errorMessage += 'Transaction failed on blockchain. This usually means: 1) Wrong nonce, 2) Insufficient gas, 3) Contract revert, or 4) Wrong network. Check the console for details.';
+            } else {
+                errorMessage += e.message;
+            }
+            
+            alert(errorMessage);
+        }
+    }
+}
+
+async function verifyKYCInterest(tokenId, interestId, tabSessionId) {
+    console.log('🔍 verifyKYCInterest called');
+    console.log('🔍 tokenId:', tokenId);
+    console.log('🔍 interestId:', interestId);
+    console.log('🔍 tabSessionId:', tabSessionId);
+    
+    if (confirm('Verify KYC for this investor? This will require MetaMask approval.')) {
+        // Check MetaMask connection
+        if (!window.ethereum) {
+            alert('MetaMask not detected. Please install MetaMask and refresh the page.');
+            return;
+        }
+        
+        try {
+            // 1) Get user account (ensure wallet is connected)
+            const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            console.log('🔍 Connected account:', account);
+            
+            // 2) Ask backend to build tx params via generic route
+            const buildUrl = `/issuer/token/${tokenId}/metamask-transaction?tab_session=${tabSessionId}`;
+            console.log('🔍 Building Verify KYC transaction via generic route:', buildUrl);
+            
+            const res = await fetch(buildUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'verify_kyc',
+                    action: 'build',
+                    target_type: 'interest',
+                    target_id: interestId
+                })
+            });
+            
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to verify KYC');
+            }
+            
+            console.log('🔍 KYC verification result:', data);
+            
+            // Check if we need to skip blockchain (direct verification)
+            if (data.skip_blockchain) {
+                // KYC verification completed directly - no MetaMask needed
+                alert(`✅ ${data.message}`);
+                // Refresh the page to show updated status
+                location.reload();
+                return;
+            }
+            
+            // If we reach here, we need MetaMask (shouldn't happen for KYC)
+            console.log('🔍 Verify KYC transaction built successfully:', data.transaction);
+            
+            // 3) Ensure `from` matches connected account and prepare for MetaMask
+            const tx = { 
+                ...data.transaction, 
+                from: account
+                // Let MetaMask handle gas, gasPrice, nonce, and chainId automatically
+            };
+            
+            console.log('🔍 Sending Verify KYC transaction via MetaMask:', tx);
+            
+            // 4) Send via MetaMask
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [tx]
+            });
+            
+            console.log('🔍 Verify KYC transaction sent successfully:', txHash);
+            
+            // 5) Wait for transaction confirmation and update database
+            console.log('⏳ Waiting for transaction confirmation...');
+            
+            // Wait for transaction to be mined
+            const receipt = await waitForTransaction(txHash);
+            console.log('✅ Transaction confirmed:', receipt);
+            
+            // 6) Update database status via generic backend API
+            const updateUrl = `/issuer/token/${tokenId}/metamask-transaction?tab_session=${tabSessionId}`;
+            const updateRes = await fetch(updateUrl, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    operation: 'verify_kyc',
+                    action: 'confirm',
+                    target_type: 'interest',
+                    target_id: interestId,
+                    transaction_hash: txHash,
+                    status: 'success'
+                })
+            });
+            
+            const updateData = await updateRes.json();
+            if (updateData.success) {
+                alert(`✅ KYC verified for ${data.investor_username} successfully! Transaction: ${txHash.substring(0, 10)}...`);
+                // Refresh the page to show updated status
+                location.reload();
+            } else {
+                throw new Error(updateData.error || 'Failed to update database status');
+            }
+            
+        } catch (e) {
+            console.error('❌ Error verifying KYC:', e);
+            
+            // Provide user-friendly error messages
+            let errorMessage = '❌ Error verifying KYC: ';
+            if (e.code === 4001) {
+                errorMessage += 'Transaction rejected by user';
+            } else if (e.code === 4902) {
+                errorMessage += 'Wrong network. Please switch to the correct network in MetaMask';
+            } else if (e.code === -32603) {
+                errorMessage += 'Transaction failed on blockchain. This usually means: 1) Wrong nonce, 2) Insufficient gas, 3) Contract revert, or 4) Wrong network. Check the console for details.';
+            } else {
+                errorMessage += e.message;
+            }
+            
+            alert(errorMessage);
+        }
+    }
+}
+
+async function verifyKYCInterest(tokenId, interestId, tabSessionId) {
+    console.log('🔍 verifyKYCInterest called');
+    console.log('🔍 tokenId:', tokenId);
+    console.log('🔍 interestId:', interestId);
+    console.log('🔍 tabSessionId:', tabSessionId);
+    
+    // Add alert to confirm function is called
+    alert('verifyKYCInterest function called! Check console for details.');
+    
+    if (confirm('Verify KYC for this investor? This will check their verification status on the blockchain.')) {
+        try {
+            console.log('🔍 Making POST request to backend...');
+            
+            // Make direct POST request to backend route (no MetaMask needed)
+            const response = await fetch(`/issuer/token/${tokenId}/verify-kyc-interest/${interestId}?tab_session=${tabSessionId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            console.log('🔍 Response status:', response.status);
+            console.log('🔍 Response ok:', response.ok);
+            
+            if (response.ok) {
+                console.log('✅ KYC verification successful! Reloading page...');
+                alert('✅ KYC verification successful! Page will reload.');
+                // Reload the page to show updated status
+                window.location.reload();
+            } else {
+                console.log('❌ Response not ok, getting error data...');
+                const errorData = await response.json();
+                console.log('❌ Error data:', errorData);
+                throw new Error(errorData.error || 'Failed to verify KYC');
+            }
+            
+        } catch (error) {
+            console.error('❌ Error verifying KYC:', error);
+            alert(`❌ Error verifying KYC: ${error.message}`);
+        }
     }
 }
 </script>
@@ -426,9 +1082,9 @@ function confirmPurchaseTransferFromRequests() {
                         <div class="card">
                             <div class="card-body">
                                 <h6><i class="fas fa-plus-circle text-success me-2"></i>Mint to Investor</h6>
-                                    <form id="pp_mint_form" method="POST">
-                                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-plus-circle me-1"></i>Mint</button>
-                                </form>
+                                <div id="pp_mint_form">
+                                    <button type="button" class="btn btn-success btn-sm" onclick="executeMintFromRequests()"><i class="fas fa-plus-circle me-1"></i>Mint</button>
+                                </div>
                             </div>
                         </div>
                     </div>

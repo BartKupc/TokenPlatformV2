@@ -124,8 +124,8 @@
                                         {% for tx in transactions %}
                                         <tr>
                                             <td>
-                                                <span class="badge bg-{{ 'success' if tx.type == 'mint' else 'danger' if tx.type == 'burn' else 'info' }}">
-                                                    {{ tx.type|title }}
+                                                <span class="badge bg-{{ 'success' if tx.transaction_type == 'mint' else 'danger' if tx.transaction_type == 'burn' else 'info' }}">
+                                                    {{ tx.transaction_type|title }}
                                                 </span>
                                             </td>
                                             <td>
@@ -143,7 +143,7 @@
                                                 {% endif %}
                                             </td>
                                             <td>
-                                                <strong>{{ tx.amount }}</strong>
+                                                <strong>{{ "%.2f"|format(tx.amount_formatted) }} {{ token.symbol }}</strong>
                                             </td>
                                             <td>
                                                 <small class="text-muted">{{ tx.block_number }}</small>

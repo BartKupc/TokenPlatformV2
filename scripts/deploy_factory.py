@@ -423,6 +423,8 @@ class TREXDeployment:
                                          "addAgent", self.deployer_address)
             print("✅ Added deployer as agent for admin operations")
             
+            # Gateway configuration is verified later in Step 11.5
+            
             # ============================================================================
             # CRITICAL V2 STEP: Transfer Factory ownership to Gateway
             # This makes Gateway the smart proxy that controls all Factory operations
@@ -443,7 +445,7 @@ class TREXDeployment:
             else:
                 raise ValueError(f"Factory ownership transfer failed! Expected: {trex_gateway}, Got: {new_factory_owner}")
             
-            print("\n📋 Step 11: Setting Back-References...")
+            print("\n📋 Step 11: Setting Implementation Authority Connections...")
             
             # Set back-references (exact same as JavaScript)
             self.send_contract_transaction(trex_implementation_authority, 
@@ -455,6 +457,98 @@ class TREXDeployment:
                                          self.contract_abis["TREXImplementationAuthority"], 
                                          "setIAFactory", identity_factory)
             print("✅ Set IAFactory back-reference in Implementation Authority")
+            
+            # CRITICAL: Ensure Gateway is properly connected to Factory
+            print("\n🔧 Step 11.5: Verifying Gateway-Factory Connection...")
+            
+            # Verify Gateway has correct Factory reference
+            gateway_factory = self.call_contract_function(trex_gateway, 
+                                                        self.contract_abis["TREXGateway"], 
+                                                        "getFactory")
+            print(f"🔍 Gateway Factory: {gateway_factory}")
+            print(f"🔍 Expected Factory: {trex_factory}")
+            
+            if gateway_factory.lower() != trex_factory.lower():
+                print("❌ CRITICAL: Gateway Factory reference mismatch!")
+                print(f"   Expected: {trex_factory}")
+                print(f"   Got: {gateway_factory}")
+                raise ValueError("Gateway Factory reference mismatch - this will cause deployment failures")
+            else:
+                print("✅ Gateway-Factory connection verified")
+            
+            # Verify Factory has correct implementation authority reference
+            factory_impl_auth = self.call_contract_function(trex_factory, 
+                                                          self.contract_abis["TREXFactory"], 
+                                                          "getImplementationAuthority")
+            print(f"🔍 Factory Implementation Authority: {factory_impl_auth}")
+            
+            if factory_impl_auth.lower() != trex_implementation_authority.lower():
+                print("❌ CRITICAL: Factory Implementation Authority mismatch!")
+                print(f"   Expected: {trex_implementation_authority}")
+                print(f"   Got: {factory_impl_auth}")
+                raise ValueError("Factory Implementation Authority mismatch - this will cause deployment failures")
+            
+            # Additional verification: Check if Implementation Authority knows about Gateway
+            print("\n🔧 Step 11.6: Verifying Implementation Authority Configuration...")
+            
+            # Check if Implementation Authority has the correct Factory reference
+            impl_auth_factory = self.call_contract_function(trex_implementation_authority, 
+                                                          self.contract_abis["TREXImplementationAuthority"], 
+                                                          "getTREXFactory")
+            print(f"🔍 Implementation Authority TREXFactory: {impl_auth_factory}")
+            
+            if impl_auth_factory.lower() != trex_factory.lower():
+                print("❌ CRITICAL: Implementation Authority Factory reference mismatch!")
+                print(f"   Expected: {trex_factory}")
+                print(f"   Got: {impl_auth_factory}")
+                raise ValueError("Implementation Authority Factory reference mismatch")
+            
+            # Note: TREXImplementationAuthority doesn't have a getIAFactory function
+            # The IA Factory reference is set via setIAFactory but not retrievable via getter
+            print("ℹ️ Implementation Authority IAFactory reference is set but not retrievable via getter")
+            
+            print("✅ All Implementation Authority connections verified successfully")
+            
+            # CRITICAL: Test that the implementation authority is working
+            print("\n🔧 Step 11.7: Testing Implementation Authority...")
+            
+            # Check if we can get the current TREX version from implementation authority
+            try:
+                current_version = self.call_contract_function(trex_implementation_authority, 
+                                                           self.contract_abis["TREXImplementationAuthority"], 
+                                                           "getCurrentVersion")
+                print(f"✅ Current TREX Version: {current_version}")
+                
+                # Check if we can get the implementation addresses
+                impl_addresses = self.call_contract_function(trex_implementation_authority, 
+                                                          self.contract_abis["TREXImplementationAuthority"], 
+                                                          "getContracts", current_version)
+                print(f"✅ Implementation Addresses: {impl_addresses}")
+                
+                # Verify that all implementation addresses are set
+                # impl_addresses is a tuple returned by getContracts()
+                # Order: (tokenImplementation, ctrImplementation, irImplementation, irsImplementation, tirImplementation, mcImplementation)
+                if (impl_addresses[0] == "0x0000000000000000000000000000000000000000" or  # token
+                    impl_addresses[1] == "0x0000000000000000000000000000000000000000" or  # ctr
+                    impl_addresses[2] == "0x0000000000000000000000000000000000000000" or  # ir
+                    impl_addresses[3] == "0x0000000000000000000000000000000000000000" or  # irs
+                    impl_addresses[4] == "0x0000000000000000000000000000000000000000" or  # tir
+                    impl_addresses[5] == "0x0000000000000000000000000000000000000000"):   # mc
+                    print("❌ CRITICAL: Some implementation addresses are zero!")
+                    print(f"   Token: {impl_addresses[0]}")
+                    print(f"   CTR: {impl_addresses[1]}")
+                    print(f"   IR: {impl_addresses[2]}")
+                    print(f"   IRS: {impl_addresses[3]}")
+                    print(f"   TIR: {impl_addresses[4]}")
+                    print(f"   MC: {impl_addresses[5]}")
+                    raise ValueError("Implementation addresses are not properly set")
+                else:
+                    print("✅ All implementation addresses are properly set")
+                    
+            except Exception as e:
+                print(f"❌ CRITICAL: Implementation Authority test failed: {e}")
+                print("   This will cause all token deployments to fail")
+                raise ValueError(f"Implementation Authority not working: {e}")
             
             print("\n📋 Step 12: Verifying Setup...")
             
