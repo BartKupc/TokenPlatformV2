@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for, session
 from models.user import User, TrustedIssuerApproval, db
-from utils.auth_utils import hash_password, encrypt_private_key, decrypt_private_key
+from utils.auth_utils import hash_password
 from utils.session_utils import get_or_create_tab_session, login_user_to_tab_session, logout_user_from_tab_session
 from utils.contract_utils import get_contract_address
 import json
@@ -34,21 +34,20 @@ def add_issuer_to_gateway(user_id, wallet_address, user_type, password):
         print(f"❌ Error adding issuer to Gateway: {e}")
         return False, str(e)
 
-def create_user_onchainid(user_id, wallet_address, user_type, password):
+def create_user_onchainid(user_id, wallet_address, user_type):
     """Create OnchainID for a user using T-REX Factory"""
     try:
         from services.trex_service import TREXService
         from services.web3_service import Web3Service
         
-        # Get user and decrypt their private key
+        # Get user
         user = User.query.get(user_id)
         if not user:
             return False, "User not found"
         
-        user_private_key = decrypt_private_key(user.private_key, password)
-        
-        # Initialize Web3 service with user's private key
-        web3_service = Web3Service(user_private_key)
+        # Use Account 0 (platform) for all operations
+        account0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(account0_private_key)
         
         # Initialize TREX service with Web3 service
         trex_service = TREXService(web3_service)
@@ -79,7 +78,9 @@ def create_user_onchainid(user_id, wallet_address, user_type, password):
                 platform_key_manager = OnchainIDKeyManager(account0_web3_service)
                 
                 # Check if user already has management key
-                user_key_hash = account0_web3_service.w3.keccak(text=wallet_address)
+                user_key_hash = account0_web3_service.w3.keccak(
+                    account0_web3_service.w3.codec.encode(['address'], [wallet_address])
+                )
                 has_management_key = platform_key_manager.check_key_exists(
                     onchainid_address=onchain_id_address,
                     key_hash=user_key_hash,
@@ -89,11 +90,15 @@ def create_user_onchainid(user_id, wallet_address, user_type, password):
                 if not has_management_key:
                     print(f"🔑 User doesn't have management key on existing OnchainID, adding now...")
                     # Add user as management key to existing OnchainID using platform authority
-                    key_result = platform_key_manager.add_user_as_management_key_during_registration(
+                    # Use the standard add_key_to_onchainid method for consistency
+                    from services.onchainid_service import OnchainIDService
+                    onchainid_service = OnchainIDService(account0_web3_service)
+                    
+                    key_result = onchainid_service.add_key_to_onchainid(
                         onchainid_address=onchain_id_address,
-                        wallet_address=wallet_address,
-                        user_id=user_id,  # The actual user being registered
-                        private_key=account0_private_key  # Use Account 0's private key for blockchain transaction
+                        key_address=wallet_address,
+                        purpose=1,  # Management key
+                        role="User Management Key"
                     )
                     
                     if key_result.get('success'):
@@ -149,11 +154,15 @@ def create_user_onchainid(user_id, wallet_address, user_type, password):
                 platform_key_manager = OnchainIDKeyManager(account0_web3_service)
                 
                 # Add user as management key to their own OnchainID using platform authority
-                key_result = platform_key_manager.add_user_as_management_key_during_registration(
+                # Use the standard add_key_to_onchainid method for consistency
+                from services.onchainid_service import OnchainIDService
+                onchainid_service = OnchainIDService(account0_web3_service)
+                
+                key_result = onchainid_service.add_key_to_onchainid(
                     onchainid_address=onchain_id_address,
-                    wallet_address=wallet_address,
-                    user_id=user_id,  # The actual user being registered
-                    private_key=account0_private_key  # Use Account 0's private key for blockchain transaction
+                    key_address=wallet_address,
+                    purpose=1,  # Management key
+                    role="User Management Key"
                 )
                 
                 if key_result.get('success'):
@@ -212,16 +221,7 @@ def register():
             flash('User already exists with this wallet address or username.', 'error')
             return render_template('register.html', tab_session_id=request.args.get('tab_session'))
         
-        # Get private key from form
-        private_key = request.form.get('private_key')
-        if not private_key:
-            flash('Private key is required for blockchain interactions.', 'error')
-            return render_template('register.html', tab_session_id=request.args.get('tab_session'))
-        
-        # Validate private key format
-        if not private_key.startswith('0x') or len(private_key) != 66:
-            flash('Invalid private key format. Must start with 0x and be 66 characters long.', 'error')
-            return render_template('register.html', tab_session_id=request.args.get('tab_session'))
+        # MetaMask integration will be added later - for now, allow registration without MetaMask
         
         # Create new user
         new_user = User(
@@ -229,7 +229,7 @@ def register():
             email=None,  # No email required
             password_hash=hash_password(password),
             wallet_address=wallet_address,
-            private_key=private_key,  # Store directly, no encryption
+            # private_key removed - no longer storing private keys
             user_type=user_type,
             kyc_status='approved' if user_type in ['admin', 'issuer', 'trusted_issuer'] else 'not_submitted'
         )
@@ -241,8 +241,7 @@ def register():
         onchainid_success, onchainid_result = create_user_onchainid(
             new_user.id, 
             wallet_address, 
-            user_type,
-            password
+            user_type
         )
         
         if not onchainid_success:
@@ -255,8 +254,7 @@ def register():
             gateway_success, gateway_result = add_issuer_to_gateway(
                 new_user.id,
                 wallet_address,
-                user_type,
-                password
+                user_type
             )
             
             if not gateway_success:
@@ -267,15 +265,14 @@ def register():
                 # Mark user as deployer in database
                 new_user.is_gateway_deployer = True
         
-        # For trusted issuers, also create ClaimIssuer contract
+        # For trusted issuers, also create ClaimIssuer contract and add CLAIM_SIGNER_KEY
         if user_type == 'trusted_issuer':
             print(f"🏭 Creating ClaimIssuer contract for trusted issuer: {wallet_address}")
             
             # Create ClaimIssuer contract
             claimissuer_success, claimissuer_result = create_claimissuer_contract(
                 new_user.id,
-                wallet_address,
-                password
+                wallet_address
             )
             
             if not claimissuer_success:
@@ -284,6 +281,20 @@ def register():
                 return render_template('register.html', tab_session_id=request.args.get('tab_session'))
             
             print(f"✅ ClaimIssuer contract created: {claimissuer_result}")
+            
+            # CRITICAL: Add CLAIM_SIGNER_KEY (purpose=3) to trusted issuer's OnchainID
+            print(f"🔑 Adding CLAIM_SIGNER_KEY (purpose=3) to trusted issuer's OnchainID...")
+            
+            add_claim_signer_key_success, add_claim_signer_key_result = add_claim_signer_key_to_onchainid(
+                new_user.id,
+                wallet_address
+            )
+            
+            if not add_claim_signer_key_success:
+                print(f"⚠️ Warning: Could not add CLAIM_SIGNER_KEY to trusted issuer's OnchainID: {add_claim_signer_key_result}")
+                # Don't fail registration, just log warning
+            else:
+                print(f"✅ CLAIM_SIGNER_KEY (purpose=3) added to trusted issuer's OnchainID")
             
             # Create approval request
             claim_capabilities = request.form.getlist('claim_capabilities')
@@ -334,21 +345,20 @@ def logout():
     flash('Successfully logged out!', 'success')
     return redirect(url_for('home', tab_session=tab_session_id))
 
-def create_claimissuer_contract(user_id, wallet_address, password):
+def create_claimissuer_contract(user_id, wallet_address):
     """Create ClaimIssuer contract for a trusted issuer"""
     try:
         from services.trex_service import TREXService
         from services.web3_service import Web3Service
         
-        # Get user and decrypt their private key
+        # Get user
         user = User.query.get(user_id)
         if not user:
             return False, "User not found"
         
-        user_private_key = decrypt_private_key(user.private_key, password)
-        
-        # Initialize Web3 service with user's private key
-        web3_service = Web3Service(user_private_key)
+        # Use Account 0 (platform) for all operations
+        account0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(account0_private_key)
         
         # Initialize TREX service with Web3 service
         trex_service = TREXService(web3_service)
@@ -379,14 +389,14 @@ def create_claimissuer_contract(user_id, wallet_address, password):
         print(f"❌ Error creating ClaimIssuer contract: {str(e)}")
         return False, str(e)
 
-def add_issuer_to_gateway(user_id, wallet_address, user_type, password):
+def add_issuer_to_gateway(user_id, wallet_address, user_type):
     """Add issuer to TREXGateway as deployer (V2: Gateway role management)"""
     try:
         from services.trex_service import TREXService
         from services.web3_service import Web3Service
         from utils.contract_utils import get_contract_address
         
-        # Get user and decrypt their private key
+        # Get user
         user = User.query.get(user_id)
         if not user:
             return False, "User not found"
@@ -473,4 +483,67 @@ def add_issuer_to_gateway(user_id, wallet_address, user_type, password):
         
     except Exception as e:
         print(f"❌ Error adding issuer to Gateway: {str(e)}")
+        return False, str(e)
+
+def add_claim_signer_key_to_onchainid(user_id, wallet_address):
+    """Add CLAIM_SIGNER_KEY (purpose=3) to trusted issuer's OnchainID"""
+    try:
+        from services.web3_service import Web3Service
+        
+        # Get user
+        user = User.query.get(user_id)
+        if not user:
+            return False, "User not found"
+        
+        # Use Account 0 (platform) for all operations
+        account0_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        web3_service = Web3Service(account0_private_key)
+        
+        print(f"🎯 Adding CLAIM_SIGNER_KEY (purpose=3) to trusted issuer's OnchainID: {user.onchain_id}")
+        
+        # Get Identity contract ABI
+        identity_abi = web3_service.get_contract_abi('Identity')
+        if not identity_abi:
+            return False, "Could not load Identity contract ABI"
+        
+        # Create Identity contract instance
+        identity_contract = web3_service.w3.eth.contract(
+            address=user.onchain_id,
+            abi=identity_abi
+        )
+        
+        # Create key hash for trusted issuer's EOA (using correct method)
+        trusted_issuer_key_hash = web3_service.w3.keccak(
+            web3_service.w3.codec.encode(['address'], [wallet_address])
+        )
+        
+        print(f"🔍 Trusted issuer key hash: {trusted_issuer_key_hash.hex()}")
+        
+        # Add CLAIM_SIGNER_KEY (purpose=3) using the management key
+        add_key_tx = identity_contract.functions.addKey(
+            trusted_issuer_key_hash,  # key hash
+            3,  # purpose = CLAIM_SIGNER_KEY
+            1   # key type = ECDSA
+        ).build_transaction({
+            'from': web3_service.account.address,
+            'gas': 200000,
+            'gasPrice': web3_service.w3.eth.gas_price,
+            'nonce': web3_service.w3.eth.get_transaction_count(web3_service.account.address)
+        })
+        
+        # Sign and send addKey transaction
+        signed_add_key_tx = web3_service.w3.eth.account.sign_transaction(add_key_tx, account0_private_key)
+        add_key_tx_hash = web3_service.w3.eth.send_raw_transaction(signed_add_key_tx.rawTransaction)
+        
+        print(f"✅ CLAIM_SIGNER_KEY addition transaction sent: {add_key_tx_hash.hex()}")
+        
+        # Wait for transaction receipt
+        add_key_receipt = web3_service.w3.eth.wait_for_transaction_receipt(add_key_tx_hash)
+        
+        print(f"✅ CLAIM_SIGNER_KEY (purpose=3) added successfully to trusted issuer's OnchainID!")
+        
+        return True, f"CLAIM_SIGNER_KEY added successfully. Transaction: {add_key_tx_hash.hex()}"
+        
+    except Exception as e:
+        print(f"❌ Error adding CLAIM_SIGNER_KEY to OnchainID: {str(e)}")
         return False, str(e) 

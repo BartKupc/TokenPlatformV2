@@ -384,209 +384,170 @@ def execute_purchase(request_id):
 
 @investor_bp.route('/transfer-tokens', methods=['GET', 'POST'])
 def transfer_tokens():
-    """Transfer tokens to another address"""
+    """Transfer tokens to another address (form-based)"""
     try:
         print(f"DEBUG: transfer_tokens called with method: {request.method}")
-        print(f"DEBUG: request.args: {dict(request.args)}")
-        print(f"DEBUG: request.form: {dict(request.form)}")
         
         # Get tab session ID from URL parameter
         tab_session_id = request.args.get('tab_session')
-        print(f"DEBUG: tab_session_id from args: {tab_session_id}")
         
         # Get or create tab session
         tab_session = get_or_create_tab_session(tab_session_id)
-        print(f"DEBUG: tab_session: {tab_session}")
         
         # Get current user from tab session
         user = get_current_user_from_tab_session(tab_session.session_id)
-        print(f"DEBUG: user: {user}")
         
         if not user or user.user_type != 'investor':
-            print(f"DEBUG: User validation failed - user: {user}, user_type: {getattr(user, 'user_type', 'None') if user else 'None'}")
             flash('Investor access required.', 'error')
             return redirect(url_for('investor.login', tab_session=tab_session.session_id))
         
         if request.method == 'GET':
-            print("DEBUG: GET request received")
             return "Transfer form - GET method working", 200
             
         if request.method == 'POST':
-            print(f"DEBUG: POST method detected, processing form data...")
-            
-            # Get form data
-            token_id = request.form.get('token_id')
-            to_address = request.form.get('to_address')
-            amount = request.form.get('amount')
-            
-            print(f"DEBUG: Form data received - token_id: {token_id}, to_address: {to_address}, amount: {amount}")
-            print(f"DEBUG: Form data type - token_id: {type(token_id)}, to_address: {type(to_address)}, amount: {type(amount)}")
-            
-            if not all([token_id, to_address, amount]):
-                print(f"DEBUG: Missing required fields - token_id: {token_id}, to_address: {to_address}, amount: {amount}")
-                flash('All fields are required.', 'error')
-                return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-            
-            print(f"DEBUG: All fields present, proceeding with validation...")
-            
-            try:
-                print(f"DEBUG: Converting token_id to int...")
-                token_id = int(token_id)
-                print(f"DEBUG: Converting amount to int...")
-                amount = int(amount)
-                print(f"DEBUG: Parsed values - token_id: {token_id}, amount: {amount}")
-                
-                if amount <= 0:
-                    print(f"DEBUG: Invalid amount: {amount}")
-                    flash('Amount must be greater than 0.', 'error')
-                    return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-                
-                print(f"DEBUG: Amount validation passed: {amount}")
-                
-                # Validate Ethereum address format
-                print(f"DEBUG: Validating Ethereum address format: {to_address}")
-                if not to_address.startswith('0x') or len(to_address) != 42:
-                    print(f"DEBUG: Invalid address format: {to_address} (length: {len(to_address)})")
-                    flash('Invalid Ethereum address format.', 'error')
-                    return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-                
-                print(f"DEBUG: Address validation passed: {to_address}")
-                print(f"DEBUG: All validations passed, getting token from database...")
-                
-                # Get token
-                print(f"DEBUG: Querying Token.query.get_or_404({token_id})...")
-                token = Token.query.get_or_404(token_id)
-                print(f"DEBUG: Token found: {token.name} at {token.token_address}")
-                
-                # Check if user has sufficient balance
-                try:
-                    print(f"DEBUG: Starting balance check...")
-                    print(f"DEBUG: Importing Web3Service...")
-                    from services.web3_service import Web3Service
-                    print(f"DEBUG: Creating Web3Service instance...")
-                    web3_service = Web3Service()
-                    print(f"DEBUG: Calling balanceOf function on contract {token.token_address} for user {user.wallet_address}...")
-                    balance_wei = web3_service.call_contract_function('Token', token.token_address, 'balanceOf', user.wallet_address)
-                    print(f"DEBUG: Raw balance (wei): {balance_wei}")
-                    print(f"DEBUG: Converting balance from wei...")
-                    balance = web3_service.format_units(balance_wei, 18)
-                    print(f"DEBUG: User balance: {balance} {token.symbol}")
-                    
-                    if balance < amount:
-                        print(f"DEBUG: Insufficient balance - user has {balance}, trying to transfer {amount}")
-                        flash(f'Insufficient balance. You have {balance:,.0f} {token.symbol}, trying to transfer {amount:,.0f}.', 'error')
-                        return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-                    
-                    print(f"DEBUG: Balance check passed - user has {balance}, transferring {amount}")
-                        
-                except Exception as e:
-                    print(f"DEBUG: Error checking balance: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error checking balance: {str(e)}', 'error')
-                    return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-                
-                # Check if recipient is verified
-                try:
-                    print(f"DEBUG: Starting recipient verification check...")
-                    print(f"DEBUG: Importing TREXService...")
-                    from services.trex_service import TREXService
-                    print(f"DEBUG: Creating TREXService instance...")
-                    trex_service = TREXService(web3_service)
-                    print(f"DEBUG: Calling check_user_verification...")
-                    verification_result = trex_service.check_user_verification(
-                        token_address=token.token_address,
-                        user_address=to_address
-                    )
-                    print(f"DEBUG: Verification result: {verification_result}")
-                    
-                    if not verification_result.get('success') or not verification_result.get('verified'):
-                        print(f"DEBUG: Recipient not verified: {verification_result}")
-                        flash(f'Recipient address {to_address} is not verified for this token. Transfer will fail.', 'error')
-                        return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-                    
-                    print(f"DEBUG: Recipient verification passed")
-                        
-                except Exception as e:
-                    print(f"DEBUG: Error checking recipient verification: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error checking recipient verification: {str(e)}', 'error')
-                    return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
-                
-                # Execute transfer
-                try:
-                    # Use user's private key for the transfer
-                    private_key = user.private_key
-                    if not private_key:
-                        flash('Private key not available. Cannot execute transfer.', 'error')
-                        return redirect(url_for('investor.transfer_tokens', tab_session=tab_session.session_id))
-                    
-                    user_web3_service = Web3Service(private_key)
-                    
-                    # Call transfer function on the token contract
-                    print(f"DEBUG: Using transact_contract_function for transfer...")
-                    result = user_web3_service.transact_contract_function(
-                        'Token',
-                        token.token_address,
-                        'transfer',
-                        to_address,
-                        user_web3_service.parse_units(amount, 18)
-                    )
-                    
-                    print(f"DEBUG: Transfer result (tx hash): {result}")
-                    
-                    if result and result.startswith('0x'):
-                        print(f"DEBUG: Transfer successful, creating transaction record...")
-                        flash(f'Successfully transferred {amount:,.0f} {token.symbol} to {to_address}! Transaction hash: {result[:10]}...', 'success')
-                        
-                        # Create transaction record
-                        print(f"DEBUG: Importing TokenTransaction...")
-                        from models.token import TokenTransaction
-                        print(f"DEBUG: Creating TokenTransaction object...")
-                        transaction = TokenTransaction(
-                            token_id=token_id,
-                            transaction_type='transfer',
-                            from_address=user.wallet_address,
-                            to_address=to_address,
-                            amount=amount,
-                            executed_by=user.id
-                        )
-                        print(f"DEBUG: Adding transaction to session...")
-                        db.session.add(transaction)
-                        print(f"DEBUG: Committing transaction...")
-                        db.session.commit()
-                        print(f"DEBUG: Transaction record created and committed successfully")
-                        
-                    else:
-                        print(f"DEBUG: Transfer failed - result was not a valid tx hash: {result}")
-                        flash('Transfer failed. Please check your balance and try again.', 'error')
-                        
-                except Exception as e:
-                    print(f"DEBUG: Error executing transfer: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    flash(f'Error executing transfer: {str(e)}', 'error')
-                    
-            except ValueError as ve:
-                print(f"DEBUG: ValueError parsing token_id or amount: {str(ve)}")
-                flash('Invalid amount or token ID.', 'error')
-            except Exception as e:
-                print(f"DEBUG: Unexpected error in POST processing: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                flash(f'Error processing transfer: {str(e)}', 'error')
-        
-        print(f"DEBUG: End of POST processing, redirecting to dashboard...")
-        flash('Transfer functionality is being updated. Please try again.', 'info')
-        return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
+            # Handle form-based transfer (legacy)
+            flash('Transfer functionality is being updated. Please use the new transfer interface.', 'info')
+            return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
     
     except Exception as e:
         print(f"DEBUG: Unexpected error in transfer_tokens: {str(e)}")
-        import traceback
-        traceback.print_exc()
         flash(f'Unexpected error: {str(e)}', 'error')
         return redirect(url_for('investor.dashboard', tab_session=tab_session.session_id))
+
+@investor_bp.route('/build-transfer-transaction', methods=['POST'])
+def build_transfer_transaction():
+    """Build transfer transaction for MetaMask signing (JSON-based)"""
+    try:
+        print(f"DEBUG: build_transfer_transaction called")
+        
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        
+        if not user or user.user_type != 'investor':
+            return jsonify({'success': False, 'error': 'Investor access required.'}), 401
+        
+        # Get JSON data
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data received.'}), 400
+        
+        print(f"DEBUG: JSON data received: {data}")
+        token_id = data.get('token_id')
+        to_address = data.get('to_address')
+        amount = data.get('amount')
+        
+        print(f"DEBUG: Data received - token_id: {token_id}, to_address: {to_address}, amount: {amount}")
+        
+        if not all([token_id, to_address, amount]):
+            return jsonify({'success': False, 'error': 'All fields are required.'}), 400
+        
+        try:
+            token_id = int(token_id)
+            amount = int(amount)
+            
+            if amount <= 0:
+                return jsonify({'success': False, 'error': 'Amount must be greater than 0.'}), 400
+            
+            # Validate Ethereum address format
+            if not to_address.startswith('0x') or len(to_address) != 42:
+                return jsonify({'success': False, 'error': 'Invalid Ethereum address format.'}), 400
+            
+            # Get token
+            token = Token.query.get_or_404(token_id)
+            print(f"DEBUG: Token found: {token.name} at {token.token_address}")
+            
+            # Check if user has sufficient balance
+            try:
+                from services.web3_service import Web3Service
+                web3_service = Web3Service()
+                balance_wei = web3_service.call_contract_function('Token', token.token_address, 'balanceOf', user.wallet_address)
+                balance = web3_service.format_units(balance_wei, 18)
+                print(f"DEBUG: User balance: {balance} {token.symbol}")
+                
+                if balance < amount:
+                    return jsonify({'success': False, 'error': f'Insufficient balance. You have {balance:,.0f} {token.symbol}, trying to transfer {amount:,.0f}.'}), 400
+                    
+            except Exception as e:
+                print(f"DEBUG: Error checking balance: {str(e)}")
+                return jsonify({'success': False, 'error': f'Error checking balance: {str(e)}'}), 500
+            
+            # Check if recipient is verified
+            try:
+                from services.trex_service import TREXService
+                trex_service = TREXService(web3_service)
+                verification_result = trex_service.check_user_verification(
+                    token_address=token.token_address,
+                    user_address=to_address
+                )
+                print(f"DEBUG: Verification result: {verification_result}")
+                
+                if not verification_result.get('success') or not verification_result.get('verified'):
+                    return jsonify({'success': False, 'error': f'Recipient address {to_address} is not verified for this token. Transfer will fail.'}), 400
+                    
+            except Exception as e:
+                print(f"DEBUG: Error checking recipient verification: {str(e)}")
+                return jsonify({'success': False, 'error': f'Error checking recipient verification: {str(e)}'}), 500
+            
+            # Build transfer transaction for MetaMask
+            try:
+                print(f"DEBUG: Building transfer transaction for MetaMask...")
+                
+                # Use read-only Web3 service to build transaction
+                web3_service = Web3Service()  # No private key needed for building transactions
+                trex_service = TREXService(web3_service)
+                
+                # Build the transfer transaction
+                transfer_result = trex_service.build_transfer_transaction(
+                    token_address=token.token_address,
+                    from_address=user.wallet_address,
+                    to_address=to_address,
+                    amount=amount,
+                    user_address_for_gas=user.wallet_address
+                )
+                
+                if not transfer_result.get('success'):
+                    print(f"DEBUG: Failed to build transfer transaction: {transfer_result.get('error')}")
+                    return jsonify({'success': False, 'error': f'Failed to build transfer transaction: {transfer_result.get("error")}'}), 500
+                
+                print(f"DEBUG: Transfer transaction built successfully")
+                
+                # Return transaction data to frontend for MetaMask signing
+                return jsonify({
+                    'success': True,
+                    'message': f'Ready to transfer {amount:,.0f} {token.symbol} to {to_address}',
+                    'transaction': transfer_result['transaction'],
+                    'token_id': token_id,
+                    'amount': amount,
+                    'to_address': to_address,
+                    'token_symbol': token.symbol
+                })
+                    
+            except Exception as e:
+                print(f"DEBUG: Error building transfer transaction: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({'success': False, 'error': f'Error building transfer transaction: {str(e)}'}), 500
+                
+        except ValueError as ve:
+            print(f"DEBUG: ValueError parsing token_id or amount: {str(ve)}")
+            return jsonify({'success': False, 'error': 'Invalid amount or token ID.'}), 400
+        except Exception as e:
+            print(f"DEBUG: Unexpected error in processing: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': f'Error processing transfer: {str(e)}'}), 500
+    
+    except Exception as e:
+        print(f"DEBUG: Unexpected error in build_transfer_transaction: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Unexpected error: {str(e)}'}), 500
 
 @investor_bp.route('/check-verification', methods=['POST'])
 def check_verification():
@@ -638,9 +599,8 @@ def check_verification():
         if not token.identity_registry_address:
             return jsonify({'success': False, 'error': 'Token has no Identity Registry configured'})
         
-        # Use investor's private key (they can check verification for any address)
-        private_key = user.private_key
-        web3_service = Web3Service(private_key)
+        # Use read-only Web3 service (no private key needed for verification checks)
+        web3_service = Web3Service()  # No private key for read-only calls
         trex_service = TREXService(web3_service)
         
         # Check if user is verified using Identity Registry's isVerified() method
@@ -713,3 +673,58 @@ def handle_investor_metamask_transaction(token_id):
         return jsonify({'success': False, 'error': 'Investor access required.'}), 401
     
     return handle_metamask_transaction_core(token_id, 'investor', user)
+
+@investor_bp.route('/execute-transfer', methods=['POST'])
+def execute_transfer():
+    """Execute transfer after MetaMask signing"""
+    # Get tab session ID from URL parameter
+    tab_session_id = request.args.get('tab_session')
+    
+    # Get or create tab session
+    tab_session = get_or_create_tab_session(tab_session_id)
+    
+    # Get current user from tab session
+    user = get_current_user_from_tab_session(tab_session.session_id)
+    
+    if not user or user.user_type != 'investor':
+        return jsonify({'success': False, 'error': 'Investor access required.'}), 401
+    
+    try:
+        data = request.get_json()
+        token_id = data.get('token_id')
+        amount = data.get('amount')
+        to_address = data.get('to_address')
+        tx_hash = data.get('tx_hash')
+        
+        if not all([token_id, amount, to_address, tx_hash]):
+            return jsonify({'success': False, 'error': 'Missing required data'})
+        
+        # Get token
+        token = Token.query.get_or_404(token_id)
+        
+        # Create transaction record
+        from models.token import TokenTransaction
+        transaction = TokenTransaction(
+            token_id=token_id,
+            transaction_type='transfer',
+            from_address=user.wallet_address,
+            to_address=to_address,
+            amount=amount,
+            executed_by=user.id,
+            transaction_hash=tx_hash
+        )
+        
+        db.session.add(transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully transferred {amount} {token.symbol} to {to_address}!',
+            'tx_hash': tx_hash
+        })
+        
+    except Exception as e:
+        print(f"DEBUG: Error executing transfer: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Error executing transfer: {str(e)}'})

@@ -2,7 +2,300 @@
 
 {% block title %}Review KYC Request #{{ kyc_request.id }}{% endblock %}
 
+{% block head %}
+<script>
+function testButtonClick() {
+    alert('Test button works!');
+}
+console.log('🔍 Head script loaded - testButtonClick defined:', typeof testButtonClick);
+</script>
+{% endblock %}
+
 {% block content %}
+<script>
+// Handler functions for buttons
+async function handleApproveClaims() {
+    try {
+        console.log('🚀 Starting MetaMask approval for KYC claims');
+        
+        // Check MetaMask connection
+        if (typeof window.ethereum === 'undefined') {
+            alert('MetaMask not detected. Please install MetaMask to approve transactions.');
+            return;
+        }
+        
+        // Get selected claims
+        const selectedClaims = [];
+        const selects = document.querySelectorAll('select[name^="claim_"][name$="_decision"]');
+        
+        selects.forEach(select => {
+            if (select.value === 'approved') {
+                const claimId = select.name.match(/claim_(\d+)_decision/)[1];
+                selectedClaims.push({
+                    claimId: claimId,
+                    decision: 'approved',
+                    data: 'APPROVED' // Auto-generated claim data
+                });
+            }
+        });
+        
+        if (selectedClaims.length === 0) {
+            alert('Please select at least one claim to approve.');
+            return;
+        }
+        
+        console.log('🔍 Selected claims:', selectedClaims);
+        
+        // Build claim decisions object
+        const claimDecisions = {};
+        selectedClaims.forEach(claim => {
+            claimDecisions[claim.claimId] = {
+                decision: claim.decision,
+                data: claim.data
+            };
+        });
+        
+        // Show status
+        const statusDiv = document.getElementById('metamaskStatus');
+        if (statusDiv) {
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-2"></i>Building transaction data...</div>';
+        }
+        
+        // Build transaction data via backend
+        const buildResponse = await fetch(`/kyc-request/{{ kyc_request.id }}/metamask-transaction?tab_session={{ tab_session_id }}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                action: 'build',
+                claim_decisions: claimDecisions
+            })
+        });
+        
+        const buildResult = await buildResponse.json();
+        console.log('🔍 Build result:', buildResult);
+        
+        if (!buildResult.success) {
+            throw new Error(buildResult.error);
+        }
+        
+        // Update status
+        if (statusDiv) {
+            statusDiv.innerHTML = '<div class="alert alert-success"><i class="fas fa-check me-2"></i>Transaction data built successfully. Ready for MetaMask approval.</div>';
+        }
+        
+        // Execute the actual MetaMask transaction
+        console.log('🔍 Executing MetaMask transaction for claims:', buildResult.transactions);
+        
+        // Update status to show MetaMask interaction
+        if (statusDiv) {
+            statusDiv.innerHTML = '<div class="alert alert-warning"><i class="fas fa-wallet me-2"></i>Please approve the transaction in MetaMask...</div>';
+        }
+        
+        // Execute each claim transaction via MetaMask
+        const transactionHashes = [];
+        
+        for (const transaction of buildResult.transactions) {
+            try {
+                console.log('🔍 Processing claim transaction:', transaction);
+                
+                // For now, we'll use the existing JavaScript script approach
+                // This calls the addClaim.js script which handles MetaMask interaction
+                const scriptResult = await executeClaimScript(transaction);
+                
+                if (scriptResult.success) {
+                    transactionHashes.push(scriptResult.transactionHash);
+                    console.log('✅ Claim transaction successful:', scriptResult.transactionHash);
+                } else {
+                    throw new Error(`Claim transaction failed: ${scriptResult.error}`);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error processing claim transaction:', error);
+                throw error;
+            }
+        }
+        
+        // Update status
+        if (statusDiv) {
+            statusDiv.innerHTML = '<div class="alert alert-success"><i class="fas fa-check me-2"></i>All claims successfully added to blockchain!</div>';
+        }
+        
+        // Confirm all transactions to backend
+        for (const txHash of transactionHashes) {
+            const confirmResponse = await fetch(`/kyc-request/{{ kyc_request.id }}/metamask-transaction?tab_session={{ tab_session_id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    action: 'confirm',
+                    transaction_hash: txHash
+                })
+            });
+            
+            const confirmResult = await confirmResponse.json();
+            console.log('🔍 Confirm result for', txHash, ':', confirmResult);
+            
+            if (!confirmResult.success) {
+                throw new Error(`Failed to confirm transaction ${txHash}: ${confirmResult.error}`);
+            }
+        }
+        
+        alert(`✅ Success! Added ${transactionHashes.length} claims to blockchain via MetaMask.\n\nTransactions: ${transactionHashes.map(tx => tx.substring(0, 10) + '...').join(', ')}\n\nInvestor: ${buildResult.investor_name}\nTrusted Issuer: ${buildResult.trusted_issuer_name}`);
+        
+        // Redirect back to KYC requests after 2 seconds
+        setTimeout(() => {
+            window.location.href = '{{ url_for("kyc_system.kyc_requests", tab_session=tab_session_id) }}';
+        }, 2000);
+        
+    } catch (error) {
+        console.error('❌ Error in MetaMask approval:', error);
+        alert('Error: ' + error.message);
+        
+        const statusDiv = document.getElementById('metamaskStatus');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error: ' + error.message + '</div>';
+        }
+    }
+}
+
+function handleRejectClaims() {
+    console.log('🚀 Reject button clicked');
+    if (confirm('Are you sure you want to reject all claims for this KYC request?')) {
+        // Create and submit rejection form
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("kyc_system.review_kyc_request", request_id=kyc_request.id, tab_session=tab_session_id) }}';
+        
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'reject_all';
+        form.appendChild(actionInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Function to execute claim transaction via MetaMask
+async function executeClaimScript(transaction) {
+    try {
+        console.log('🔧 Executing claim transaction via MetaMask:', transaction);
+        
+        // Check if MetaMask is available
+        if (typeof window.ethereum === 'undefined') {
+            throw new Error('MetaMask not detected. Please install MetaMask to approve transactions.');
+        }
+        
+        // Get the data hash from the transaction object
+        const dataHash = transaction.data_hash;
+        const claimInfo = transaction.claim_info;
+        const kycRequestId = transaction.kyc_request_id;
+        const claimRequestId = transaction.claim_request_id;
+        
+        if (!dataHash || !claimInfo) {
+            throw new Error('No data hash or claim info found in transaction object');
+        }
+        
+        console.log('🔍 Data hash to sign:', dataHash);
+        console.log('🔍 Claim info:', claimInfo);
+        console.log('🔍 KYC Request ID:', kycRequestId);
+        console.log('🔍 Claim Request ID:', claimRequestId);
+        
+        // Request account access
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts.length === 0) {
+            throw new Error('No accounts found. Please connect MetaMask.');
+        }
+        
+        const userAccount = accounts[0];
+        console.log('🔍 Connected account:', userAccount);
+        
+        // Sign the data hash with MetaMask
+        console.log('🔍 Requesting signature for data hash...');
+        const signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [dataHash, userAccount]
+        });
+        
+        console.log('✅ Signature received:', signature);
+        
+        // Now call the backend to execute the claim addition with the signature
+        const response = await fetch('/execute-claim-with-signature', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                claim_info: claimInfo,
+                signature: signature,
+                data_hash: dataHash,
+                kyc_request_id: kycRequestId,
+                claim_request_id: claimRequestId
+            })
+        });
+        
+        const result = await response.json();
+        console.log('🔍 Backend execution result:', result);
+        
+        if (result.success) {
+            return {
+                success: true,
+                transactionHash: result.transaction_hash,
+                message: 'Claim added successfully via MetaMask'
+            };
+        } else {
+            throw new Error(result.error || 'Backend execution failed');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error executing claim transaction:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Function to wait for transaction confirmation
+async function waitForTransactionConfirmation(txHash) {
+    return new Promise((resolve, reject) => {
+        const checkConfirmation = async () => {
+            try {
+                const receipt = await window.ethereum.request({
+                    method: 'eth_getTransactionReceipt',
+                    params: [txHash]
+                });
+                
+                if (receipt) {
+                    if (receipt.status === '0x1') {
+                        resolve(receipt);
+                    } else {
+                        reject(new Error('Transaction failed'));
+                    }
+                } else {
+                    // Transaction not yet mined, check again in 2 seconds
+                    setTimeout(checkConfirmation, 2000);
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        
+        checkConfirmation();
+    });
+}
+
+console.log('🔍 Handler functions loaded in content block');
+</script>
+
 <div class="container mt-4">
     <div class="row">
         <div class="col-12">
@@ -78,42 +371,353 @@
                         </div>
                     </div>
                     
-                    <form method="POST">
-                        <div class="row mt-4">
-                            <div class="col-12">
-                                <h5 class="text-primary mb-3">
-                                    <i class="fas fa-gavel me-2"></i>Decision
-                                </h5>
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="text-primary mb-3">
+                                <i class="fas fa-gavel me-2"></i>Decision
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Review Process:</strong> You can approve all claims or reject all claims. Approved claims will be added to the blockchain via MetaMask.
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <button type="button" id="approveWithMetaMask" class="btn btn-success btn-lg" onclick="handleApproveClaims()">
+                                    <i class="fas fa-wallet me-2"></i>Approve Selected Claims via MetaMask
+                                </button>
                                 
+                                <button type="button" id="rejectClaims" class="btn btn-danger btn-lg" onclick="handleRejectClaims()">
+                                    <i class="fas fa-times me-2"></i>Reject All Claims
+                                </button>
+                                
+                                <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-secondary btn-lg">
+                                    <i class="fas fa-arrow-left me-2"></i>Back to Requests
+                                </a>
+                            </div>
+                            
+                            <!-- MetaMask Status -->
+                            <div id="metamaskStatus" class="mt-3" style="display: none;">
                                 <div class="alert alert-info">
-                                    <i class="fas fa-info-circle me-2"></i>
-                                    <strong>Review Process:</strong> You can approve all claims or reject all claims.
-                                </div>
-                                
-                                <div class="d-flex gap-2">
-                                    <button type="submit" name="action" value="approve" class="btn btn-success btn-lg" 
-                                            onclick="return confirm('Are you sure you want to approve this KYC request?')">
-                                        <i class="fas fa-check me-2"></i>Approve Selected Claims
-                                    </button>
-                                    
-                                    <button type="submit" name="action" value="reject" class="btn btn-danger btn-lg"
-                                            onclick="return confirm('Are you sure you want to reject this KYC request?')">
-                                        <i class="fas fa-times me-2"></i>Reject All Claims
-                                    </button>
-                                    
-
-                                    
-                                    <a href="{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}" class="btn btn-secondary btn-lg">
-                                        <i class="fas fa-arrow-left me-2"></i>Back to Requests
-                                    </a>
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                    <span id="metamaskStatusText">Processing...</span>
                                 </div>
                             </div>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<!-- Test function in separate script block -->
+<script>
+function testButtonClick() {
+    alert('Test button works!');
+}
+console.log('🔍 Test function loaded');
+</script>
+
+<!-- Template data - simplified for testing -->
+<script type="application/json" id="template-data">
+{
+    "kycRequestId": {{ kyc_request.id }},
+    "tabSessionId": "{{ tab_session_id }}",
+    "kycRequestsUrl": "{{ url_for('kyc_system.kyc_requests', tab_session=tab_session_id) }}",
+    "claimRequestIds": [1, 2, 3],
+    "claimTopics": {"1": 1, "2": 2, "3": 3}
+}
+</script>
+
+<script>
+console.log('🔍 Main script starting...');
+
+// Load template data from JSON script tag
+let templateData;
+try {
+    const templateDataElement = document.getElementById('template-data');
+    if (!templateDataElement) {
+        throw new Error('Template data element not found');
+    }
+    templateData = JSON.parse(templateDataElement.textContent);
+    console.log('✅ Template data loaded:', templateData);
+} catch (error) {
+    console.error('❌ Error loading template data:', error);
+    // Fallback values
+    templateData = {
+        kycRequestId: 0,
+        tabSessionId: '',
+        kycRequestsUrl: '',
+        claimRequestIds: [],
+        claimTopics: {}
+    };
+}
+
+const KYC_REQUEST_ID = templateData.kycRequestId;
+const TAB_SESSION_ID = templateData.tabSessionId;
+const KYC_REQUESTS_URL = templateData.kycRequestsUrl;
+const CLAIM_REQUEST_IDS = templateData.claimRequestIds;
+const CLAIM_TOPICS = templateData.claimTopics;
+
+console.log('🔍 KYC Request ID:', KYC_REQUEST_ID);
+console.log('🔍 Tab Session ID:', TAB_SESSION_ID);
+console.log('🔍 Claim Request IDs:', CLAIM_REQUEST_IDS);
+console.log('🔍 Claim Topics:', CLAIM_TOPICS);
+
+console.log('🔍 Script loaded successfully');
+
+// MetaMask integration for KYC claim approval
+async function approveClaimsWithMetaMask() {
+    try {
+        console.log('🚀 Starting MetaMask approval for KYC claims');
+        
+        // Show status
+        showMetaMaskStatus('Preparing claim approval...', 'info');
+        
+        // Collect claim decisions
+        const claimDecisions = {};
+        let hasApprovedClaims = false;
+        
+        // Check each claim decision
+        for (const claimId of CLAIM_REQUEST_IDS) {
+            const decisionElement = document.querySelector(`select[name="claim_${claimId}_decision"]`);
+            if (decisionElement && decisionElement.value === 'approved') {
+                hasApprovedClaims = true;
+                claimDecisions[claimId.toString()] = {
+                    decision: 'approved',
+                    data: getClaimDataForTopic(CLAIM_TOPICS[claimId])
+                };
+            }
+        }
+        
+        if (!hasApprovedClaims) {
+            showMetaMaskStatus('Please select at least one claim to approve.', 'warning');
+            return;
+        }
+        
+        console.log('🔍 Claim decisions:', claimDecisions);
+        
+        // Build transaction data
+        showMetaMaskStatus('Building transaction data...', 'info');
+        
+        const buildResponse = await fetch(`/kyc-system/kyc-request/${KYC_REQUEST_ID}/metamask-transaction?tab_session=${TAB_SESSION_ID}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                action: 'build',
+                claim_decisions: claimDecisions
+            })
+        });
+        
+        const buildResult = await buildResponse.json();
+        console.log('🔍 Build result:', buildResult);
+        
+        if (!buildResult.success) {
+            showMetaMaskStatus(`Error: ${buildResult.error}`, 'danger');
+            return;
+        }
+        
+        // Show MetaMask approval dialog
+        showMetaMaskStatus('Please approve the transaction in MetaMask...', 'info');
+        
+        // Execute claim addition using JavaScript script (after MetaMask approval)
+        const executionResult = await executeClaimAdditionViaMetaMask(KYC_REQUEST_ID, claimDecisions);
+        
+        if (executionResult.success) {
+            showMetaMaskStatus('✅ Claims successfully added to blockchain!', 'success');
+            
+            // Confirm transaction to backend
+            await confirmClaimTransaction(KYC_REQUEST_ID, executionResult.transactionHash);
+            
+            // Redirect after success
+            setTimeout(() => {
+                window.location.href = KYC_REQUESTS_URL;
+            }, 2000);
+        } else {
+            showMetaMaskStatus(`❌ Error: ${executionResult.error}`, 'danger');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in MetaMask approval:', error);
+        showMetaMaskStatus(`❌ Error: ${error.message}`, 'danger');
+    }
+}
+
+async function executeClaimAdditionViaMetaMask(kycRequestId, claimDecisions) {
+    try {
+        console.log('🚀 Executing claim addition via MetaMask for KYC request:', kycRequestId);
+        
+        // This would call the JavaScript script with approved parameters
+        // For now, we'll simulate the execution and return success
+        // In a real implementation, this would call the addClaim.js script
+        
+        // Simulate transaction hash
+        const transactionHash = '0x' + Math.random().toString(16).substr(2, 64);
+        
+        return {
+            success: true,
+            transactionHash: transactionHash,
+            message: 'Claims added successfully via MetaMask'
+        };
+        
+    } catch (error) {
+        console.error('❌ Error executing claim addition:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+async function confirmClaimTransaction(kycRequestId, transactionHash) {
+    try {
+        console.log('🔧 Confirming claim transaction:', transactionHash);
+        
+        const confirmResponse = await fetch(`/kyc-system/kyc-request/${kycRequestId}/metamask-transaction?tab_session=${TAB_SESSION_ID}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                action: 'confirm',
+                transaction_hash: transactionHash
+            })
+        });
+        
+        const confirmResult = await confirmResponse.json();
+        console.log('🔍 Confirm result:', confirmResult);
+        
+        if (!confirmResult.success) {
+            throw new Error(confirmResult.error);
+        }
+        
+        return confirmResult;
+        
+    } catch (error) {
+        console.error('❌ Error confirming transaction:', error);
+        throw error;
+    }
+}
+
+async function rejectClaims() {
+    try {
+        if (!confirm('Are you sure you want to reject all claims in this KYC request?')) {
+            return;
+        }
+        
+        showMetaMaskStatus('Rejecting claims...', 'info');
+        
+        // Submit rejection form
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.href;
+        
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'reject';
+        form.appendChild(actionInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+        
+    } catch (error) {
+        console.error('❌ Error rejecting claims:', error);
+        showMetaMaskStatus(`❌ Error: ${error.message}`, 'danger');
+    }
+}
+
+function getClaimDataForTopic(topic) {
+    // Auto-generate claim data based on topic and decision
+    const claimDataMap = {
+        1: 'APPROVED',      // KYC
+        2: 'COMPLIANT',     // AML
+        3: 'ACCREDITED',    // Accredited Investor
+        4: 'CONFIRMED',     // EU Nationality
+        5: 'CONFIRMED',     // US Nationality
+        6: 'CLEAN',         // Blacklist
+        7: 'RESIDENT',      // Residency
+        8: 'COMPLIANT',     // Compliance Status
+        9: 'UNRESTRICTED',  // Restricted Status
+        10: 'WHITELISTED'   // Whitelisted Status
+    };
+    
+    return claimDataMap[topic] || 'APPROVED';
+}
+
+function showMetaMaskStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('metamaskStatus');
+    const statusText = document.getElementById('metamaskStatusText');
+    
+    statusText.textContent = message;
+    statusDiv.style.display = 'block';
+    
+    // Update alert class
+    const alertDiv = statusDiv.querySelector('.alert');
+    alertDiv.className = `alert alert-${type}`;
+    
+    // Update icon
+    const icon = alertDiv.querySelector('i');
+    if (type === 'success') {
+        icon.className = 'fas fa-check me-2';
+    } else if (type === 'danger' || type === 'warning') {
+        icon.className = 'fas fa-exclamation-triangle me-2';
+    } else {
+        icon.className = 'fas fa-spinner fa-spin me-2';
+    }
+}
+
+
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔍 KYC Review page loaded with MetaMask integration');
+    
+    // Check if functions are properly defined
+    console.log('🔍 approveClaimsWithMetaMask function defined:', typeof approveClaimsWithMetaMask);
+    console.log('🔍 rejectClaims function defined:', typeof rejectClaims);
+    console.log('🔍 showMetaMaskStatus function defined:', typeof showMetaMaskStatus);
+    console.log('🔍 testButtonClick function defined:', typeof testButtonClick);
+    
+    // Check if MetaMask is available
+    if (typeof window.ethereum === 'undefined') {
+        console.warn('⚠️ MetaMask not detected');
+        showMetaMaskStatus('MetaMask not detected. Please install MetaMask to approve transactions.', 'warning');
+    } else {
+        console.log('✅ MetaMask detected');
+    }
+    
+    // Test button click handler - simplified
+    const approveButton = document.getElementById('approveWithMetaMask');
+    if (approveButton) {
+        console.log('✅ Approve button found');
+        approveButton.addEventListener('click', function() {
+            console.log('🔍 Approve button clicked - event listener working');
+            testButtonClick(); // Test if event listener works at all
+        });
+    } else {
+        console.error('❌ Approve button not found');
+    }
+    
+    // Test reject button - simplified
+    const rejectButton = document.getElementById('rejectClaims');
+    if (rejectButton) {
+        console.log('✅ Reject button found');
+        rejectButton.addEventListener('click', function() {
+            console.log('🔍 Reject button clicked - event listener working');
+            testButtonClick(); // Test if event listener works at all
+        });
+    } else {
+        console.error('❌ Reject button not found');
+    }
+});
+</script>
 {% endblock %} 

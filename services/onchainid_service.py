@@ -115,9 +115,10 @@ class OnchainIDService:
                 
                 if user:
                     # The wallet address automatically becomes a management key when createIdentity is called
-                    # The key hash is the keccak hash of the wallet address
+                    # The key hash is the keccak hash of the wallet address using 32-byte ABI encoding
                     # Use the web3_service from this OnchainIDService instance
-                    key_hash = self.web3_service.web3.keccak(text=wallet_address).hex()
+                    from eth_abi import encode as encode_abi
+                    key_hash = self.web3_service.web3.keccak(encode_abi(['address'], [wallet_address])).hex()
                     
                     print(f"🔍 Indexing initial management key for wallet {wallet_address}")
                     print(f"🔍 Calculated key hash: {key_hash}")
@@ -265,7 +266,7 @@ class OnchainIDService:
             print(f"🎯 Getting claims for OnchainID: {onchainid_address}")
             
             # Get OnchainID contract using Web3Service
-            onchainid_contract = self.web3_service.get_contract('Identity', onchainid_address)
+            onchainid_contract = self.web3_service.get_contract(onchainid_address, 'Identity')
             if not onchainid_contract:
                 raise Exception("Failed to get Identity contract")
             
@@ -320,7 +321,7 @@ class OnchainIDService:
             print(f"📋 Topic: {topic}, Issuer: {issuer}")
             
             # Get OnchainID contract using Web3Service
-            onchainid_contract = self.web3_service.get_contract('Identity', onchainid_address)
+            onchainid_contract = self.web3_service.get_contract(onchainid_address, 'Identity')
             if not onchainid_contract:
                 raise Exception("Failed to get Identity contract")
             
@@ -1063,7 +1064,7 @@ class OnchainIDService:
             print(f"🔑 Adding key {key_address} to OnchainID {onchainid_address} with purpose {purpose}")
             
             # Get OnchainID contract
-            onchainid_contract = self.web3_service.get_contract('Identity', onchainid_address)
+            onchainid_contract = self.web3_service.get_contract(onchainid_address, 'Identity')
             if not onchainid_contract:
                 raise Exception("Failed to get OnchainID contract")
             
@@ -1080,10 +1081,9 @@ class OnchainIDService:
             # Note: keyHasPurpose(bytes32, uint256) expects a key hash, not an address
             # Let's implement proper permission checking using the correct function signature
             
-            # Hash the caller's address to check permissions
-            caller_key_hash = self.web3_service.w3.keccak(
-                self.web3_service.w3.codec.encode(['address'], [caller_address])
-            )
+            # Hash the caller's address to check permissions using 32-byte ABI encoding
+            from eth_abi import encode as encode_abi
+            caller_key_hash = self.web3_service.w3.keccak(encode_abi(['address'], [caller_address]))
             
             # Check if caller has management key (purpose 1)
             try:
@@ -1109,10 +1109,8 @@ class OnchainIDService:
             # The addKey function signature is: addKey(bytes32, uint256, uint256)
             # We need to hash the key address and use key type 1 (ECDSA)
             
-            # Hash the key address using the same method as in addClaim.js
-            key_hash = self.web3_service.w3.keccak(
-                self.web3_service.w3.codec.encode(['address'], [key_address])
-            )
+            # Hash the key address using 32-byte ABI encoding
+            key_hash = self.web3_service.w3.keccak(encode_abi(['address'], [key_address]))
             
             # Key type 1 = ECDSA (standard for OnchainID)
             key_type = 1
@@ -1206,7 +1204,7 @@ class OnchainIDService:
             print(f"🗑️ Removing key {key_address} from OnchainID {onchainid_address}")
             
             # Get OnchainID contract
-            onchainid_contract = self.web3_service.get_contract('Identity', onchainid_address)
+            onchainid_contract = self.web3_service.get_contract(onchainid_address, 'Identity')
             if not onchainid_contract:
                 raise Exception("Failed to get OnchainID contract")
             
@@ -1223,10 +1221,9 @@ class OnchainIDService:
             # Note: keyHasPurpose(bytes32, uint256) expects a key hash, not an address
             # Let's implement proper permission checking using the correct function signature
             
-            # Hash the caller's address to check permissions
-            caller_key_hash = self.web3_service.w3.keccak(
-                self.web3_service.w3.codec.encode(['address'], [caller_address])
-            )
+            # Hash the caller's address to check permissions using 32-byte ABI encoding
+            from eth_abi import encode as encode_abi
+            caller_key_hash = self.web3_service.w3.keccak(encode_abi(['address'], [caller_address]))
             
             # Check if caller has management key (purpose 1)
             try:
@@ -1252,10 +1249,8 @@ class OnchainIDService:
             # The removeKey function signature is: removeKey(bytes32, uint256)
             # We need to hash the key address and specify the purpose to remove
             
-            # Hash the key address using the same method as in addClaim.js
-            key_hash = self.web3_service.w3.keccak(
-                self.web3_service.w3.codec.encode(['address'], [key_address])
-            )
+            # Hash the key address using 32-byte ABI encoding
+            key_hash = self.web3_service.w3.keccak(encode_abi(['address'], [key_address]))
             
             print(f"🔧 Removing key address: {key_address}")
             print(f"🔧 Removing key hash: {key_hash.hex()}")

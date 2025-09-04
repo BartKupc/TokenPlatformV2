@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from models import db
 from models.user import User, TrustedIssuerApproval, UserOnchainID, UserClaim
 from utils.session_utils import get_or_create_tab_session, get_current_user_from_tab_session
-from utils.auth_utils import hash_password, decrypt_private_key
+from utils.auth_utils import hash_password
 from services.onchainid_service import OnchainIDService
 from services.web3_service import Web3Service
 from config.claim_topics import get_all_topics
@@ -121,312 +121,7 @@ def dashboard():
                          approval=approval,
                          tab_session_id=tab_session.session_id)
 
-@trusted_issuer_bp.route('/kyc-approve/<int:user_id>', methods=['POST'])
-def approve_kyc(user_id):
-    """Approve investor KYC - CORRECT T-REX Architecture
-    
-    This function now follows the SECURE architecture where:
-    - Investor OnchainID has ONLY Account 0 (deployer) as management key
-    - Trusted issuer keys are ONLY on ClaimIssuer contract
-    - NO third-party management keys are added to investor OnchainID
-    - Redirects to new multi-lane KYC system for claim addition
-    """
-    print(f"🚀 KYC approval function called for user_id: {user_id}")
-    with open("/tmp/tokenplatform_debug.log", "a") as f:
-        f.write(f"🚀 KYC approval function called for user_id: {user_id}\n")
-    
-    # Get tab session ID from URL parameter
-    tab_session_id = request.args.get('tab_session')
-    
-    # Get or create tab session
-    tab_session = get_or_create_tab_session(tab_session_id)
-    
-    # Get current user from tab session
-    trusted_issuer = get_current_user_from_tab_session(tab_session.session_id)
-    
-    if not trusted_issuer or trusted_issuer.user_type != 'trusted_issuer':
-        flash('Trusted Issuer access required.', 'error')
-        return redirect(url_for('trusted_issuer.login', tab_session=tab_session.session_id))
-    
-    # Check if trusted issuer is approved
-    approval = TrustedIssuerApproval.query.filter_by(trusted_issuer_id=trusted_issuer.id).first()
-    if not approval or approval.status != 'approved':
-        flash('Your trusted issuer capabilities must be approved by admin first.', 'error')
-        return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-    
-    # Get investor
-    investor = User.query.get_or_404(user_id)
-    print(f"🔍 Investor: {investor.username} (type: {investor.user_type})")
-    with open("/tmp/tokenplatform_debug.log", "a") as f:
-        f.write(f"🔍 Investor: {investor.username} (type: {investor.user_type})\n")
-    
-    if investor.user_type != 'investor':
-        error_msg = f"❌ Only investors can have KYC approved. User type: {investor.user_type}"
-        print(error_msg)
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"{error_msg}\n")
-        flash('Only investors can have KYC approved.', 'error')
-        return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-    
-    try:
-        # Check if investor has OnchainID (should exist from registration)
-        print(f"🔍 Investor OnchainID: {investor.onchain_id}")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Investor OnchainID: {investor.onchain_id}\n")
-        
-        if not investor.onchain_id:
-            error_msg = f"❌ Investor {investor.username} does not have an OnchainID"
-            print(error_msg)
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"{error_msg}\n")
-            flash(f'Investor {investor.username} does not have an OnchainID. Please ensure registration completed successfully.', 'error')
-            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-        
-        # Add KYC claim to existing OnchainID
-        print("🔧 Starting service initialization...")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write("🔧 Starting service initialization...\n")
-        
-        from services.onchainid_service import OnchainIDService
-        from services.trex_service import TREXService
-        from services.web3_service import Web3Service
-        from utils.auth_utils import decrypt_private_key
-        
-        # Get trusted issuer's private key (more realistic - trusted issuer uses their own key)
-        print("🔧 Decrypting trusted issuer private key...")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write("🔧 Decrypting trusted issuer private key...\n")
-        
-        print(f"🔍 Trusted issuer username: {trusted_issuer.username}")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Trusted issuer username: {trusted_issuer.username}\n")
-        
-        print(f"🔍 Trusted issuer wallet address: {trusted_issuer.wallet_address}")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Trusted issuer wallet address: {trusted_issuer.wallet_address}\n")
-        
-        print(f"🔍 Full encrypted private key from DB: '{trusted_issuer.private_key}'")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Full encrypted private key from DB: '{trusted_issuer.private_key}'\n")
-        
-        print(f"🔍 Encrypted private key length: {len(trusted_issuer.private_key)}")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Encrypted private key length: {len(trusted_issuer.private_key)}\n")
-        
-        print(f"🔍 Encrypted private key starts with '0x': {trusted_issuer.private_key.startswith('0x')}")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Encrypted private key starts with '0x': {trusted_issuer.private_key.startswith('0x')}\n")
-        
-        try:
-            print("🔧 Getting private key directly (no encryption)...")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("🔧 Getting private key directly (no encryption)...\n")
-            
-            trusted_issuer_private_key = trusted_issuer.private_key
-            
-            print(f"🔍 Private key from DB: '{trusted_issuer_private_key}'")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"🔍 Private key from DB: '{trusted_issuer_private_key}'\n")
-            
-            print(f"🔍 Private key length: {len(trusted_issuer_private_key)}")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"🔍 Private key length: {len(trusted_issuer_private_key)}\n")
-            
-            print(f"🔍 Private key starts with '0x': {trusted_issuer_private_key.startswith('0x')}")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"🔍 Private key starts with '0x': {trusted_issuer_private_key.startswith('0x')}\n")
-            
-            print(f"🔍 Private key is valid hex: {len(trusted_issuer_private_key) == 66}")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"🔍 Private key is valid hex: {len(trusted_issuer_private_key) == 66}\n")
-                
-        except Exception as e:
-            error_msg = f"❌ Error getting private key: {str(e)}"
-            print(error_msg)
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"{error_msg}\n")
-            flash(f'Error getting private key: {str(e)}', 'error')
-            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-        
-        # Initialize services
-        try:
-            print("🔧 Initializing Web3Service with trusted issuer key...")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("🔧 Initializing Web3Service with trusted issuer key...\n")
-            
-            web3_service = Web3Service(trusted_issuer_private_key)
-            print("✅ Web3Service initialized successfully with trusted issuer key")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("✅ Web3Service initialized successfully with trusted issuer key\n")
-            
-            print("🔧 Initializing TREXService...")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("🔧 Initializing TREXService...\n")
-            
-            trex_service = TREXService(web3_service)
-            print("✅ TREXService initialized successfully")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("✅ TREXService initialized successfully\n")
-            
-            print("🔧 Initializing OnchainIDService...")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("🔧 Initializing OnchainIDService...\n")
-            
-            onchainid_service = OnchainIDService(web3_service)
-            print("✅ OnchainIDService initialized successfully")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("✅ OnchainIDService initialized successfully\n")
-                
-        except Exception as e:
-            error_msg = f"❌ Error initializing services: {str(e)}"
-            print(error_msg)
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"{error_msg}\n")
-            flash(f'Error initializing services: {str(e)}', 'error')
-            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-        
-        # Get selected claims from form
-        claims_to_add = request.form.getlist('claims_to_add')
-        print(f"🔍 Selected claims: {claims_to_add}")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write(f"🔍 Selected claims: {claims_to_add}\n")
-        
-        if not claims_to_add:
-            error_msg = "❌ No claims selected"
-            print(error_msg)
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"{error_msg}\n")
-            flash('Please select at least one claim to add.', 'error')
-            return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
-        
-        # Add selected claims to the investor's OnchainID
-        added_claims = []
-        failed_claims = []
-        user_claims_to_add = []  # Store UserClaim objects to add later
-        
-        print("🔧 Starting blockchain transactions for all claims...")
-        with open("/tmp/tokenplatform_debug.log", "a") as f:
-            f.write("🔧 Starting blockchain transactions for all claims...\n")
-        
-        for claim_string in claims_to_add:
-            # Parse claim string (format: "topic:data")
-            topic, data = claim_string.split(':', 1)
-            topic = int(topic)
-            
-            print(f"🔧 Processing claim: Topic {topic}, Data: {data}")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"🔧 Processing claim: Topic {topic}, Data: {data}\n")
-            
-            # Encode claim data properly for blockchain (following the T-REX approach)
-            # Convert claim value to UTF-8 bytes and then hexlify (like ethers.utils.hexlify(ethers.utils.toUtf8Bytes(claimValue)))
-            try:
-                debug_msg = f"""
-{'=' * 50}
-DEBUG: CLAIM DATA ENCODING
-{'=' * 50}
-🔍 Original data: '{data}' (type: {type(data)})
-"""
-                print(debug_msg)
-                
-                # Also write to file
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"{debug_msg}\n")
-                
-                # Convert string to UTF-8 bytes, then to hex
-                data_bytes = data.encode('utf-8')
-                data_msg = f"🔍 Data bytes: {data_bytes}"
-                print(data_msg)
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"{data_msg}\n")
-                
-                encoded_data = '0x' + data_bytes.hex()
-                encoded_msg = f"🔧 Encoded '{data}' to '{encoded_data}'"
-                print(encoded_msg)
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"{encoded_msg}\n")
-                
-                end_msg = f"{'=' * 50}"
-                print(end_msg)
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"{end_msg}\n")
-                    
-            except Exception as e:
-                error_msg = f"ERROR: Could not encode data '{data}' to hex: {e}"
-                print(error_msg)
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"{error_msg}\n")
-                # Fallback: use empty bytes
-                encoded_data = '0x'
-            
-            # Add claim to OnchainID using hybrid service
-            from services.hybrid_claim_service import HybridClaimService
-            hybrid_service = HybridClaimService()
-            
-            claim_result = hybrid_service.add_claim(
-                investor_user_id=investor.id,
-                trusted_issuer_user_id=trusted_issuer.id,
-                topic=topic,
-                data=data
-            )
-            
-            if claim_result['success']:
-                # Store UserClaim object for later addition (don't add to session yet)
-                from models.user import UserClaim
-                user_claim = UserClaim(
-                    user_id=investor.id,
-                    claim_topic=topic,
-                    claim_data=encoded_data,
-                    issued_by=trusted_issuer.id,
-                    onchain_tx_hash=claim_result.get('transaction_hash')  # Use correct field name
-                )
-                user_claims_to_add.append(user_claim)
-                added_claims.append(f"Topic {topic}: {data}")
-                print(f"✅ Claim {topic} added successfully: {claim_result.get('tx_hash')}")
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"✅ Claim {topic} added successfully: {claim_result.get('tx_hash')}\n")
-            else:
-                failed_claims.append(f"Topic {topic}: {data} - {claim_result['error']}")
-                print(f"❌ Claim {topic} failed: {claim_result['error']}")
-                with open("/tmp/tokenplatform_debug.log", "a") as f:
-                    f.write(f"❌ Claim {topic} failed: {claim_result['error']}\n")
-        
-        # Only update database if ALL claims were successful
-        if failed_claims:
-            # Some claims failed - don't update database
-            error_msg = f'KYC approval failed. Failed claims: {", ".join(failed_claims)}'
-            print(f"❌ {error_msg}")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"❌ {error_msg}\n")
-            flash(error_msg, 'error')
-        else:
-            # All claims successful - update database
-            print("✅ All claims successful, updating database...")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write("✅ All claims successful, updating database...\n")
-            
-            # Add all UserClaim records
-            for user_claim in user_claims_to_add:
-                db.session.add(user_claim)
-            
-            # Update KYC status
-            investor.kyc_status = 'approved'
-            investor.kyc_approved_by = trusted_issuer.id
-            investor.kyc_approved_at = db.func.now()
-            
-            # Commit all changes
-            db.session.commit()
-            
-            success_msg = f'KYC approved for {investor.username}. Added claims: {", ".join(added_claims)}'
-            print(f"✅ {success_msg}")
-            with open("/tmp/tokenplatform_debug.log", "a") as f:
-                f.write(f"✅ {success_msg}\n")
-            flash(success_msg, 'success')
-        
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error approving KYC: {str(e)}', 'error')
-    
-    return redirect(url_for('trusted_issuer.dashboard', tab_session=tab_session.session_id))
+# Legacy KYC approval route removed - now using kyc_system.review_kyc_request
 
 @trusted_issuer_bp.route('/step1-add-issuer/<int:user_id>', methods=['POST'])
 def step1_add_issuer(user_id):
@@ -811,4 +506,117 @@ def handle_trusted_issuer_metamask_transaction(token_id):
     if not user or user.user_type != 'trusted_issuer':
         return jsonify({'success': False, 'error': 'Trusted Issuer access required.'}), 401
     
-    return handle_metamask_transaction_core(token_id, 'trusted_issuer', user) 
+    return handle_metamask_transaction_core(token_id, 'trusted_issuer', user)
+
+def execute_claim_addition_with_metamask_approval(kyc_request, claim_decisions):
+    """Execute claim addition using JavaScript script after MetaMask approval"""
+    try:
+        print(f"🚀 Executing claim addition with MetaMask approval for KYC request {kyc_request.id}")
+        
+        # Get the investor and trusted issuer
+        investor = kyc_request.investor
+        trusted_issuer = kyc_request.trusted_issuer
+        
+        if not investor.onchain_id:
+            return {'success': False, 'error': 'Investor has no OnchainID'}
+        
+        if not trusted_issuer.claim_issuer_address:
+            return {'success': False, 'error': 'Trusted issuer has no ClaimIssuer contract'}
+        
+        # Use the existing hybrid claim service to execute claims
+        from services.hybrid_claim_service import HybridClaimService
+        hybrid_service = HybridClaimService()
+        
+        successful_claims = []
+        failed_claims = []
+        
+        for claim_request in kyc_request.claim_requests:
+            claim_id = str(claim_request.id)
+            if claim_id not in claim_decisions:
+                continue
+                
+            decision = claim_decisions[claim_id]
+            if decision.get('decision') != 'approved':
+                continue
+            
+            # Execute claim addition using existing JavaScript script
+            result = hybrid_service.add_claim(
+                investor_user_id=investor.id,
+                trusted_issuer_user_id=trusted_issuer.id,
+                topic=claim_request.claim_topic,
+                data=decision['data']
+            )
+            
+            if result['success']:
+                successful_claims.append({
+                    'claim_request_id': claim_request.id,
+                    'topic': claim_request.claim_topic,
+                    'data': decision['data'],
+                    'transaction_hash': result.get('transaction_hash')
+                })
+            else:
+                failed_claims.append({
+                    'claim_request_id': claim_request.id,
+                    'topic': claim_request.claim_topic,
+                    'error': result.get('error')
+                })
+        
+        if failed_claims:
+            return {
+                'success': False,
+                'error': f'Some claims failed: {len(failed_claims)} failed, {len(successful_claims)} successful',
+                'successful_claims': successful_claims,
+                'failed_claims': failed_claims
+            }
+        
+        return {
+            'success': True,
+            'message': f'Successfully added {len(successful_claims)} claims to blockchain',
+            'successful_claims': successful_claims,
+            'transaction_hashes': [claim['transaction_hash'] for claim in successful_claims]
+        }
+        
+    except Exception as e:
+        print(f"❌ Error executing claim addition with MetaMask approval: {e}")
+        return {'success': False, 'error': str(e)}
+
+def build_claim_verification_data(kyc_request):
+    """Build data needed for claim verification before execution"""
+    try:
+        print(f"🔧 Building claim verification data for KYC request {kyc_request.id}")
+        
+        # Get the investor and trusted issuer
+        investor = kyc_request.investor
+        trusted_issuer = kyc_request.trusted_issuer
+        
+        verification_data = {
+            'kyc_request_id': kyc_request.id,
+            'investor': {
+                'id': investor.id,
+                'username': investor.username,
+                'wallet_address': investor.wallet_address,
+                'onchain_id': investor.onchain_id
+            },
+            'trusted_issuer': {
+                'id': trusted_issuer.id,
+                'username': trusted_issuer.username,
+                'wallet_address': trusted_issuer.wallet_address,
+                'claim_issuer_address': trusted_issuer.claim_issuer_address
+            },
+            'claim_requests': []
+        }
+        
+        for claim_request in kyc_request.claim_requests:
+            claim_data = {
+                'id': claim_request.id,
+                'topic': claim_request.claim_topic,
+                'requested_data': claim_request.requested_claim_data,
+                'status': claim_request.status
+            }
+            verification_data['claim_requests'].append(claim_data)
+        
+        return verification_data
+        
+    except Exception as e:
+        print(f"❌ Error building claim verification data: {e}")
+        return None 

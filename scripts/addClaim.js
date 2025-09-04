@@ -96,18 +96,36 @@ async function addClaim(investorOnchainID, trustedIssuerAddress, claimIssuerAddr
         // STEP 4: CREATE SIGNATURE
         console.log("✍️ Creating signature...");
         
-        // Create a wallet from the trusted issuer's private key
-        const trustedIssuerWallet = new ethers.Wallet(trustedIssuerPrivateKey);
-        console.log("✅ Created wallet from private key for address:", trustedIssuerWallet.address);
+        let signature;
         
-        // Verify the wallet address matches the expected trusted issuer address
-        if (trustedIssuerWallet.address.toLowerCase() !== trustedIssuerAddress.toLowerCase()) {
-            throw new Error(`Private key mismatch: expected ${trustedIssuerAddress}, got ${trustedIssuerWallet.address}`);
+        // Check if we have a MetaMask signature
+        if (global.metamaskSignature && global.metamaskSignature !== "METAMASK_SIGNATURE" && global.metamaskSignature !== "0xMETAMASK_SIGNATURE") {
+            console.log("✅ Using MetaMask signature:", global.metamaskSignature);
+            signature = global.metamaskSignature;
+            
+            // Verify the data hash matches
+            if (global.dataHash && global.dataHash !== dataHash) {
+                console.log("⚠️ WARNING: Data hash mismatch!");
+                console.log("   Expected:", dataHash);
+                console.log("   Received:", global.dataHash);
+            }
+        } else {
+            // Fallback to private key signing (original behavior)
+            console.log("✅ Using private key signing (fallback)");
+            
+            // Create a wallet from the trusted issuer's private key
+            const trustedIssuerWallet = new ethers.Wallet(trustedIssuerPrivateKey);
+            console.log("✅ Created wallet from private key for address:", trustedIssuerWallet.address);
+            
+            // Verify the wallet address matches the expected trusted issuer address
+            if (trustedIssuerWallet.address.toLowerCase() !== trustedIssuerAddress.toLowerCase()) {
+                throw new Error(`Private key mismatch: expected ${trustedIssuerAddress}, got ${trustedIssuerWallet.address}`);
+            }
+            
+            // Sign the data hash with the trusted issuer's private key
+            signature = await trustedIssuerWallet.signMessage(ethers.getBytes(dataHash));
+            console.log("✅ Signature:", signature);
         }
-        
-        // Sign the data hash with the trusted issuer's private key
-        const signature = await trustedIssuerWallet.signMessage(ethers.getBytes(dataHash));
-        console.log("✅ Signature:", signature);
 
         // STEP 5: ADD CLAIM
         console.log("🚀 Adding claim to OnchainID...");
@@ -186,6 +204,10 @@ async function main() {
         trustedIssuerPrivateKey = config.trustedIssuerPrivateKey;
         topic = config.topic || 1;
         claimData = config.claimData || "1";
+        
+        // Store MetaMask signature and data hash for use in addClaim function
+        global.metamaskSignature = config.metamaskSignature;
+        global.dataHash = config.dataHash;
         
         if (!investorOnchainID || !trustedIssuerAddress || !claimIssuerAddress || !trustedIssuerPrivateKey) {
             console.error("❌ Missing required parameters in config file:");

@@ -12,7 +12,7 @@ from models.contract import Contract
 from models.session import TabSession
 
 # Import utilities
-from utils.auth_utils import hash_password, encrypt_private_key, decrypt_private_key, create_default_admin
+from utils.auth_utils import hash_password, create_default_admin
 from utils.contract_utils import get_contract_address, store_contract
 from utils.session_utils import get_or_create_tab_session, get_current_user_from_tab_session, login_user_to_tab_session, logout_user_from_tab_session
 

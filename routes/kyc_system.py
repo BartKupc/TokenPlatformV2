@@ -60,7 +60,7 @@ def add_claims_to_blockchain_with_approval(kyc_request, approval_decisions):
                 decision = approval_decisions[claim_id]
                 print(f"🔗 Adding claim Topic {claim_request.claim_topic}: {decision['data']}")
                 
-                # Create configuration for JavaScript (EXACTLY AS BEFORE)
+                # Create configuration for JavaScript - NO PRIVATE KEY NEEDED (MetaMask handles signing)
                 config = {
                     "investorOnchainID": investor.onchain_id,
                     "trustedIssuerAddress": trusted_issuer.wallet_address,
@@ -728,6 +728,94 @@ def review_kyc_request(request_id):
                          claim_data_options=CLAIM_DATA_OPTIONS,
                          tab_session_id=tab_session.session_id if tab_session else None)
 
+@kyc_system_bp.route('/execute-claim-with-signature', methods=['POST'])
+def execute_claim_with_signature():
+    """Execute claim addition using MetaMask signature and original JavaScript script"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        print(f"🔧 Executing claim with MetaMask signature: {data}")
+        
+        claim_info = data.get('claim_info')
+        signature = data.get('signature')
+        data_hash = data.get('data_hash')
+        kyc_request_id = data.get('kyc_request_id')
+        claim_request_id = data.get('claim_request_id')
+        
+        if not claim_info or not signature or not data_hash or not kyc_request_id or not claim_request_id:
+            return jsonify({'success': False, 'error': 'Missing required data'}), 400
+        
+        # Use the hybrid claim service to execute the claim with the signature
+        from services.hybrid_claim_service import HybridClaimService
+        hybrid_service = HybridClaimService()
+        
+        # Execute the claim addition using the original JavaScript script approach
+        # but with the MetaMask signature
+        result = hybrid_service.add_claim_with_metamask_signature(
+            investor_onchain_id=claim_info['investor_onchain_id'],
+            trusted_issuer_address=claim_info['trusted_issuer_address'],
+            claim_issuer_address=claim_info['claim_issuer_address'],
+            topic=claim_info['topic'],
+            claim_data=claim_info['claim_data'],
+            signature=signature,
+            data_hash=data_hash
+        )
+        
+        if result['success']:
+            # Update the database with the transaction hash and blockchain status
+            transaction_hash = result.get('transaction_hash')
+            
+            # Find the KYC request and claim request to update
+            # Use the IDs from the request body
+            if kyc_request_id and claim_request_id:
+                # Update the specific claim request
+                from models.enhanced_models import ClaimRequest
+                claim_request = ClaimRequest.query.get(claim_request_id)
+                if claim_request:
+                    claim_request.onchain_tx_hash = transaction_hash
+                    claim_request.blockchain_status = 'success'
+                    claim_request.status = 'approved'
+                    claim_request.approved_claim_data = claim_info['claim_data']
+                    claim_request.reviewed_at = datetime.utcnow()
+                    
+                    # Update the KYC request status if all claims are approved
+                    kyc_request = claim_request.kyc_request
+                    all_approved = all(cr.status == 'approved' for cr in kyc_request.claim_requests)
+                    if all_approved:
+                        kyc_request.status = 'approved'
+                        kyc_request.reviewed_at = datetime.utcnow()
+                        
+                        # Update investor's KYC status
+                        investor = kyc_request.investor
+                        investor.kyc_status = 'approved'
+                        investor.kyc_approved_by = kyc_request.trusted_issuer.id
+                        investor.kyc_approved_at = datetime.utcnow()
+                    
+                    # Commit all changes
+                    db.session.commit()
+                    print(f"✅ Database updated with transaction hash: {transaction_hash}")
+                else:
+                    print(f"⚠️ Claim request {claim_request_id} not found")
+            else:
+                print(f"⚠️ Missing KYC request ID or claim request ID in claim_info")
+            
+            return jsonify({
+                'success': True,
+                'transaction_hash': transaction_hash,
+                'message': 'Claim added successfully via MetaMask signature'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Unknown error')
+            }), 500
+            
+    except Exception as e:
+        print(f"❌ Error executing claim with signature: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @kyc_system_bp.route('/api/trusted-issuer-specializations/<int:trusted_issuer_id>')
 def get_trusted_issuer_specializations(trusted_issuer_id):
     """API endpoint to get trusted issuer specializations"""
@@ -746,4 +834,158 @@ def get_trusted_issuer_specializations(trusted_issuer_id):
             'fee_currency': spec.fee_currency
         }
     
-    return jsonify(result) 
+    return jsonify(result)
+
+@kyc_system_bp.route('/kyc-request/<int:request_id>/metamask-transaction', methods=['POST'])
+def handle_kyc_metamask_transaction(request_id):
+    """Handle MetaMask transactions for KYC claim operations"""
+    # Get tab session ID from URL parameter
+    tab_session_id = request.args.get('tab_session')
+    
+    # Get or create tab session
+    tab_session = get_or_create_tab_session(tab_session_id)
+    user = get_current_user_from_tab_session(tab_session.session_id)
+    
+    if not user or user.user_type != 'trusted_issuer':
+        return jsonify({'success': False, 'error': 'Trusted Issuer access required.'}), 401
+    
+    # Get KYC request
+    kyc_request = KYCRequest.query.get_or_404(request_id)
+    
+    # Check if this trusted issuer is assigned to this request
+    if kyc_request.trusted_issuer_id != user.id:
+        return jsonify({'success': False, 'error': 'Access denied. This KYC request is not assigned to you.'}), 403
+    
+    # Get request data
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    action = data.get('action')
+    if not action:
+        return jsonify({'success': False, 'error': 'Action is required'}), 400
+    
+    print(f"🔍 KYC MetaMask transaction - Request ID: {request_id}, Action: {action}")
+    
+    try:
+        if action == 'build':
+            # Build transaction data for claim addition
+            return build_claim_addition_transaction_helper(kyc_request, data.get('claim_decisions', {}))
+        elif action == 'confirm':
+            # Confirm transaction after successful execution
+            return confirm_claim_addition_transaction(kyc_request, data)
+        else:
+            return jsonify({'success': False, 'error': f'Unknown action: {action}'}), 400
+            
+    except Exception as e:
+        print(f"❌ Error in KYC MetaMask transaction: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+def build_claim_addition_transaction_helper(kyc_request, claim_decisions):
+    """Build transaction data for claim addition (MetaMask integration)"""
+    try:
+        print(f"🔧 Building claim addition transaction for KYC request {kyc_request.id}")
+        
+        # Get the investor and trusted issuer
+        investor = kyc_request.investor
+        trusted_issuer = kyc_request.trusted_issuer
+        
+        if not investor.onchain_id:
+            return jsonify({'success': False, 'error': 'Investor has no OnchainID'}), 400
+        
+        if not trusted_issuer.claim_issuer_address:
+            return jsonify({'success': False, 'error': 'Trusted issuer has no ClaimIssuer contract'}), 400
+        
+        # Use the hybrid claim service to build transaction data
+        from services.hybrid_claim_service import HybridClaimService
+        hybrid_service = HybridClaimService()
+        
+        # Prepare transaction data for each claim
+        transactions = []
+        for claim_request in kyc_request.claim_requests:
+            claim_id = str(claim_request.id)
+            if claim_id not in claim_decisions:
+                continue
+                
+            decision = claim_decisions[claim_id]
+            if decision.get('decision') != 'approved':
+                continue
+            
+            # Build transaction data using the hybrid service
+            tx_data_result = hybrid_service.build_claim_transaction_data(
+                investor_onchain_id=investor.onchain_id,
+                trusted_issuer_address=trusted_issuer.wallet_address,
+                claim_issuer_address=trusted_issuer.claim_issuer_address,
+                topic=claim_request.claim_topic,
+                claim_data=decision['data']
+            )
+            
+            if tx_data_result['success']:
+                # Add claim request info to the transaction data
+                transaction_data = {
+                    'claim_request_id': claim_request.id,
+                    'kyc_request_id': kyc_request.id,
+                    'data_hash': tx_data_result['data_hash'],  # Changed from 'transaction_data' to 'data_hash'
+                    'claim_info': tx_data_result['claim_info']
+                }
+                transactions.append(transaction_data)
+            else:
+                print(f"❌ Failed to build transaction data for claim {claim_request.id}: {tx_data_result['error']}")
+        
+        if not transactions:
+            return jsonify({'success': False, 'error': 'No approved claims to process'}), 400
+        
+        # Return transaction data for frontend MetaMask integration
+        return jsonify({
+            'success': True,
+            'transactions': transactions,
+            'kyc_request_id': kyc_request.id,
+            'investor_name': investor.username,
+            'trusted_issuer_name': trusted_issuer.username,
+            'message': f'Ready to add {len(transactions)} claims to blockchain via MetaMask'
+        })
+        
+    except Exception as e:
+        print(f"❌ Error building claim addition transaction: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def confirm_claim_addition_transaction(kyc_request, data):
+    """Confirm transaction after successful execution"""
+    try:
+        print(f"🔧 Confirming claim addition transaction for KYC request {kyc_request.id}")
+        
+        transaction_hash = data.get('transaction_hash')
+        if not transaction_hash:
+            return jsonify({'success': False, 'error': 'Transaction hash is required'}), 400
+        
+        # Update claim requests with transaction hash
+        for claim_request in kyc_request.claim_requests:
+            if claim_request.status == 'approved':
+                claim_request.onchain_tx_hash = transaction_hash
+                claim_request.blockchain_status = 'success'
+        
+        # Update KYC request status
+        kyc_request.status = 'approved'
+        kyc_request.reviewed_at = datetime.utcnow()
+        
+        # Update investor's KYC status
+        investor = kyc_request.investor
+        trusted_issuer = kyc_request.trusted_issuer
+        investor.kyc_status = 'approved'
+        investor.kyc_approved_by = trusted_issuer.id
+        investor.kyc_approved_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Claims successfully added to blockchain and database updated',
+            'transaction_hash': transaction_hash
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error confirming claim addition transaction: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500 

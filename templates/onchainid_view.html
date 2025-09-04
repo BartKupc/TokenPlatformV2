@@ -12,6 +12,12 @@
                         <i class="fas fa-id-card"></i> OnchainID Details
                         <small class="text-muted">{{ onchainid_address }}</small>
                     </h3>
+                    <div class="mt-2">
+                        <button id="connectWalletBtn" class="btn btn-outline-primary btn-sm" onclick="connectWallet()">
+                            <i class="fas fa-wallet me-1"></i>Connect MetaMask
+                        </button>
+                        <span id="walletStatus" class="ms-2 text-muted"></span>
+                    </div>
                 </div>
                 <div class="card-body">
                     {% if onchainid_info.error %}
@@ -447,6 +453,56 @@ setInterval(function() {
     // location.reload();
 }, 30000);
 
+// Wallet connection functions
+async function connectWallet() {
+    try {
+        if (!window.ethereum) {
+            alert('MetaMask is not installed. Please install MetaMask to continue.');
+            return;
+        }
+        
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts.length > 0) {
+            updateWalletStatus(accounts[0]);
+        }
+    } catch (error) {
+        console.error('Error connecting wallet:', error);
+        alert('Failed to connect wallet: ' + error.message);
+    }
+}
+
+function updateWalletStatus(address) {
+    const statusElement = document.getElementById('walletStatus');
+    const connectBtn = document.getElementById('connectWalletBtn');
+    
+    if (address) {
+        statusElement.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i>Connected: ${address.slice(0, 6)}...${address.slice(-4)}`;
+        connectBtn.style.display = 'none';
+    } else {
+        statusElement.innerHTML = '<i class="fas fa-times-circle text-danger me-1"></i>Not connected';
+        connectBtn.style.display = 'inline-block';
+    }
+}
+
+// Check wallet connection on page load
+window.addEventListener('load', async function() {
+    if (window.ethereum) {
+        try {
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts.length > 0) {
+                updateWalletStatus(accounts[0]);
+            } else {
+                updateWalletStatus(null);
+            }
+        } catch (error) {
+            console.error('Error checking wallet connection:', error);
+            updateWalletStatus(null);
+        }
+    } else {
+        updateWalletStatus(null);
+    }
+});
+
 // Key Management Functions
 let keyToRemove = null;
 
@@ -455,8 +511,8 @@ function setRole(roleName) {
     document.getElementById('keyRole').value = roleName;
 }
 
-// Add new key
-document.getElementById('addKeyForm').addEventListener('submit', function(e) {
+// Add new key with MetaMask
+document.getElementById('addKeyForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const keyAddress = document.getElementById('keyAddress').value.trim();
@@ -480,40 +536,77 @@ document.getElementById('addKeyForm').addEventListener('submit', function(e) {
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding Key...';
     submitBtn.disabled = true;
     
-    // Submit to backend
-    fetch('{{ url_for("onchainid.add_key", onchainid_address=onchainid_address) }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            key_address: keyAddress,
-            role: keyRole,
-            purpose: parseInt(keyPurpose)
-        })
-    })
-    .then(response => response.json())
-            .then(data => {
-            if (data.success) {
-                alert('Key added successfully!\n\nRole: ' + keyRole + '\nPurpose: ' + keyPurpose + '\nTransaction: ' + data.transaction_hash);
-                location.reload(); // Refresh to show new key
-            } else {
-                alert('Error: ' + data.error);
-            }
-        })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error adding key. Please try again.');
-    })
-    .finally(() => {
+    try {
+        // Simple MetaMask connection - just like the working transfer function
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const userAddress = accounts[0];
+        
+        // Build transaction
+        const response = await fetch('/build-add-key-transaction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                onchainid_address: '{{ onchainid_address }}',
+                wallet_address: keyAddress,
+                purpose: parseInt(keyPurpose),
+                key_type: 1, // ECDSA
+                user_address: userAddress // The user who will sign with MetaMask
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        // Send to MetaMask - exactly like the working transfer function
+        console.log('🔍 Sending transaction to MetaMask:', result.transaction);
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [result.transaction]
+        });
+        console.log('✅ Transaction hash received:', txHash);
+        
+        // Wait for transaction
+        const receipt = await waitForTransaction(txHash);
+        
+        if (receipt.status === '0x1') {
+            // Update database
+            await fetch('/execute-add-key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    onchainid_address: '{{ onchainid_address }}',
+                    wallet_address: keyAddress,
+                    purpose: parseInt(keyPurpose),
+                    key_type: 1,
+                    transaction_hash: txHash
+                })
+            });
+            
+            alert('Key added successfully!\n\nRole: ' + keyRole + '\nPurpose: ' + keyPurpose + '\nTransaction: ' + txHash);
+            location.reload(); // Refresh to show new key
+        } else {
+            throw new Error('Transaction failed');
+        }
+        
+    } catch (error) {
+        console.error('Add key error:', error);
+        alert('Add key failed: ' + error.message);
+    } finally {
         // Reset button state
         submitBtn.innerHTML = originalText;
         submitBtn.disabled = false;
-    });
+    }
 });
 
-// Remove key
-function removeKey(keyAddress) {
+// Remove key with MetaMask
+async function removeKey(keyAddress) {
     if (confirm('Are you sure you want to remove the key ' + keyAddress + '?\n\nThis action cannot be undone and will require a blockchain transaction.')) {
         // Show loading state
         const btn = event.target.closest('button');
@@ -521,35 +614,90 @@ function removeKey(keyAddress) {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         btn.disabled = true;
         
-        // Submit removal request
-        fetch('{{ url_for("onchainid.remove_key", onchainid_address=onchainid_address) }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                key_address: keyAddress
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Key removed successfully! Transaction: ' + data.transaction_hash);
+        try {
+            // Simple MetaMask connection - just like the working transfer function
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const userAddress = accounts[0];
+            
+            // Build transaction
+            const response = await fetch('/build-remove-key-transaction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    onchainid_address: '{{ onchainid_address }}',
+                    wallet_address: keyAddress,
+                    user_address: userAddress
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+            
+            // Send to MetaMask - exactly like the working transfer function
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [result.transaction]
+            });
+            
+            // Wait for transaction
+            const receipt = await waitForTransaction(txHash);
+            
+            if (receipt.status === '0x1') {
+                // Update database
+                await fetch('/execute-remove-key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        onchainid_address: '{{ onchainid_address }}',
+                        wallet_address: keyAddress,
+                        transaction_hash: txHash
+                    })
+                });
+                
+                alert('Key removed successfully! Transaction: ' + txHash);
                 location.reload(); // Refresh to show updated keys
             } else {
-                alert('Error: ' + data.error);
+                throw new Error('Transaction failed');
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error removing key. Please try again.');
-        })
-        .finally(() => {
+            
+        } catch (error) {
+            console.error('Remove key error:', error);
+            alert('Remove key failed: ' + error.message);
+        } finally {
             // Reset button state
             btn.innerHTML = originalText;
             btn.disabled = false;
-        });
+        }
     }
+}
+
+async function waitForTransaction(txHash) {
+    return new Promise((resolve, reject) => {
+        const checkTransaction = async () => {
+            try {
+                const receipt = await window.ethereum.request({
+                    method: 'eth_getTransactionReceipt',
+                    params: [txHash]
+                });
+                
+                if (receipt) {
+                    resolve(receipt);
+                } else {
+                    setTimeout(checkTransaction, 2000);
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        checkTransaction();
+    });
 }
 </script>
 {% endblock %} 

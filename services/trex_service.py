@@ -51,6 +51,20 @@ class TREXService:
             print(f"Warning: Could not load {contract_type} address from database: {e}")
             return None
     
+    def _hash_address_abi_encoded(self, address):
+        """
+        Hash an address using 32-byte ABI encoding (correct method for OnchainID contracts)
+        
+        Args:
+            address (str): Ethereum address to hash
+            
+        Returns:
+            bytes: 32-byte keccak hash of the ABI-encoded address
+        """
+        return self.w3.keccak(
+            self.w3.codec.encode(['address'], [address])
+        )
+    
     def deploy_token(self, issuer_address, token_name, token_symbol, total_supply, 
                     ir_agent, token_agent, claim_topics, claim_issuer_type, claim_issuer_id=None):
         """Deploy a new security token using direct Python deployment"""
@@ -1049,9 +1063,7 @@ class TREXService:
                     tx['gas'] = 3000000  # Fallback to 3M gas
             else:
                 # User is not deployer - create with management keys
-                deployer_key_hash = self.w3.keccak(
-                    self.w3.codec.encode(['address'], [deployer_address])
-                )
+                deployer_key_hash = self._hash_address_abi_encoded(deployer_address)
                 management_keys = [deployer_key_hash]
                 
                 tx = identity_factory.functions.createIdentityWithManagementKeys(
@@ -1098,9 +1110,7 @@ class TREXService:
                     
                     # The initial management key is the deployer's key hash (as set in createIdentityWithManagementKeys)
                     # This is what gets stored on the blockchain
-                    deployer_key_hash = self.w3.keccak(
-                        self.w3.codec.encode(['address'], [deployer_address])
-                    ).hex()
+                    deployer_key_hash = self._hash_address_abi_encoded(deployer_address).hex()
                     
                     print(f"🔍 Indexing initial management key (deployer) for OnchainID {onchain_id_address}")
                     print(f"🔍 Deployer address: {deployer_address}")
@@ -2279,6 +2289,263 @@ class TREXService:
         except Exception as e:
             print(f"❌ Error building Verify KYC transaction: {str(e)}")
             return {'success': False, 'error': f'Failed to build Verify KYC transaction: {str(e)}'}
+
+    def build_transfer_transaction(self, token_address, from_address, to_address, amount, user_address_for_gas=None):
+        """
+        Build Transfer transaction for MetaMask signing (without executing)
+        
+        Args:
+            token_address (str): Token contract address
+            from_address (str): Address to transfer from (should be user's address)
+            to_address (str): Address to transfer to
+            amount (int): Amount to transfer (in token units, not wei)
+            user_address_for_gas (str): User's wallet address for gas estimation
+            
+        Returns:
+            dict: Transaction data for MetaMask signing
+        """
+        try:
+            # Convert addresses to checksum format
+            checksum_token_address = self.web3.to_checksum_address(token_address)
+            checksum_from_address = self.web3.to_checksum_address(from_address)
+            checksum_to_address = self.web3.to_checksum_address(to_address)
+            
+            print(f"🔍 Building Transfer transaction:")
+            print(f"   Token address: {token_address} -> {checksum_token_address}")
+            print(f"   From address: {from_address} -> {checksum_from_address}")
+            print(f"   To address: {to_address} -> {checksum_to_address}")
+            print(f"   Amount: {amount}")
+            
+            # Get the token contract
+            token_contract = self.w3.eth.contract(
+                address=checksum_token_address,
+                abi=self.web3.contract_abis.get('Token', [])
+            )
+            
+            if not token_contract:
+                return {'success': False, 'error': 'Token contract ABI not found'}
+            
+            # Use actual user address for gas estimation if provided, otherwise use from_address
+            estimate_from = user_address_for_gas if user_address_for_gas else checksum_from_address
+            print(f"🔍 Using address for gas estimation: {estimate_from}")
+            
+            # Parse amount to wei (assuming 18 decimals)
+            amount_wei = self.web3.parse_units(amount, 18)
+            print(f"🔍 Amount in wei: {amount_wei}")
+            
+            # Estimate gas for transfer
+            try:
+                estimated_gas = token_contract.functions.transfer(
+                    checksum_to_address,
+                    amount_wei
+                ).estimate_gas({
+                    'from': estimate_from
+                })
+                print(f"📊 Estimated gas for transfer: {estimated_gas}")
+            except Exception as e:
+                print(f"⚠️ Could not estimate gas for transfer, using default: {e}")
+                estimated_gas = 100000  # Default gas for transfer
+            
+            # Add 20% buffer for safety
+            gas_with_buffer = int(estimated_gas * 1.2)
+            print(f"📊 Using gas: {gas_with_buffer}")
+            
+            # Build the transfer transaction
+            transaction = {
+                'to': checksum_token_address,
+                'data': token_contract.functions.transfer(
+                    checksum_to_address,
+                    amount_wei
+                ).build_transaction({
+                    'from': estimate_from,
+                    'gas': gas_with_buffer,
+                    'gasPrice': self.w3.eth.gas_price,
+                    'chainId': 31337
+                })['data'],
+                'value': 0,  # No ETH transfer
+                'gas': gas_with_buffer,
+                'gasPrice': self.w3.eth.gas_price,
+                'chainId': 31337
+            }
+            
+            # Return transaction data for MetaMask signing
+            return {
+                'success': True,
+                'transaction': {
+                    'from': checksum_from_address,  # Add the 'from' address for MetaMask
+                    'to': transaction['to'],
+                    'data': transaction['data'],
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - let MetaMask handle it automatically
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building Transfer transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build Transfer transaction: {str(e)}'}
+
+    def build_add_key_transaction(self, onchainid_address, wallet_address, purpose, key_type=1, user_address=None):
+        """Build add key transaction for MetaMask signing"""
+        try:
+            print(f"🔍 Building add key transaction:")
+            print(f"   OnchainID: {onchainid_address}")
+            print(f"   Wallet: {wallet_address}")
+            print(f"   Purpose: {purpose}")
+            print(f"   Key Type: {key_type}")
+            print(f"   User Address: {user_address}")
+            
+            # Convert addresses to checksum format
+            checksum_onchainid_address = self.web3.w3.to_checksum_address(onchainid_address)
+            checksum_wallet_address = self.web3.w3.to_checksum_address(wallet_address)
+            
+            # The user_address is the one who will sign with MetaMask
+            if user_address:
+                checksum_user_address = self.web3.w3.to_checksum_address(user_address)
+            else:
+                # Fallback to wallet_address if no user_address provided
+                checksum_user_address = checksum_wallet_address
+            
+            # Get the OnchainID contract
+            print(f"🔍 Creating OnchainID contract:")
+            print(f"   Address: {checksum_onchainid_address}")
+            print(f"   ABI loaded: {'Identity' in self.web3.contract_abis}")
+            
+            contract = self.web3.get_contract(checksum_onchainid_address, 'Identity')
+            if not contract:
+                return {'success': False, 'error': 'OnchainID contract not found'}
+            
+            # Calculate key hash using 32-byte ABI encoding (correct method)
+            key_hash = self._hash_address_abi_encoded(checksum_wallet_address)
+            print(f"🔍 Calculated key hash (32-byte ABI encoded): {key_hash.hex()}")
+            
+            # Build the transaction data
+            add_key_function = contract.functions.addKey(
+                key_hash,
+                purpose,  # 1=Management, 2=Action, 3=Claim Signer
+                key_type  # 1=ECDSA, 2=ERC725
+            )
+            
+            # Estimate gas with the user's address (like transfer function does)
+            try:
+                gas_estimate = add_key_function.estimate_gas({'from': checksum_user_address})
+                gas_with_buffer = int(gas_estimate * 1.2)  # Add 20% buffer
+                print(f"🔍 Gas estimated: {gas_estimate}, with buffer: {gas_with_buffer}")
+            except Exception as e:
+                print(f"⚠️ Gas estimation failed: {str(e)}, using fallback")
+                gas_with_buffer = 200000000  # Fallback gas limit
+
+            print(f"🔍 Using gas limit: {gas_with_buffer}")
+            
+            # Build transaction with 'from' field (like transfer function does)
+            transaction_data = add_key_function.build_transaction({
+                'from': checksum_user_address,
+                'gas': gas_with_buffer,
+                'gasPrice': self.web3.w3.eth.gas_price,
+                'chainId': 31337
+            })
+            
+            # Build the transaction (like transfer function does)
+            transaction = {
+                'to': checksum_onchainid_address,
+                'data': add_key_function.build_transaction({
+                    'from': checksum_user_address,
+                    'gas': gas_with_buffer,
+                    'gasPrice': self.web3.w3.eth.gas_price,
+                    'chainId': 31337
+                })['data'],
+                'value': 0,  # No ETH transfer
+                'gas': gas_with_buffer,
+                'gasPrice': self.web3.w3.eth.gas_price,
+                'chainId': 31337
+            }
+            
+            # Return transaction data for MetaMask signing (exactly like transfer function)
+            return {
+                'success': True,
+                'message': f'Ready to add key {checksum_wallet_address} with purpose {purpose}',
+                'transaction': {
+                    'from': checksum_user_address,  # Add the 'from' address for MetaMask
+                    'to': transaction['to'],
+                    'data': transaction['data'],
+                    'value': hex(transaction['value']) if isinstance(transaction['value'], int) else str(transaction['value']),
+                    'gas': hex(transaction['gas']) if isinstance(transaction['gas'], int) else str(transaction['gas']),
+                    'gasPrice': hex(transaction['gasPrice']) if isinstance(transaction['gasPrice'], int) else str(transaction['gasPrice']),
+                    'chainId': hex(transaction['chainId']) if isinstance(transaction['chainId'], int) else str(transaction['chainId'])
+                    # Note: 'nonce' is not included - let MetaMask handle it automatically
+                },
+                'key_hash': key_hash.hex(),
+                'purpose': purpose,
+                'key_type': key_type
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building add key transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build add key transaction: {str(e)}'}
+
+    def build_remove_key_transaction(self, onchainid_address, wallet_address, user_address):
+        """Build remove key transaction for MetaMask signing"""
+        try:
+            print(f"🔍 Building remove key transaction:")
+            print(f"   OnchainID: {onchainid_address}")
+            print(f"   Wallet to remove: {wallet_address}")
+            print(f"   User signing: {user_address}")
+            
+            # Convert addresses to checksum format
+            checksum_onchainid_address = self.web3.to_checksum_address(onchainid_address)
+            checksum_wallet_address = self.web3.to_checksum_address(wallet_address)
+            checksum_user_address = self.web3.to_checksum_address(user_address)
+            
+            # Get the OnchainID contract
+            print(f"🔍 Creating OnchainID contract:")
+            print(f"   Address: {checksum_onchainid_address}")
+            print(f"   ABI loaded: {'Identity' in self.web3.contract_abis}")
+            
+            contract = self.web3.get_contract(checksum_onchainid_address, 'Identity')
+            if not contract:
+                return {'success': False, 'error': 'OnchainID contract not found'}
+            
+            # Calculate key hash using 32-byte ABI encoding (correct method)
+            key_hash = self._hash_address_abi_encoded(checksum_wallet_address)
+            print(f"🔍 Calculated key hash (32-byte ABI encoded): {key_hash.hex()}")
+            
+            # Build the transaction data
+            transaction_data = contract.functions.removeKey(
+                key_hash
+            ).build_transaction({
+                'from': checksum_user_address,  # The user who will sign with MetaMask
+                'gas': 150000,  # Estimated gas for removeKey
+                'gasPrice': self.web3.w3.eth.gas_price,
+                'chainId': self.web3.w3.eth.chain_id,
+                'nonce': self.web3.w3.eth.get_transaction_count(checksum_user_address)
+            })
+            
+            print(f"🔍 Transaction data built successfully")
+            print(f"   Gas: {transaction_data['gas']}")
+            print(f"   Gas Price: {transaction_data['gasPrice']}")
+            print(f"   Chain ID: {transaction_data['chainId']}")
+            
+            return {
+                'success': True,
+                'message': f'Ready to remove key {checksum_wallet_address}',
+                'transaction': {
+                    'to': transaction_data['to'],
+                    'value': hex(transaction_data['value']),
+                    'data': transaction_data['data'],
+                    'gas': hex(transaction_data['gas']),
+                    'gasPrice': hex(transaction_data['gasPrice']),
+                    'chainId': hex(transaction_data['chainId']),
+                    'from': transaction_data['from']
+                },
+                'key_hash': key_hash.hex(),
+                'wallet_address': checksum_wallet_address
+            }
+            
+        except Exception as e:
+            print(f"❌ Error building remove key transaction: {str(e)}")
+            return {'success': False, 'error': f'Failed to build remove key transaction: {str(e)}'}
 
     def build_pause_transaction(self, token_address, user_address=None):
         """Build pause transaction for MetaMask signing"""

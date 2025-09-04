@@ -534,4 +534,319 @@
     </div>
 </div>
 {% endfor %}
+
+<!-- Key Management Section -->
+{% if user.onchain_id %}
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-key me-2"></i>OnchainID Key Management</h4>
+        <button class="btn btn-primary btn-sm" onclick="openAddKeyModal()">
+          <i class="fas fa-plus me-1"></i>Add Key
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted">Manage keys for your OnchainID. Keys control different permissions on your identity.</p>
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card border-primary">
+              <div class="card-body text-center">
+                <i class="fas fa-cog fa-2x text-primary mb-2"></i>
+                <h6>Management Key</h6>
+                <small class="text-muted">Purpose 1 - Can add/remove other keys</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-success">
+              <div class="card-body text-center">
+                <i class="fas fa-bolt fa-2x text-success mb-2"></i>
+                <h6>Action Key</h6>
+                <small class="text-muted">Purpose 2 - Can execute actions</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-warning">
+              <div class="card-body text-center">
+                <i class="fas fa-signature fa-2x text-warning mb-2"></i>
+                <h6>Claim Signer Key</h6>
+                <small class="text-muted">Purpose 3 - Can sign claims</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3">
+          <a href="{{ url_for('onchainid.view_onchainid', onchainid_address=user.onchain_id) }}?tab_session={{ request.args.get('tab_session') }}" 
+             class="btn btn-outline-primary">
+            <i class="fas fa-eye me-1"></i>View All Keys
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Add Key Modal -->
+<div id="addKeyModal" class="modal" style="display: none;">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Key to OnchainID</h5>
+        <button type="button" class="btn-close" onclick="closeAddKeyModal()"></button>
+      </div>
+      <form id="addKeyForm" onsubmit="executeAddKey(event)">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="wallet_address" class="form-label">Wallet Address</label>
+            <input type="text" class="form-control" id="wallet_address" name="wallet_address" 
+                   placeholder="0x..." required>
+          </div>
+          <div class="mb-3">
+            <label for="purpose" class="form-label">Key Purpose</label>
+            <select class="form-select" id="purpose" name="purpose" required>
+              <option value="1">Management Key (Purpose 1)</option>
+              <option value="2">Action Key (Purpose 2)</option>
+              <option value="3">Claim Signer Key (Purpose 3)</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="key_type" class="form-label">Key Type</label>
+            <select class="form-select" id="key_type" name="key_type" required>
+              <option value="1">ECDSA (Type 1)</option>
+              <option value="2">ERC725 (Type 2)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeAddKeyModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Key</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Remove Key Modal -->
+<div id="removeKeyModal" class="modal" style="display: none;">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Remove Key from OnchainID</h5>
+        <button type="button" class="btn-close" onclick="closeRemoveKeyModal()"></button>
+      </div>
+      <form id="removeKeyForm" onsubmit="executeRemoveKey(event)">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="removeKeyWalletAddress" class="form-label">Wallet Address to Remove</label>
+            <input type="text" class="form-control" id="removeKeyWalletAddress" name="wallet_address" 
+                   placeholder="0x..." required readonly>
+          </div>
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Warning:</strong> This action cannot be undone. Make sure you want to remove this key.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeRemoveKeyModal()">Cancel</button>
+          <button type="submit" class="btn btn-danger">Remove Key</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// Key Management Functions
+function openAddKeyModal() {
+    document.getElementById('addKeyModal').style.display = 'block';
+}
+
+function closeAddKeyModal() {
+    document.getElementById('addKeyModal').style.display = 'none';
+    document.getElementById('addKeyForm').reset();
+}
+
+function openRemoveKeyModal(walletAddress) {
+    document.getElementById('removeKeyWalletAddress').value = walletAddress;
+    document.getElementById('removeKeyModal').style.display = 'block';
+}
+
+function closeRemoveKeyModal() {
+    document.getElementById('removeKeyModal').style.display = 'none';
+    document.getElementById('removeKeyForm').reset();
+}
+
+async function executeAddKey(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const walletAddress = formData.get('wallet_address');
+    const purpose = parseInt(formData.get('purpose'));
+    const keyType = parseInt(formData.get('key_type'));
+    
+    if (!walletAddress) {
+        alert('Please enter a wallet address');
+        return;
+    }
+    
+    try {
+        // Get connected account
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const userAddress = accounts[0];
+        
+        // Build transaction
+        const response = await fetch('/onchainid/build-add-key-transaction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                onchainid_address: '{{ user.onchain_id }}',
+                wallet_address: walletAddress,
+                purpose: purpose,
+                key_type: keyType
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        // Send to MetaMask
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [result.transaction]
+        });
+        
+        // Wait for transaction
+        const receipt = await waitForTransaction(txHash);
+        
+        if (receipt.status === '0x1') {
+            // Update database
+            await fetch('/onchainid/execute-add-key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    onchainid_address: '{{ user.onchain_id }}',
+                    wallet_address: walletAddress,
+                    purpose: purpose,
+                    key_type: keyType,
+                    transaction_hash: txHash
+                })
+            });
+            
+            alert('Key added successfully!');
+            closeAddKeyModal();
+            location.reload();
+        } else {
+            throw new Error('Transaction failed');
+        }
+        
+    } catch (error) {
+        console.error('Add key error:', error);
+        alert('Add key failed: ' + error.message);
+    }
+}
+
+async function executeRemoveKey(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const walletAddress = formData.get('wallet_address');
+    
+    if (!walletAddress) {
+        alert('Please enter a wallet address');
+        return;
+    }
+    
+    try {
+        // Get connected account
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const userAddress = accounts[0];
+        
+        // Build transaction
+        const response = await fetch('/onchainid/build-remove-key-transaction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                onchainid_address: '{{ user.onchain_id }}',
+                wallet_address: walletAddress,
+                user_address: userAddress
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        // Send to MetaMask
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [result.transaction]
+        });
+        
+        // Wait for transaction
+        const receipt = await waitForTransaction(txHash);
+        
+        if (receipt.status === '0x1') {
+            // Update database
+            await fetch('/onchainid/execute-remove-key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    onchainid_address: '{{ user.onchain_id }}',
+                    wallet_address: walletAddress,
+                    transaction_hash: txHash
+                })
+            });
+            
+            alert('Key removed successfully!');
+            closeRemoveKeyModal();
+            location.reload();
+        } else {
+            throw new Error('Transaction failed');
+        }
+        
+    } catch (error) {
+        console.error('Remove key error:', error);
+        alert('Remove key failed: ' + error.message);
+    }
+}
+
+async function waitForTransaction(txHash) {
+    return new Promise((resolve, reject) => {
+        const checkTransaction = async () => {
+            try {
+                const receipt = await window.ethereum.request({
+                    method: 'eth_getTransactionReceipt',
+                    params: [txHash]
+                });
+                
+                if (receipt) {
+                    resolve(receipt);
+                } else {
+                    setTimeout(checkTransaction, 2000);
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        checkTransaction();
+    });
+}
+</script>
+
 {% endblock %} 

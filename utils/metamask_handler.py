@@ -51,6 +51,9 @@ def handle_metamask_transaction_core(token_id, user_type, user):
             if operation == 'deploy_token':
                 print(f"🔍 DEBUG: Routing deploy_token to build_deploy_token_transaction_helper")
                 return build_deploy_token_transaction_helper(token, user, target_type, target_id)
+            elif user_type == 'trusted_issuer' and operation == 'add_claims':
+                print(f"🔍 DEBUG: Routing trusted issuer add_claims to claim handler")
+                return handle_trusted_issuer_claim_transaction(user, data)
             else:
                 print(f"🔍 DEBUG: Routing {operation} to handle_build_transaction")
                 return handle_build_transaction(token, user, operation, target_type, target_id)
@@ -61,3 +64,50 @@ def handle_metamask_transaction_core(token_id, user_type, user):
             
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error handling MetaMask transaction: {str(e)}'}), 500
+
+def handle_trusted_issuer_claim_transaction(user, data):
+    """Handle trusted issuer claim addition transactions"""
+    try:
+        print(f"🔍 Handling trusted issuer claim transaction for user: {user.username}")
+        
+        # Get KYC request ID and claim decisions from data
+        kyc_request_id = data.get('kyc_request_id')
+        claim_decisions = data.get('claim_decisions', {})
+        
+        if not kyc_request_id:
+            return jsonify({'success': False, 'error': 'KYC request ID is required'}), 400
+        
+        # Import here to avoid circular imports
+        from models.enhanced_models import KYCRequest
+        
+        # Get KYC request
+        kyc_request = KYCRequest.query.get_or_404(kyc_request_id)
+        
+        # Verify this trusted issuer is assigned to this request
+        if kyc_request.trusted_issuer_id != user.id:
+            return jsonify({'success': False, 'error': 'Access denied. This KYC request is not assigned to you.'}), 403
+        
+        # Import the helper function from trusted_issuer routes
+        from routes.trusted_issuer import execute_claim_addition_with_metamask_approval
+        
+        # Execute claim addition with MetaMask approval
+        result = execute_claim_addition_with_metamask_approval(kyc_request, claim_decisions)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': result['message'],
+                'successful_claims': result.get('successful_claims', []),
+                'transaction_hashes': result.get('transaction_hashes', [])
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error'],
+                'successful_claims': result.get('successful_claims', []),
+                'failed_claims': result.get('failed_claims', [])
+            }), 500
+            
+    except Exception as e:
+        print(f"❌ Error in trusted issuer claim transaction: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

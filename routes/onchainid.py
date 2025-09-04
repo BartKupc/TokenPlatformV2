@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from models import db, User, Contract, Token, UserClaim
 from services.web3_service import Web3Service
 from services.onchainid_service import OnchainIDService
+from services.trex_service import TREXService
 import json
 
 onchainid_bp = Blueprint('onchainid', __name__)
@@ -156,3 +157,166 @@ def remove_key(onchainid_address):
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500 
+
+@onchainid_bp.route('/build-add-key-transaction', methods=['POST'])
+def build_add_key_transaction():
+    """Build add key transaction for MetaMask signing"""
+    try:
+        data = request.get_json()
+        onchainid_address = data.get('onchainid_address')
+        wallet_address = data.get('wallet_address')
+        purpose = int(data.get('purpose', 1))  # 1=Management, 2=Action, 3=Claim Signer
+        key_type = int(data.get('key_type', 1))  # 1=ECDSA, 2=ERC725
+        user_address = data.get('user_address')  # The user who will sign with MetaMask
+        
+        if not all([onchainid_address, wallet_address]):
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        # Initialize services
+        web3_service = Web3Service()
+        trex_service = TREXService(web3_service)
+        
+        # Build the transaction
+        result = trex_service.build_add_key_transaction(
+            onchainid_address=onchainid_address,
+            wallet_address=wallet_address,
+            purpose=purpose,
+            key_type=key_type,
+            user_address=user_address
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@onchainid_bp.route('/build-remove-key-transaction', methods=['POST'])
+def build_remove_key_transaction():
+    """Build remove key transaction for MetaMask signing"""
+    try:
+        data = request.get_json()
+        onchainid_address = data.get('onchainid_address')
+        wallet_address = data.get('wallet_address')
+        user_address = data.get('user_address')  # The user who will sign with MetaMask
+        
+        if not all([onchainid_address, wallet_address, user_address]):
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        # Initialize services
+        web3_service = Web3Service()
+        trex_service = TREXService(web3_service)
+        
+        # Build the transaction
+        result = trex_service.build_remove_key_transaction(
+            onchainid_address=onchainid_address,
+            wallet_address=wallet_address,
+            user_address=user_address
+        )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@onchainid_bp.route('/execute-add-key', methods=['POST'])
+def execute_add_key():
+    """Execute add key transaction after MetaMask signing"""
+    try:
+        data = request.get_json()
+        onchainid_address = data.get('onchainid_address')
+        wallet_address = data.get('wallet_address')
+        purpose = data.get('purpose')
+        key_type = data.get('key_type')
+        transaction_hash = data.get('transaction_hash')
+        
+        if not all([onchainid_address, wallet_address, purpose, transaction_hash]):
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        # Find the user who owns this OnchainID
+        user = User.query.filter_by(onchainid_address=onchainid_address).first()
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found for this OnchainID'}), 404
+        
+        # Update database to record the key addition
+        try:
+            from models.enhanced_models import OnchainIDKey
+            from services.web3_service import Web3Service
+            
+            web3_service = Web3Service()
+            key_hash = web3_service.w3.keccak(
+                web3_service.w3.codec.encode(['address'], [wallet_address])
+            ).hex()
+            
+            # Create new key record
+            new_key = OnchainIDKey(
+                onchainid_address=onchainid_address,
+                wallet_address=wallet_address,
+                key_hash=key_hash,
+                purpose=purpose,
+                key_type=key_type,
+                transaction_hash=transaction_hash,
+                owner_type=user.user_type,
+                owner_id=user.id
+            )
+            
+            db.session.add(new_key)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Key {wallet_address} added successfully with purpose {purpose}',
+                'transaction_hash': transaction_hash
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': f'Database error: {str(e)}'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@onchainid_bp.route('/execute-remove-key', methods=['POST'])
+def execute_remove_key():
+    """Execute remove key transaction after MetaMask signing"""
+    try:
+        data = request.get_json()
+        onchainid_address = data.get('onchainid_address')
+        wallet_address = data.get('wallet_address')
+        transaction_hash = data.get('transaction_hash')
+        
+        if not all([onchainid_address, wallet_address, transaction_hash]):
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        # Find and remove the key from database
+        try:
+            from models.enhanced_models import OnchainIDKey
+            
+            key = OnchainIDKey.query.filter_by(
+                onchainid_address=onchainid_address,
+                wallet_address=wallet_address
+            ).first()
+            
+            if key:
+                db.session.delete(key)
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Key {wallet_address} removed successfully',
+                    'transaction_hash': transaction_hash
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Key not found in database'}), 404
+                
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': f'Database error: {str(e)}'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -7,20 +7,13 @@ def hash_password(password):
     """Hash a password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-def encrypt_private_key(private_key, password=""):
-    """Store private key directly (no encryption for dev)"""
-    return private_key
-
-def decrypt_private_key(encrypted_key, password=""):
-    """Return private key directly (no decryption for dev)"""
-    return encrypted_key
+# Private key encryption/decryption functions removed - using MetaMask instead
 
 def create_default_admin():
     """Create default admin user if none exists"""
     admin = User.query.filter_by(user_type='admin').first()
     if not admin:
-        # Use Hardhat account 0 private key
-        admin_private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        # Use Hardhat account 0 wallet address (private key hardcoded when needed)
         admin_wallet = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
         
         admin = User(
@@ -28,12 +21,12 @@ def create_default_admin():
             email='admin@tokenplatform.com',
             password_hash=hash_password('admin123'),
             wallet_address=admin_wallet,
-            private_key=admin_private_key,  # Store directly, no encryption
+            # private_key removed - will hardcode Account 0 private key when needed
             user_type='admin',
             kyc_status='approved'
         )
         db.session.add(admin)
         db.session.commit()
-        print("Default admin user created")
+        print("Default admin user created (Account 0 wallet, private key hardcoded when needed)")
     
     return admin 

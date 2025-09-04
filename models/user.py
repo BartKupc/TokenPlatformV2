@@ -7,7 +7,6 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(120), nullable=False)
     wallet_address = db.Column(db.String(42), nullable=False)
-    private_key = db.Column(db.String(66), nullable=False)  # Encrypted private key (0x + 64 hex chars)
     user_type = db.Column(db.String(20), nullable=False)  # 'admin', 'issuer', 'trusted_issuer', 'investor'
     kyc_status = db.Column(db.String(20), default='pending')  # 'pending', 'approved', 'rejected'
     kyc_data = db.Column(db.Text)  # JSON string of KYC data
