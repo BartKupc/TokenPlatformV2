@@ -87,6 +87,7 @@
                             </div>
                         </div>
 
+
                         <!-- Claim Topics Configuration -->
                         <div class="card mb-3">
                             <div class="card-header">
@@ -174,6 +175,115 @@
                             </div>
                         </div>
 
+                        <!-- Compliance Module Configuration -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-shield-alt me-2"></i>Compliance Module Configuration
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Select Compliance Modules</label>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="enable_geographical" onchange="toggleComplianceConfig()">
+                                                <label class="form-check-label" for="enable_geographical">
+                                                    <strong>Geographical Restrictions</strong>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="enable_supply_limit" onchange="toggleComplianceConfig()">
+                                                <label class="form-check-label" for="enable_supply_limit">
+                                                    <strong>Max Supply Limit (Per User)</strong>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="enable_cooling_period" onchange="toggleComplianceConfig()">
+                                                <label class="form-check-label" for="enable_cooling_period">
+                                                    <strong>Cooling Period</strong>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Geographical Restrictions Configuration -->
+                                <div id="geographical_config" class="compliance-config" style="display: none;">
+                                    <div class="card border-primary">
+                                        <div class="card-header bg-primary text-white">
+                                            <h6 class="mb-0">Geographical Restrictions</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="allowed_countries" class="form-label">Allowed Countries</label>
+                                                <select class="form-select" id="allowed_countries" name="allowed_countries" multiple>
+                                                    <option value="840">United States (US)</option>
+                                                    <option value="250">European Union (EU)</option>
+                                                    <option value="826">United Kingdom (UK)</option>
+                                                    <option value="124">Canada (CA)</option>
+                                                    <option value="36">Australia (AU)</option>
+                                                    <option value="156">Asia (ASIA)</option>
+                                                    <option value="840">Other</option>
+                                                </select>
+                                                <div class="form-text">Hold Ctrl/Cmd to select multiple countries</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Supply Limit Configuration -->
+                                <div id="supply_limit_config" class="compliance-config" style="display: none;">
+                                    <div class="card border-success">
+                                        <div class="card-header bg-success text-white">
+                                            <h6 class="mb-0">Max Supply Limit (Per User)</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="max_supply" class="form-label">Maximum Tokens Per User</label>
+                                                <select class="form-select" id="max_supply" name="max_supply">
+                                                    <option value="10">10 tokens</option>
+                                                    <option value="50">50 tokens</option>
+                                                    <option value="100" selected>100 tokens</option>
+                                                    <option value="1000">1,000 tokens</option>
+                                                    <option value="10000">10,000 tokens</option>
+                                                </select>
+                                                <div class="form-text">Maximum number of tokens a single user can hold</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Cooling Period Configuration -->
+                                <div id="cooling_period_config" class="compliance-config" style="display: none;">
+                                    <div class="card border-warning">
+                                        <div class="card-header bg-warning text-dark">
+                                            <h6 class="mb-0">Cooling Period</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="cooling_period" class="form-label">Cooldown Period Between Purchases</label>
+                                                <select class="form-select" id="cooling_period" name="cooling_period">
+                                                    <option value="60">1 minute</option>
+                                                    <option value="300" selected>5 minutes</option>
+                                                    <option value="600">10 minutes</option>
+                                                    <option value="1800">30 minutes</option>
+                                                    <option value="3600">1 hour</option>
+                                                    <option value="7200">2 hours</option>
+                                                    <option value="86400">24 hours</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Claim Issuer Configuration -->
                         <div class="card mb-3">
                             <div class="card-header">
@@ -241,6 +351,23 @@
 </div>
 
 <script>
+function toggleComplianceConfig() {
+    // Toggle geographical restrictions
+    const geographicalCheckbox = document.getElementById('enable_geographical');
+    const geographicalConfig = document.getElementById('geographical_config');
+    geographicalConfig.style.display = geographicalCheckbox.checked ? 'block' : 'none';
+    
+    // Toggle supply limit
+    const supplyLimitCheckbox = document.getElementById('enable_supply_limit');
+    const supplyLimitConfig = document.getElementById('supply_limit_config');
+    supplyLimitConfig.style.display = supplyLimitCheckbox.checked ? 'block' : 'none';
+    
+    // Toggle cooling period
+    const coolingPeriodCheckbox = document.getElementById('enable_cooling_period');
+    const coolingPeriodConfig = document.getElementById('cooling_period_config');
+    coolingPeriodConfig.style.display = coolingPeriodCheckbox.checked ? 'block' : 'none';
+}
+
 function showTrustedIssuerCapabilities() {
     const selectedOption = document.getElementById('claim_issuer_id').selectedOptions[0];
     const capabilitiesDisplay = document.getElementById('capabilities_display');
@@ -272,9 +399,27 @@ document.addEventListener('DOMContentLoaded', function() {
     if (trustedIssuerSelect) {
         trustedIssuerSelect.addEventListener('change', showTrustedIssuerCapabilities);
     }
+    
 });
 
-// MetaMask Integration for Token Deployment
+function toggleComplianceConfig() {
+    // Toggle geographical restrictions
+    const geographicalCheckbox = document.getElementById('enable_geographical');
+    const geographicalConfig = document.getElementById('geographical_config');
+    geographicalConfig.style.display = geographicalCheckbox.checked ? 'block' : 'none';
+    
+    // Toggle supply limit
+    const supplyLimitCheckbox = document.getElementById('enable_supply_limit');
+    const supplyLimitConfig = document.getElementById('supply_limit_config');
+    supplyLimitConfig.style.display = supplyLimitCheckbox.checked ? 'block' : 'none';
+    
+    // Toggle cooling period
+    const coolingPeriodCheckbox = document.getElementById('enable_cooling_period');
+    const coolingPeriodConfig = document.getElementById('cooling_period_config');
+    coolingPeriodConfig.style.display = coolingPeriodCheckbox.checked ? 'block' : 'none';
+}
+
+// Multi-Step MetaMask Integration for Token Deployment with Compliance
 async function deployToken() {
     try {
         // Check if MetaMask is installed
@@ -293,22 +438,36 @@ async function deployToken() {
         }
 
         // Get form data
-        // Get selected claim topics from checkboxes
         const selectedClaimTopics = [];
         const claimTopicCheckboxes = document.querySelectorAll('input[name="claim_topics"]:checked');
         claimTopicCheckboxes.forEach(checkbox => {
             selectedClaimTopics.push(parseInt(checkbox.value));
         });
-        
-        console.log('🔍 DEBUG: Selected claim topics:', selectedClaimTopics);
-        console.log('🔍 DEBUG: Number of checked boxes:', claimTopicCheckboxes.length);
+
+        // Collect compliance configuration
+        const formComplianceConfig = {
+            geographical: {
+                enabled: document.getElementById('enable_geographical').checked,
+                allowed_countries: Array.from(document.getElementById('allowed_countries').selectedOptions).map(option => parseInt(option.value))
+            },
+            supply_limit: {
+                enabled: document.getElementById('enable_supply_limit').checked,
+                max_supply: parseInt(document.getElementById('max_supply').value)
+            },
+            cooling_period: {
+                enabled: document.getElementById('enable_cooling_period').checked,
+                cooldown_seconds: parseInt(document.getElementById('cooling_period').value)
+            }
+        };
 
         const formData = {
             token_name: document.getElementById('token_name').value,
             token_symbol: document.getElementById('token_symbol').value,
             total_supply: document.getElementById('total_supply').value,
             claim_issuer_id: document.getElementById('claim_issuer_id').value,
-            claim_topics: selectedClaimTopics, // Use actual selected claim topics
+            claim_topics: selectedClaimTopics,
+            compliance_module: 'custom',
+            compliance_config: formComplianceConfig,
             description: document.getElementById('description').value,
             price_per_token: document.getElementById('price_per_token').value
         };
@@ -319,7 +478,6 @@ async function deployToken() {
             return;
         }
         
-        // Validate that at least one claim topic is selected
         if (selectedClaimTopics.length === 0) {
             alert('Please select at least one claim topic (KYC, AML, etc.).');
             return;
@@ -328,9 +486,9 @@ async function deployToken() {
         // Update button state
         const deployButton = document.getElementById('deployButton');
         deployButton.disabled = true;
-        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building Transaction...';
+        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Building Transactions...';
 
-        // Build deployment transaction
+        // Step 1: Build compliance system transactions
         const tabSession = new URLSearchParams(window.location.search).get('tab_session');
         const buildResponse = await fetch(`/issuer/token/0/metamask-transaction?tab_session=${tabSession}`, {
             method: 'POST',
@@ -348,77 +506,28 @@ async function deployToken() {
 
         const buildResult = await buildResponse.json();
         
+        console.log('🔍🔍🔧 FRONTEND: BUILD RESPONSE RECEIVED 🔧🔍🔍');
+        console.log('🔍 Full buildResult:', buildResult);
+        console.log('🔍 buildResult.keys:', Object.keys(buildResult));
+        console.log('🔍 needs_post_deployment_config:', buildResult.needs_post_deployment_config);
+        console.log('🔍 compliance_modules_config:', buildResult.compliance_modules_config);
+        
         if (!buildResult.success) {
-            throw new Error(buildResult.error || 'Failed to build deployment transaction');
+            throw new Error(buildResult.error || 'Failed to build deployment transactions');
         }
-
-        // Update button state
-        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Confirming in MetaMask...';
-
-        // Send transaction to MetaMask
-        const transaction = buildResult.transaction;
         
-        // CRITICAL DEBUG: Log exactly what we're sending to MetaMask
-        console.log('🔍 CRITICAL DEBUG - FRONTEND TRANSACTION DATA:');
-        console.log('   Backend transaction:', transaction);
-        console.log('   userAccount:', userAccount);
-        console.log('   MetaMask params:', {
-            from: userAccount,
-            to: transaction.to,
-            data: transaction.data,
-            gas: transaction.gas,
-            gasPrice: transaction.gasPrice,
-            value: transaction.value,
-            chainId: transaction.chainId
-        });
+        // Store compliance config for post-deployment use
+        const complianceConfig = {
+            needs_post_deployment_config: buildResult.needs_post_deployment_config,
+            compliance_modules_config: buildResult.compliance_modules_config
+        };
         
-        const txHash = await window.ethereum.request({
-            method: 'eth_sendTransaction',
-            params: [{
-                from: userAccount,  // Add the connected account address
-                to: transaction.to,
-                data: transaction.data,
-                gas: transaction.gas,
-                gasPrice: transaction.gasPrice,
-                value: transaction.value,
-                chainId: transaction.chainId
-            }]
-        });
+        console.log('🔍 DEBUG: Build result compliance config:', complianceConfig);
 
-        // Update button state
-        deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Waiting for Confirmation...';
-
-        // Wait for transaction confirmation
-        const receipt = await waitForTransaction(txHash);
-        
-        if (receipt.status === '0x1') {
-            // Confirm transaction completion
-            const confirmResponse = await fetch(`/issuer/token/0/metamask-transaction?tab_session=${tabSession}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    operation: 'deploy_token',
-                    action: 'confirm',
-                    target_type: 'actions',
-                    target_id: 0,
-                    transaction_hash: txHash,
-                    status: 'success'
-                })
-            });
-
-            const confirmResult = await confirmResponse.json();
-            
-            if (confirmResult.success) {
-                alert(`✅ Token deployed successfully!\n\nTransaction Hash: ${txHash}\nToken ID: ${confirmResult.token_id}`);
-                window.location.href = `/issuer/dashboard?tab_session=${tabSession}`;
-            } else {
-                throw new Error(confirmResult.error || 'Failed to confirm deployment');
-            }
-        } else {
-            throw new Error('Transaction failed on blockchain');
-        }
+        // Check if we have compliance modules to deploy
+        // Simplified approach - all deployments are now single-step
+        // Compliance modules are deployed and configured by the platform before token deployment
+        await executeSimpleDeployment(buildResult, userAccount, tabSession, deployButton, complianceConfig);
 
     } catch (error) {
         console.error('Deployment error:', error);
@@ -430,6 +539,194 @@ async function deployToken() {
         deployButton.innerHTML = '<i class="fas fa-rocket me-2"></i>Deploy Token';
     }
 }
+
+
+// Execute simple deployment without compliance
+async function executeSimpleDeployment(buildResult, userAccount, tabSession, deployButton, complianceConfig) {
+    deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deploying Token...';
+
+    // Check if we have a transaction field
+    if (!buildResult.transaction) {
+        throw new Error('No transaction data available for deployment');
+    }
+
+    const transaction = buildResult.transaction;
+    const txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+            from: userAccount,
+            to: transaction.to,
+            data: transaction.data,
+            gas: transaction.gas,
+            gasPrice: transaction.gasPrice,
+            value: transaction.value,
+            chainId: transaction.chainId
+        }]
+    });
+
+    const receipt = await waitForTransaction(txHash);
+    
+    if (receipt.status === '0x1') {
+        const confirmResponse = await fetch(`/issuer/token/0/metamask-transaction?tab_session=${tabSession}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                operation: 'deploy_token',
+                action: 'confirm',
+                target_type: 'actions',
+                target_id: 0,
+                transaction_hash: txHash,
+                status: 'success'
+            })
+        });
+
+        const confirmResult = await confirmResponse.json();
+        
+        if (confirmResult.success) {
+            console.log('🔍🔍🔧 FRONTEND: CONFIRM RESPONSE RECEIVED 🔧🔍🔍');
+            console.log('🔍 DEBUG: Token deployment confirmed successfully');
+            console.log('🔍 DEBUG: buildResult:', buildResult);
+            console.log('🔍 DEBUG: complianceConfig:', complianceConfig);
+            console.log('🔍 DEBUG: needs_post_deployment_config:', complianceConfig.needs_post_deployment_config);
+            console.log('🔍 DEBUG: compliance_modules_config:', complianceConfig.compliance_modules_config);
+            console.log('🔍 DEBUG: complianceConfig type:', typeof complianceConfig.needs_post_deployment_config);
+            console.log('🔍 DEBUG: complianceConfig.compliance_modules_config type:', typeof complianceConfig.compliance_modules_config);
+            
+            // Check if we need to configure compliance modules
+            if (complianceConfig.needs_post_deployment_config && complianceConfig.compliance_modules_config) {
+                console.log('🔧 Starting post-deployment compliance configuration...');
+                deployButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Configuring Compliance...';
+                
+                try {
+                    await configureComplianceModules(confirmResult.token_id, complianceConfig.compliance_modules_config, tabSession);
+                    alert(`✅ Token deployed and compliance configured successfully!\n\nTransaction Hash: ${txHash}\nToken ID: ${confirmResult.token_id}`);
+                } catch (complianceError) {
+                    console.error('Compliance configuration error:', complianceError);
+                    alert(`⚠️ Token deployed but compliance configuration failed!\n\nTransaction Hash: ${txHash}\nToken ID: ${confirmResult.token_id}\n\nCompliance Error: ${complianceError.message}`);
+                }
+            } else {
+                console.log('⚠️ No post-deployment compliance configuration needed');
+                alert(`✅ Token deployed successfully!\n\nTransaction Hash: ${txHash}\nToken ID: ${confirmResult.token_id}`);
+            }
+            
+            window.location.href = `/issuer/dashboard?tab_session=${tabSession}`;
+        } else {
+            throw new Error(confirmResult.error || 'Failed to confirm deployment');
+        }
+    } else {
+        throw new Error('Transaction failed on blockchain');
+    }
+}
+
+async function configureComplianceModules(tokenId, complianceModulesConfig, tabSession) {
+    try {
+        console.log('🔧🔧🔧 FRONTEND: STARTING POST-DEPLOYMENT CONFIGURATION 🔧🔧🔧');
+        console.log('🔧 Configuring compliance modules for token:', tokenId);
+        console.log('🔧 Compliance modules config:', complianceModulesConfig);
+        console.log('🔧 Tab session:', tabSession);
+        
+        // Get the compliance configuration from the backend
+        const configUrl = `/issuer/token/${tokenId}/configure-compliance?tab_session=${tabSession}`;
+        console.log('🔧 Making request to:', configUrl);
+        console.log('🔧 Request body:', JSON.stringify({
+            compliance_modules_config: complianceModulesConfig
+        }, null, 2));
+        
+        const configResponse = await fetch(configUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                compliance_modules_config: complianceModulesConfig
+            })
+        });
+        
+        console.log('🔧 Config response status:', configResponse.status);
+        const configResult = await configResponse.json();
+        console.log('🔧🔧🔧 FRONTEND: CONFIG RESPONSE RECEIVED 🔧🔧🔧');
+        console.log('🔧 Config result:', configResult);
+        console.log('🔧 Success:', configResult.success);
+        console.log('🔧 Error:', configResult.error);
+        console.log('🔧 Configuration transactions count:', configResult.configuration_transactions ? configResult.configuration_transactions.length : 'None');
+        
+        if (!configResult.success) {
+            console.log('❌ Configuration failed:', configResult.error);
+            throw new Error(configResult.error || 'Failed to prepare compliance configuration');
+        }
+        
+        console.log('✅ Compliance configuration prepared:', configResult);
+        
+        // Execute each configuration transaction
+        const configurationTransactions = configResult.configuration_transactions;
+        
+        for (let i = 0; i < configurationTransactions.length; i++) {
+            const configTx = configurationTransactions[i];
+            console.log(`🔧 Configuring ${configTx.type} (${i + 1}/${configurationTransactions.length})`);
+            
+            try {
+                console.log(`🔧 Sending ${configTx.type} transaction...`);
+                console.log(`🔧 Transaction params:`, {
+                    from: window.ethereum.selectedAddress,
+                    to: configTx.transaction.to,
+                    data: configTx.transaction.data,
+                    gas: configTx.transaction.gas,
+                    gasPrice: configTx.transaction.gasPrice,
+                    value: configTx.transaction.value,
+                    chainId: configTx.transaction.chainId
+                });
+                
+                const txHash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: window.ethereum.selectedAddress,
+                        to: configTx.transaction.to,
+                        data: configTx.transaction.data,
+                        gas: '0x' + configTx.transaction.gas.toString(16),
+                        gasPrice: '0x' + configTx.transaction.gasPrice.toString(16),
+                        value: '0x' + configTx.transaction.value.toString(16),
+                        chainId: '0x' + configTx.transaction.chainId.toString(16)
+                    }]
+                });
+                
+                console.log(`🔧 ${configTx.type} transaction sent:`, txHash);
+                
+                // Wait for transaction confirmation
+                const receipt = await waitForTransaction(txHash);
+                
+                if (receipt.status === '0x1') {
+                    console.log(`✅ ${configTx.type} configured successfully:`, configTx.description);
+                } else {
+                    throw new Error(`${configTx.type} configuration transaction failed`);
+                }
+                
+            } catch (txError) {
+                console.error(`❌ Error configuring ${configTx.type}:`, txError);
+                console.error(`❌ Error type:`, typeof txError);
+                console.error(`❌ Error constructor:`, txError.constructor.name);
+                console.error(`❌ Error stack:`, txError.stack);
+                const errorMessage = txError.message || txError.toString() || 'Unknown error';
+                throw new Error(`Failed to configure ${configTx.type}: ${errorMessage}`);
+            }
+        }
+        
+        console.log('✅ All compliance modules configured successfully');
+        
+    } catch (error) {
+        console.error('❌ Compliance configuration error:', error);
+        console.error('❌ Error type:', typeof error);
+        console.error('❌ Error constructor:', error.constructor.name);
+        console.error('❌ Error stack:', error.stack);
+        console.error('❌ Error keys:', Object.keys(error));
+        const errorMessage = error.message || error.toString() || 'Unknown error';
+        throw new Error(`Compliance configuration failed: ${errorMessage}`);
+    }
+}
+
+// Note: Transaction building is now handled by the backend
+// The frontend just uses the pre-built transaction data
 
 // Helper function to wait for transaction confirmation
 function waitForTransaction(txHash) {
@@ -447,7 +744,11 @@ function waitForTransaction(txHash) {
                     setTimeout(checkTransaction, 2000); // Check again in 2 seconds
                 }
             } catch (error) {
-                reject(error);
+                console.error('❌ waitForTransaction error:', error);
+                console.error('❌ Error type:', typeof error);
+                console.error('❌ Error constructor:', error.constructor.name);
+                console.error('❌ Error stack:', error.stack);
+                reject(new Error(error.message || String(error)));
             }
         };
         

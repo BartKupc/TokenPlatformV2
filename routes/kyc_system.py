@@ -787,11 +787,16 @@ def execute_claim_with_signature():
                         kyc_request.status = 'approved'
                         kyc_request.reviewed_at = datetime.utcnow()
                         
-                        # Update investor's KYC status
+                        # Update investor's KYC status and copy KYC data
                         investor = kyc_request.investor
                         investor.kyc_status = 'approved'
                         investor.kyc_approved_by = kyc_request.trusted_issuer.id
                         investor.kyc_approved_at = datetime.utcnow()
+                        
+                        # Copy KYC data from KYCRequest to User for easy access
+                        if kyc_request.kyc_data:
+                            investor.kyc_data = kyc_request.kyc_data
+                            print(f"✅ Copied KYC data to investor: {kyc_request.kyc_data}")
                     
                     # Commit all changes
                     db.session.commit()

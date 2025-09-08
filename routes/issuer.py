@@ -1222,9 +1222,89 @@ def handle_metamask_transaction(token_id):
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error handling MetaMask transaction: {str(e)}'}), 500
 
+@issuer_bp.route('/token/<int:token_id>/configure-compliance', methods=['POST'])
+def configure_compliance_modules(token_id):
+    """Configure compliance modules after token deployment"""
+    print(f"\n🔧🔧🔧 POST-DEPLOYMENT COMPLIANCE CONFIGURATION STARTED 🔧🔧🔧")
+    print(f"   Token ID: {token_id}")
+    
+    try:
+        # Get tab session ID from URL parameter
+        tab_session_id = request.args.get('tab_session')
+        print(f"   Tab Session ID: {tab_session_id}")
+        
+        # Get or create tab session
+        tab_session = get_or_create_tab_session(tab_session_id)
+        print(f"   Tab Session: {tab_session.session_id}")
+        
+        # Get current user from tab session
+        user = get_current_user_from_tab_session(tab_session.session_id)
+        print(f"   User: {user.wallet_address if user else 'None'}")
+        
+        if not user or user.user_type != 'issuer':
+            print(f"   ❌ Access denied: Not an issuer")
+            return jsonify({'success': False, 'error': 'Issuer access required.'}), 401
+        
+        # Get token
+        token = Token.query.get_or_404(token_id)
+        print(f"   Token: {token.name} ({token.symbol})")
+        print(f"   Token Address: {token.token_address}")
+        print(f"   Compliance Address: {token.compliance_address}")
+        
+        # Verify ownership
+        if token.issuer_address != user.wallet_address:
+            print(f"   ❌ Access denied: Token owner mismatch")
+            return jsonify({'success': False, 'error': 'Access denied. You can only manage your own tokens.'}), 403
+        
+        # Get JSON data from request
+        data = request.get_json()
+        print(f"   Request data keys: {list(data.keys()) if data else 'None'}")
+        
+        if not data:
+            print(f"   ❌ No data provided")
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        compliance_modules_config = data.get('compliance_modules_config')
+        print(f"   Compliance modules config: {compliance_modules_config}")
+        
+        if not compliance_modules_config:
+            print(f"   ❌ No compliance modules configuration provided")
+            return jsonify({'success': False, 'error': 'No compliance modules configuration provided'}), 400
+        
+        # Initialize services
+        print(f"   🔧 Initializing services...")
+        web3_service = Web3Service()
+        trex_service = TREXService(web3_service)
+        
+        # Configure compliance modules
+        print(f"   🔧 Calling configure_compliance_modules_after_deployment...")
+        result = trex_service.configure_compliance_modules_after_deployment(
+            token_address=token.token_address,
+            compliance_modules_config=compliance_modules_config,
+            deployer_address=user.wallet_address
+        )
+        
+        print(f"   🔧 Configuration result: {result}")
+        
+        if result['success']:
+            print(f"   ✅ Compliance modules configuration successful!")
+            return jsonify({
+                'success': True,
+                'compliance_address': result['compliance_address'],
+                'configuration_transactions': result['configuration_transactions'],
+                'message': 'Compliance modules configuration prepared successfully'
+            })
+        else:
+            print(f"   ❌ Compliance modules configuration failed: {result['error']}")
+            return jsonify({'success': False, 'error': result['error']}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error configuring compliance modules: {str(e)}'}), 500
+
 def handle_build_transaction(token, user, operation, target_type, target_id, trex_service, data):
     """Handle build phase of MetaMask transactions using TREXService"""
     try:
+        print(f"🔍 DEBUG: handle_build_transaction called with operation: {operation}")
         if operation == 'add_to_ir':
             # Get the appropriate request object
             if target_type == 'interest':
@@ -1240,6 +1320,7 @@ def handle_build_transaction(token, user, operation, target_type, target_id, tre
             
             # Get investor
             investor = User.query.get(request_obj.investor_id)
+            print(f"🔍 DEBUG: Found investor: {investor.username if investor else 'None'}")
             
             if not investor.onchain_id:
                 return jsonify({'success': False, 'error': f'Investor {investor.username} has no OnchainID registered. They need to create an OnchainID first.'}), 400
@@ -1248,11 +1329,51 @@ def handle_build_transaction(token, user, operation, target_type, target_id, tre
             if not token.identity_registry_address:
                 return jsonify({'success': False, 'error': 'Token Identity Registry not deployed. Cannot add investor to IR.'}), 400
             
+            print(f"🔍 DEBUG: About to call build_add_to_ir_transaction")
+            
+            # Get investor's country code from their KYC data
+            investor_country_code = None
+            
+            # First try to get from User.kyc_data
+            kyc_data = None
+            if investor.kyc_data:
+                try:
+                    import json
+                    kyc_data = json.loads(investor.kyc_data)
+                except Exception as e:
+                    print(f"⚠️ Could not parse investor KYC data: {e}")
+            
+            # If not found, try to get from KYCRequest
+            if not kyc_data:
+                try:
+                    from models import KYCRequest
+                    kyc_request = KYCRequest.query.filter_by(
+                        investor_id=investor.id, 
+                        status='approved'
+                    ).first()
+                    if kyc_request and kyc_request.kyc_data:
+                        kyc_data = json.loads(kyc_request.kyc_data)
+                        print(f"🔍 Found KYC data from KYCRequest: {kyc_data}")
+                except Exception as e:
+                    print(f"⚠️ Could not get KYC data from KYCRequest: {e}")
+            
+            # Extract nationality and convert to country code
+            if kyc_data:
+                nationality = kyc_data.get('nationality', '')
+                if nationality:
+                    investor_country_code = trex_service._get_country_code_from_nationality(nationality)
+                    print(f"🔍 Investor nationality: {nationality} -> Country code: {investor_country_code}")
+                else:
+                    print(f"⚠️ No nationality found in KYC data")
+            else:
+                print(f"⚠️ No KYC data found for investor {investor.username}")
+            
             result = trex_service.build_add_to_ir_transaction(
                 token_address=token.token_address,
                 user_address=investor.wallet_address,
                 onchain_id_address=investor.onchain_id,
-                user_address_for_gas=user.wallet_address
+                user_address_for_gas=user.wallet_address,
+                country_code=investor_country_code
             )
             
             if result['success']:
@@ -1414,6 +1535,7 @@ def handle_build_transaction(token, user, operation, target_type, target_id, tre
             total_supply = data.get('total_supply')
             claim_issuer_id = data.get('claim_issuer_id')
             claim_topics = data.get('claim_topics', [])
+            compliance_config = data.get('compliance_config', {})
             
             if not all([token_name, token_symbol, total_supply, claim_issuer_id, claim_topics]):
                 return jsonify({'success': False, 'error': 'Missing required deployment parameters'}), 400
@@ -1425,35 +1547,157 @@ def handle_build_transaction(token, user, operation, target_type, target_id, tre
             
             claim_issuer_address = trusted_issuer.wallet_address
             
+            # Check if we have compliance modules to deploy
+            has_compliance_modules = any([
+                compliance_config.get('geographical', {}).get('enabled', False),
+                compliance_config.get('supply_limit', {}).get('enabled', False),
+                compliance_config.get('cooling_period', {}).get('enabled', False)
+            ])
+            
+            if has_compliance_modules:
+                # Build compliance modules first
+                compliance_modules = []
+                
+                if compliance_config.get('geographical', {}).get('enabled', False):
+                    compliance_modules.append({
+                        'type': 'CountryAllowModule',
+                        'config': {
+                            'allowed_countries': compliance_config['geographical'].get('allowed_countries', [])
+                        }
+                    })
+                
+                if compliance_config.get('supply_limit', {}).get('enabled', False):
+                    compliance_modules.append({
+                        'type': 'SupplyLimitModule',
+                        'config': {
+                            'supply_limit': compliance_config['supply_limit'].get('max_supply', 100),
+                            'per_user_limit': True
+                        }
+                    })
+                
+                if compliance_config.get('cooling_period', {}).get('enabled', False):
+                    compliance_modules.append({
+                        'type': 'TimeTransfersLimitsModule',
+                        'config': {
+                            'cooldown_period': compliance_config['cooling_period'].get('cooldown_seconds', 300)
+                        }
+                    })
+                
+                # Deploy compliance modules
+                result = trex_service.deploy_compliance_modules(compliance_modules, user.wallet_address)
+                
+                if result['success']:
+                    # Store deployment data in session for later use
+                    session['deployment_data'] = {
+                        'token_name': token_name,
+                        'token_symbol': token_symbol,
+                        'total_supply': total_supply,
+                        'claim_issuer_id': claim_issuer_id,
+                        'claim_topics': claim_topics,
+                        'description': data.get('description', ''),
+                        'price_per_token': data.get('price_per_token', '1.00'),
+                        'issuer_address': user.wallet_address,
+                        'compliance_config': compliance_config
+                    }
+                    
+                    return jsonify({
+                        'success': True,
+                        'deployed_modules': result['deployed_modules'],
+                        'modular_compliance_deployment': result['modular_compliance_deployment'],
+                        'add_modules_transactions': result['add_modules_transactions'],
+                        'configure_modules_transactions': result['configure_modules_transactions'],
+                        'token_deployment': result['token_deployment'],
+                        'token_name': token_name,
+                        'token_symbol': token_symbol,
+                        'total_supply': total_supply,
+                        'has_compliance_modules': True  # Flag for frontend
+                    })
+                else:
+                    return jsonify({'success': False, 'error': result.get('error', 'Failed to deploy compliance modules')}), 400
+            else:
+                # No compliance modules - use simple deployment
+                result = trex_service.build_deployment_transaction(
+                    deployer_address=user.wallet_address,
+                    token_name=token_name,
+                    token_symbol=token_symbol,
+                    total_supply=total_supply,
+                    claim_topics=claim_topics,
+                    claim_issuer_address=claim_issuer_address
+                )
+                
+                if result['success']:
+                    # Store deployment data in session for later use
+                    session['deployment_data'] = {
+                        'token_name': token_name,
+                        'token_symbol': token_symbol,
+                        'total_supply': total_supply,
+                        'claim_issuer_id': claim_issuer_id,
+                        'claim_topics': claim_topics,
+                        'description': data.get('description', ''),
+                        'price_per_token': data.get('price_per_token', '1.00'),
+                        'issuer_address': user.wallet_address,
+                        'gateway_address': result.get('gateway_address')
+                    }
+                    
+                    response = {
+                        'success': True,
+                        'transaction': result['transaction'],
+                        'token_name': token_name,
+                        'token_symbol': token_symbol,
+                        'total_supply': total_supply
+                    }
+                    
+                    # Add compliance configuration fields if present
+                    if 'compliance_modules_config' in result:
+                        response['compliance_modules_config'] = result['compliance_modules_config']
+                        print(f"🔍 DEBUG: Added compliance_modules_config to response: {result['compliance_modules_config']}")
+                    if 'needs_post_deployment_config' in result:
+                        response['needs_post_deployment_config'] = result['needs_post_deployment_config']
+                        print(f"🔍 DEBUG: Added needs_post_deployment_config to response: {result['needs_post_deployment_config']}")
+                    
+                    print(f"🔍 DEBUG: Final response being sent to frontend: {response}")
+                    return jsonify(response)
+                else:
+                    return jsonify({'success': False, 'error': result.get('error', 'Failed to build deployment transaction')}), 400
+                    
+        elif operation == 'build_with_compliance':
+            # Build token deployment with ModularCompliance address
+            data = request.get_json()
+            modular_compliance_address = data.get('modular_compliance_address')
+            token_name = data.get('token_name')
+            token_symbol = data.get('token_symbol')
+            total_supply = data.get('total_supply')
+            claim_issuer_id = data.get('claim_issuer_id')
+            claim_topics = data.get('claim_topics', [])
+            
+            if not modular_compliance_address:
+                return jsonify({'success': False, 'error': 'Missing ModularCompliance address'}), 400
+            
+            if not all([token_name, token_symbol, total_supply, claim_issuer_id, claim_topics]):
+                return jsonify({'success': False, 'error': 'Missing required deployment parameters'}), 400
+            
+            # Get the trusted issuer address
+            trusted_issuer = User.query.get(claim_issuer_id)
+            if not trusted_issuer:
+                return jsonify({'success': False, 'error': 'Trusted issuer not found'}), 400
+            
+            claim_issuer_address = trusted_issuer.wallet_address
+            
+            # Build deployment transaction with ModularCompliance address
             result = trex_service.build_deployment_transaction(
                 deployer_address=user.wallet_address,
                 token_name=token_name,
                 token_symbol=token_symbol,
                 total_supply=total_supply,
                 claim_topics=claim_topics,
-                claim_issuer_address=claim_issuer_address
+                claim_issuer_address=claim_issuer_address,
+                compliance_module_addresses=[modular_compliance_address]
             )
             
             if result['success']:
-                # Store deployment data in session for later use
-                session['deployment_data'] = {
-                    'token_name': token_name,
-                    'token_symbol': token_symbol,
-                    'total_supply': total_supply,
-                    'claim_issuer_id': claim_issuer_id,
-                    'claim_topics': claim_topics,
-                    'description': data.get('description', ''),
-                    'price_per_token': data.get('price_per_token', '1.00'),
-                    'issuer_address': user.wallet_address,
-                    'gateway_address': result.get('gateway_address')
-                }
-                
                 return jsonify({
                     'success': True,
-                    'transaction': result['transaction'],
-                    'token_name': token_name,
-                    'token_symbol': token_symbol,
-                    'total_supply': total_supply
+                    'transaction': result['transaction']
                 })
             else:
                 return jsonify({'success': False, 'error': result.get('error', 'Failed to build deployment transaction')}), 400
@@ -1864,11 +2108,49 @@ def build_add_to_ir_transaction(token, user, target_type, target_id):
         web3_service = Web3Service()
         trex_service = TREXService(web3_service)
         
+        # Extract country code from investor's KYC data
+        investor_country_code = None
+        
+        # First try to get from User.kyc_data
+        kyc_data = None
+        if investor.kyc_data:
+            try:
+                import json
+                kyc_data = json.loads(investor.kyc_data)
+            except Exception as e:
+                print(f"⚠️ Could not parse investor KYC data: {e}")
+        
+        # If not found, try to get from KYCRequest
+        if not kyc_data:
+            try:
+                from models import KYCRequest
+                kyc_request = KYCRequest.query.filter_by(
+                    investor_id=investor.id, 
+                    status='approved'
+                ).first()
+                if kyc_request and kyc_request.kyc_data:
+                    kyc_data = json.loads(kyc_request.kyc_data)
+                    print(f"🔍 Found KYC data from KYCRequest: {kyc_data}")
+            except Exception as e:
+                print(f"⚠️ Could not get KYC data from KYCRequest: {e}")
+        
+        # Extract nationality and convert to country code
+        if kyc_data:
+            nationality = kyc_data.get('nationality', '')
+            if nationality:
+                investor_country_code = trex_service._get_country_code_from_nationality(nationality)
+                print(f"🔍 Investor nationality: {nationality} -> Country code: {investor_country_code}")
+            else:
+                print(f"⚠️ No nationality found in KYC data")
+        else:
+            print(f"⚠️ No KYC data found for investor {investor.username}")
+        
         result = trex_service.build_add_to_ir_transaction(
             token_address=token.token_address,
             user_address=investor.wallet_address,
             onchain_id_address=investor.onchain_id,
-            user_address_for_gas=user.wallet_address
+            user_address_for_gas=user.wallet_address,
+            country_code=investor_country_code
         )
         
         if result['success']:
@@ -3104,9 +3386,94 @@ def build_deploy_token_transaction_helper(token, user, target_type, target_id):
         claim_topics = request_data.get('claim_topics', [])
         description = request_data.get('description', '')
         price_per_token = request_data.get('price_per_token', '1.00')
+        compliance_module = request_data.get('compliance_module', 'custom')
         
         if not all([token_name, token_symbol, total_supply, claim_issuer_id, claim_topics]):
             return jsonify({'success': False, 'error': 'Missing required deployment parameters'}), 400
+        
+        # Handle compliance module selection
+        compliance_modules_to_deploy = []
+        
+        # Get compliance configuration from request
+        compliance_config = request_data.get('compliance_config', {})
+        print(f"🔍 Compliance configuration received: {compliance_config}")
+        
+        if compliance_module == 'custom' and compliance_config:
+            # Build compliance modules from UI configuration
+            if compliance_config.get('geographical', {}).get('enabled', False):
+                geographical_config = compliance_config['geographical']
+                compliance_modules_to_deploy.append({
+                    'type': 'CountryAllowModule',
+                    'config': {
+                        'allowed_countries': geographical_config.get('allowed_countries', [])
+                    }
+                })
+                print(f"🔍 Added CountryAllowModule with countries: {geographical_config.get('allowed_countries', [])}")
+            
+            if compliance_config.get('supply_limit', {}).get('enabled', False):
+                supply_config = compliance_config['supply_limit']
+                compliance_modules_to_deploy.append({
+                    'type': 'SupplyLimitModule',
+                    'config': {
+                        'supply_limit': supply_config.get('max_supply', 100),  # Per-user limit
+                        'per_user_limit': True  # Flag to indicate this is per-user, not total supply
+                    }
+                })
+                print(f"🔍 Added SupplyLimitModule with per-user limit: {supply_config.get('max_supply', 100)} tokens")
+            
+            if compliance_config.get('cooling_period', {}).get('enabled', False):
+                cooling_config = compliance_config['cooling_period']
+                compliance_modules_to_deploy.append({
+                    'type': 'TimeTransfersLimitsModule',
+                    'config': {
+                        'cooldown_period': cooling_config.get('cooldown_seconds', 300)
+                    }
+                })
+                print(f"🔍 Added TimeTransfersLimitsModule with cooldown: {cooling_config.get('cooldown_seconds', 300)} seconds")
+        
+        elif compliance_module != 'custom':
+            # Use pre-defined compliance modules (legacy support)
+            from config.modular_compliance import COMPLIANCE_MODULES
+            if compliance_module in COMPLIANCE_MODULES:
+                module = COMPLIANCE_MODULES[compliance_module]
+                # Override claim_topics with module's required topics
+                claim_topics = module.required_topics
+                print(f"🔍 Using compliance module '{compliance_module}': {module.name}")
+                print(f"🔍 Required topics: {claim_topics}")
+                print(f"🔍 Geographical restrictions: {module.geographical_restrictions}")
+                print(f"🔍 Max supply limit: {module.max_supply_limit}")
+                print(f"🔍 Cooling period: {module.cooling_period_minutes} minutes")
+                
+                # Map our compliance modules to TREX compliance modules
+                if module.geographical_restrictions:
+                    compliance_modules_to_deploy.append({
+                        'type': 'CountryRestrictModule',
+                        'config': {
+                            'allowed_countries': module.geographical_restrictions
+                        }
+                    })
+                
+                if module.max_supply_limit:
+                    compliance_modules_to_deploy.append({
+                        'type': 'SupplyLimitModule', 
+                        'config': {
+                            'supply_limit': module.max_supply_limit
+                        }
+                    })
+                
+                if module.cooling_period_minutes:
+                    compliance_modules_to_deploy.append({
+                        'type': 'TimeTransfersLimitsModule',
+                        'config': {
+                            'cooldown_period': module.cooling_period_minutes * 60  # Convert to seconds
+                        }
+                    })
+                
+                print(f"🔍 TREX compliance modules to deploy: {[m['type'] for m in compliance_modules_to_deploy]}")
+            else:
+                print(f"⚠️ Unknown compliance module '{compliance_module}', using custom selection")
+        
+        print(f"🔍 Final compliance modules to deploy: {len(compliance_modules_to_deploy)} modules")
         
         # Build Deploy Token transaction for MetaMask signing
         from services.trex_service import TREXService
@@ -3134,7 +3501,8 @@ def build_deploy_token_transaction_helper(token, user, target_type, target_id):
             token_symbol=token_symbol,
             total_supply=total_supply,
             claim_topics=claim_topics,
-            claim_issuer_address=claim_issuer_address
+            claim_issuer_address=claim_issuer_address,
+            compliance_modules=compliance_modules_to_deploy
         )
         
         if result['success']:
@@ -3148,17 +3516,32 @@ def build_deploy_token_transaction_helper(token, user, target_type, target_id):
                 'claim_topics': claim_topics,
                 'description': description,
                 'price_per_token': price_per_token,
+                'compliance_module': compliance_module,
+                'compliance_modules': compliance_modules_to_deploy,
                 'issuer_address': user.wallet_address,
                 'gateway_address': result.get('gateway_address')  # Store gateway address for event parsing
             }
             
-            return jsonify({
+            # Return the deployment transaction (simplified approach)
+            response = {
                 'success': True,
                 'transaction': result['transaction'],
                 'token_name': token_name,
                 'token_symbol': token_symbol,
-                'total_supply': total_supply
-            })
+                'total_supply': total_supply,
+                'has_compliance_modules': bool(compliance_modules_to_deploy)
+            }
+            
+            # Add compliance configuration fields if present
+            if 'compliance_modules_config' in result:
+                response['compliance_modules_config'] = result['compliance_modules_config']
+                print(f"🔍 DEBUG: Added compliance_modules_config to response: {result['compliance_modules_config']}")
+            if 'needs_post_deployment_config' in result:
+                response['needs_post_deployment_config'] = result['needs_post_deployment_config']
+                print(f"🔍 DEBUG: Added needs_post_deployment_config to response: {result['needs_post_deployment_config']}")
+            
+            print(f"🔍 DEBUG: Final response being sent to frontend: {response}")
+            return jsonify(response)
         else:
             return jsonify({'success': False, 'error': result.get('error', 'Failed to build deployment transaction')}), 400
             
@@ -3288,7 +3671,8 @@ def confirm_deploy_token_transaction_helper(token, user, target_type, target_id,
             agents=json.dumps({
                 'identity_agents': [ir_agent],
                 'token_agents': [token_agent],
-                'compliance_agents': []
+                'compliance_agents': [],
+                'compliance_module': deployment_data.get('compliance_module', 'custom')
             })
         )
         

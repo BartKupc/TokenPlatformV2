@@ -44,6 +44,12 @@ def handle_metamask_transaction_core(token_id, user_type, user):
         
         # Import the handlers here to avoid circular imports
         from routes.issuer import handle_build_transaction, handle_confirm_transaction, build_deploy_token_transaction_helper
+        from services.trex_service import TREXService
+        from services.web3_service import Web3Service
+        
+        # Initialize services
+        web3_service = Web3Service()
+        trex_service = TREXService(web3_service)
         
         # Route to appropriate handler based on operation and action
         if action == 'build':
@@ -56,7 +62,8 @@ def handle_metamask_transaction_core(token_id, user_type, user):
                 return handle_trusted_issuer_claim_transaction(user, data)
             else:
                 print(f"🔍 DEBUG: Routing {operation} to handle_build_transaction")
-                return handle_build_transaction(token, user, operation, target_type, target_id)
+                print(f"🔍 DEBUG: Parameters - token: {token.name if token else 'None'}, user: {user.username}, target_type: {target_type}, target_id: {target_id}")
+                return handle_build_transaction(token, user, operation, target_type, target_id, trex_service, data)
         elif action == 'confirm':
             return handle_confirm_transaction(token, user, operation, target_type, target_id, data)
         else:

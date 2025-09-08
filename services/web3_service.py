@@ -47,9 +47,30 @@ class Web3Service:
             except Exception as e:
                 print(f"Error loading ABI for {abi_file}: {e}")
         
-        # Load OnchainID contracts from local artifacts (self-contained)
+        # Load T-REX contracts from local artifacts (override contracts version)
         trex_artifacts_dir = Path(__file__).parent.parent / 'artifacts' / 'trex'
         if trex_artifacts_dir.exists():
+            # Load IdentityRegistry from T-REX (override the contracts version)
+            ir_path = trex_artifacts_dir / 'IdentityRegistry.json'
+            if ir_path.exists():
+                try:
+                    with open(ir_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['IdentityRegistry'] = abi_data['abi']
+                        print(f"✅ Loaded IdentityRegistry ABI from T-REX (overriding contracts version)")
+                except Exception as e:
+                    print(f"Error loading T-REX IdentityRegistry ABI: {e}")
+            
+            # Load IdentityRegistryStorage from T-REX
+            irs_path = trex_artifacts_dir / 'IdentityRegistryStorage.json'
+            if irs_path.exists():
+                try:
+                    with open(irs_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['IdentityRegistryStorage'] = abi_data['abi']
+                        print(f"✅ Loaded IdentityRegistryStorage ABI from T-REX")
+                except Exception as e:
+                    print(f"Error loading T-REX IdentityRegistryStorage ABI: {e}")
             # Load Identity contract (use the interface like T-REX)
             identity_path = trex_artifacts_dir / 'Identity.json'
             if identity_path.exists():
@@ -71,6 +92,17 @@ class Web3Service:
                         print(f"✅ Loaded IIdFactory ABI from local T-REX")
                 except Exception as e:
                     print(f"Error loading IIdFactory ABI: {e}")
+            
+            # Load ModularCompliance ABI
+            modular_compliance_path = trex_artifacts_dir / 'ModularCompliance.json'
+            if modular_compliance_path.exists():
+                try:
+                    with open(modular_compliance_path, 'r') as f:
+                        abi_data = json.load(f)
+                        self.contract_abis['ModularCompliance'] = abi_data['abi']
+                        print(f"✅ Loaded ModularCompliance ABI from local T-REX")
+                except Exception as e:
+                    print(f"Error loading ModularCompliance ABI: {e}")
             
             # Load Factory contract (the actual IdFactory implementation)
             # Try to load from local @onchain-id artifacts
@@ -566,13 +598,20 @@ class Web3Service:
     def send_transaction(self, transaction_data):
         """Send a transaction using the account's private key"""
         try:
+            # Get nonce if not provided
+            nonce = transaction_data.get('nonce')
+            if nonce is None:
+                nonce = self.w3.eth.get_transaction_count(self.account.address)
+            else:
+                nonce = int(nonce, 16) if isinstance(nonce, str) else nonce
+            
             # Build transaction with current nonce and gas price
             tx = {
                 'to': transaction_data['to'],
                 'data': transaction_data['data'],
                 'gas': int(transaction_data['gas'], 16) if isinstance(transaction_data['gas'], str) else transaction_data['gas'],
                 'gasPrice': int(transaction_data['gasPrice'], 16) if isinstance(transaction_data['gasPrice'], str) else transaction_data['gasPrice'],
-                'nonce': transaction_data['nonce'],
+                'nonce': nonce,
                 'value': int(transaction_data['value'], 16) if isinstance(transaction_data['value'], str) else transaction_data['value'],
                 'chainId': int(transaction_data['chainId'], 16) if isinstance(transaction_data['chainId'], str) else transaction_data['chainId']
             }

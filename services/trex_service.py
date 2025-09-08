@@ -2096,7 +2096,968 @@ class TREXService:
             print(f"❌ Error building transfer transaction: {str(e)}")
             return {'success': False, 'error': f'Failed to build transfer transaction: {str(e)}'}
 
-    def build_add_to_ir_transaction(self, token_address, user_address, onchain_id_address, user_address_for_gas=None):
+    def _get_country_code_from_nationality(self, nationality):
+        """Convert nationality string to ISO country code"""
+        if not nationality:
+            return 840  # Default to US
+
+        nationality_upper = nationality.upper().strip()
+
+        # Simple mapping for the 7 options in our KYC form
+        country_mapping = {
+            'US': 840,      # United States
+            'EU': 250,      # France (representing EU)
+            'UK': 826,      # United Kingdom
+            'CA': 124,      # Canada
+            'AU': 36,       # Australia
+            'ASIA': 156,    # China (representing Asia)
+            'OTHER': 840    # Default to US for other
+        }
+
+        return country_mapping.get(nationality_upper, 840)  # Default to US if not found
+
+    def configure_compliance_modules_after_deployment(self, token_address, compliance_modules_config, deployer_address):
+        """Configure compliance modules after token deployment"""
+        try:
+            print(f"\n🔧🔧🔧 TREX SERVICE: CONFIGURING COMPLIANCE MODULES 🔧🔧🔧")
+            print(f"   Token Address: {token_address}")
+            print(f"   Deployer Address: {deployer_address}")
+            print(f"   Compliance Modules Config: {compliance_modules_config}")
+            
+            # Get the token contract to find the ModularCompliance address
+            print(f"   🔍 Getting token contract...")
+            token_contract = self.web3.get_contract(token_address, "Token")
+            compliance_address = token_contract.functions.compliance().call()
+            print(f"   🔍 Compliance address from token: {compliance_address}")
+            
+            if compliance_address == "0x0000000000000000000000000000000000000000":
+                print("   ❌ No compliance contract found for this token")
+                return {'success': False, 'error': 'No compliance contract found'}
+            
+            print(f"   ✅ Found ModularCompliance contract: {compliance_address}")
+            
+            # Get the ModularCompliance contract
+            print(f"   🔍 Getting ModularCompliance contract...")
+            compliance_contract = self.web3.get_contract(compliance_address, "ModularCompliance")
+            
+            configuration_transactions = []
+            print(f"   🔍 Processing {len(compliance_modules_config)} compliance modules...")
+            
+            for i, module_config in enumerate(compliance_modules_config):
+                print(f"   📋 Module {i+1}:")
+                module_type = module_config['type']
+                module_address = module_config['address']
+                config = module_config['config']
+                
+                print(f"      Type: {module_type}")
+                print(f"      Address: {module_address}")
+                print(f"      Config: {config}")
+                
+                if module_type == 'CountryAllowModule':
+                    # Configure country allowances
+                    countries = config.get('allowed_countries', [])
+                    print(f"      🌍 Allowed countries: {countries}")
+                    if countries:
+                        # Encode batchAllowCountries(uint16[] countries)
+                        module_function_selector = self.w3.keccak(text="batchAllowCountries(uint16[])")[:4]
+                        module_encoded_params = self.w3.codec.encode(['uint16[]'], [countries])
+                        module_call_data = module_function_selector + module_encoded_params
+                        
+                        # Build callModuleFunction transaction
+                        tx = compliance_contract.functions.callModuleFunction(
+                            module_call_data,
+                            module_address
+                        ).build_transaction({
+                            'from': deployer_address,
+                            'gas': 500000,  # Generous gas limit
+                            'gasPrice': self.w3.eth.gas_price,
+                            'nonce': self.w3.eth.get_transaction_count(deployer_address)
+                        })
+                        
+                        configuration_transactions.append({
+                            'type': 'CountryAllowModule',
+                            'address': module_address,
+                            'transaction': tx,
+                            'description': f'Allow countries: {countries}'
+                        })
+                
+                elif module_type == 'SupplyLimitModule':
+                    # Configure supply limit
+                    supply_limit = config.get('supply_limit', 100)
+                    if supply_limit > 0:
+                        # Convert supply limit to wei (18 decimals)
+                        supply_limit_wei = supply_limit * 10**18
+                        # Encode setSupplyLimit(uint256 limit)
+                        module_function_selector = self.w3.keccak(text="setSupplyLimit(uint256)")[:4]
+                        module_encoded_params = self.w3.codec.encode(['uint256'], [supply_limit_wei])
+                        module_call_data = module_function_selector + module_encoded_params
+                        
+                        # Build callModuleFunction transaction
+                        tx = compliance_contract.functions.callModuleFunction(
+                            module_call_data,
+                            module_address
+                        ).build_transaction({
+                            'from': deployer_address,
+                            'gas': 500000,
+                            'gasPrice': self.w3.eth.gas_price,
+                            'nonce': self.w3.eth.get_transaction_count(deployer_address)
+                        })
+                        
+                        configuration_transactions.append({
+                            'type': 'SupplyLimitModule',
+                            'address': module_address,
+                            'transaction': tx,
+                            'description': f'Set supply limit to: {supply_limit} tokens per user'
+                        })
+                
+                elif module_type == 'TimeTransfersLimitsModule':
+                    # Configure time transfer limits
+                    cooldown_period = config.get('cooldown_period', 300)
+                    if cooldown_period > 0:
+                        # For TimeTransfersLimitsModule, we need to use setTimeTransferLimit with a Limit struct
+                        # Limit struct: {uint32 limitTime, uint256 limitValue}
+                        limit_struct = (cooldown_period, 1000)  # (limitTime, limitValue) as tuple
+                        
+                        # Encode setTimeTransferLimit((uint32,uint256) limit)
+                        module_function_selector = self.w3.keccak(text="setTimeTransferLimit((uint32,uint256))")[:4]
+                        module_encoded_params = self.w3.codec.encode(['(uint32,uint256)'], [limit_struct])
+                        module_call_data = module_function_selector + module_encoded_params
+                        
+                        # Build callModuleFunction transaction
+                        tx = compliance_contract.functions.callModuleFunction(
+                            module_call_data,
+                            module_address
+                        ).build_transaction({
+                            'from': deployer_address,
+                            'gas': 500000,
+                            'gasPrice': self.w3.eth.gas_price,
+                            'nonce': self.w3.eth.get_transaction_count(deployer_address)
+                        })
+                        
+                        configuration_transactions.append({
+                            'type': 'TimeTransfersLimitsModule',
+                            'address': module_address,
+                            'transaction': tx,
+                            'description': f'Set cooldown period to: {cooldown_period} seconds'
+                        })
+            
+            print(f"✅ Prepared {len(configuration_transactions)} configuration transactions")
+            
+            return {
+                'success': True,
+                'compliance_address': compliance_address,
+                'configuration_transactions': configuration_transactions
+            }
+            
+        except Exception as e:
+            print(f"❌ Error configuring compliance modules: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _load_module_contract(self, module_name):
+        """Load pre-compiled module contract data"""
+        try:
+            import json
+            from pathlib import Path
+            
+            # Path to the module artifact
+            module_path = Path(__file__).parent.parent / 'artifacts' / 'contracts' / 'compliance' / 'modular' / 'modules' / f'{module_name}.sol' / f'{module_name}.json'
+            
+            if not module_path.exists():
+                print(f"   ❌ Module artifact not found: {module_path}")
+                return None
+            
+            with open(module_path, 'r') as f:
+                artifact = json.load(f)
+            
+            return {
+                'bytecode': artifact['bytecode'],
+                'abi': artifact['abi']
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Error loading module contract {module_name}: {e}")
+            return None
+
+    def deploy_compliance_modules(self, compliance_modules, deployer_address):
+        """
+        Deploy and configure individual compliance modules
+        
+        Args:
+            compliance_modules (list): List of compliance module configurations
+            deployer_address (str): Address of the deployer (platform Account 0)
+            
+        Returns:
+            dict: Result with deployed and configured module addresses
+        """
+        try:
+            print(f"🔧 Deploying and configuring {len(compliance_modules)} compliance modules...")
+            
+            deployed_modules = []
+            
+            # Step 1: Deploy individual compliance modules
+            for i, module in enumerate(compliance_modules):
+                print(f"   Module {i+1}: {module['type']}")
+                print(f"     Config: {module['config']}")
+                
+                if module['type'] == 'CountryAllowModule':
+                    result = self._deploy_country_allow_module(module['config'], deployer_address)
+                elif module['type'] == 'SupplyLimitModule':
+                    result = self._deploy_supply_limit_module(module['config'], deployer_address)
+                elif module['type'] == 'TimeTransfersLimitsModule':
+                    result = self._deploy_time_transfers_module(module['config'], deployer_address)
+                else:
+                    print(f"   ⚠️ Unknown module type: {module['type']}")
+                    continue
+                
+                if result and result.get('success'):
+                    deployed_modules.append({
+                        'type': module['type'],
+                        'address': result['address'],
+                        'config': module['config']
+                    })
+                    print(f"   ✅ {module['type']} deployed at: {result['address']}")
+                else:
+                    error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                    print(f"   ❌ Failed to deploy {module['type']}: {error_msg}")
+                    return {'success': False, 'error': f"Failed to deploy {module['type']}: {error_msg}"}
+            
+            if not deployed_modules:
+                return {
+                    'success': False,
+                    'error': 'No compliance modules were successfully deployed'
+                }
+            
+            # Step 2: Skip configuration - modules will be configured by the token's compliance contract
+            print(f"✅ All compliance modules deployed successfully")
+            print(f"   Deployed modules: {len(deployed_modules)}")
+            print(f"   Note: Modules will be configured by the token's compliance contract during deployment")
+            
+            return {
+                'success': True,
+                'deployed_modules': deployed_modules,
+                'compliance_module_addresses': [module['address'] for module in deployed_modules]
+            }
+            
+        except Exception as e:
+            print(f"❌ Error deploying compliance modules: {e}")
+            return {
+                'success': False,
+                'error': f'Failed to deploy compliance modules: {e}'
+            }
+
+    def _deploy_country_restrict_module(self, config, deployer_address):
+        """Deploy CountryRestrictModule contract using pre-compiled bytecode"""
+        try:
+            print(f"   🚀 Deploying CountryRestrictModule...")
+            
+            # Load pre-compiled contract data
+            module_data = self._load_module_contract('CountryRestrictModule')
+            if not module_data:
+                print(f"   ❌ Could not load CountryRestrictModule contract data")
+                return None
+            
+            # Deploy the contract
+            contract = self.w3.eth.contract(
+                bytecode=module_data['bytecode'],
+                abi=module_data['abi']
+            )
+            
+            # Deploy the contract
+            tx_hash = contract.constructor().transact({
+                'from': deployer_address,
+                'gas': 4000000  # Increased gas for larger modules
+            })
+            
+            # Wait for deployment
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            module_address = receipt.contractAddress
+            
+            print(f"   ✅ CountryRestrictModule deployed at: {module_address}")
+            print(f"   📋 Will configure with countries: {config.get('allowed_countries', [])}")
+            
+            return {'success': True, 'address': module_address}
+            
+        except Exception as e:
+            print(f"   ❌ Error deploying CountryRestrictModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _deploy_country_allow_module(self, config, deployer_address):
+        """Deploy CountryAllowModule contract using pre-compiled bytecode"""
+        try:
+            print(f"   🚀 Deploying CountryAllowModule...")
+            
+            # Load pre-compiled contract data
+            module_data = self._load_module_contract('CountryAllowModule')
+            if not module_data:
+                print(f"   ❌ Could not load CountryAllowModule contract data")
+                return None
+            
+            # Deploy the contract
+            contract = self.w3.eth.contract(
+                bytecode=module_data['bytecode'],
+                abi=module_data['abi']
+            )
+            
+            # Deploy the contract
+            tx_hash = contract.constructor().transact({
+                'from': deployer_address,
+                'gas': 4000000  # Increased gas for larger modules
+            })
+            
+            # Wait for deployment
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            module_address = receipt.contractAddress
+            
+            print(f"   ✅ CountryAllowModule deployed at: {module_address}")
+            print(f"   📋 Will configure with allowed countries: {config.get('allowed_countries', [])}")
+            
+            return {'success': True, 'address': module_address}
+            
+        except Exception as e:
+            print(f"   ❌ Error deploying CountryAllowModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _deploy_supply_limit_module(self, config, deployer_address):
+        """Deploy SupplyLimitModule contract using pre-compiled bytecode"""
+        try:
+            print(f"   🚀 Deploying SupplyLimitModule...")
+            
+            # Load pre-compiled contract data
+            module_data = self._load_module_contract('SupplyLimitModule')
+            if not module_data:
+                print(f"   ❌ Could not load SupplyLimitModule contract data")
+                return None
+            
+            # Deploy the contract
+            contract = self.w3.eth.contract(
+                bytecode=module_data['bytecode'],
+                abi=module_data['abi']
+            )
+            
+            # Deploy the contract
+            tx_hash = contract.constructor().transact({
+                'from': deployer_address,
+                'gas': 3000000  # Increased gas for larger modules
+            })
+            
+            # Wait for deployment
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            module_address = receipt.contractAddress
+            
+            print(f"   ✅ SupplyLimitModule deployed at: {module_address}")
+            
+            # Check if this is a per-user limit
+            if config.get('per_user_limit', False):
+                print(f"   📋 Per-user supply limit: {config.get('supply_limit', 0)} tokens per user")
+                # Note: TREX SupplyLimitModule might not support per-user limits directly
+                # This would need to be configured after deployment or use a different module
+            else:
+                print(f"   📋 Total supply limit: {config.get('supply_limit', 0)} tokens")
+            
+            return {'success': True, 'address': module_address}
+            
+        except Exception as e:
+            print(f"   ❌ Error deploying SupplyLimitModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _deploy_time_transfers_module(self, config, deployer_address):
+        """Deploy TimeTransfersLimitsModule contract using pre-compiled bytecode"""
+        try:
+            print(f"   🚀 Deploying TimeTransfersLimitsModule...")
+            
+            # Load pre-compiled contract data
+            module_data = self._load_module_contract('TimeTransfersLimitsModule')
+            if not module_data:
+                print(f"   ❌ Could not load TimeTransfersLimitsModule contract data")
+                return None
+            
+            # Deploy the contract
+            contract = self.w3.eth.contract(
+                bytecode=module_data['bytecode'],
+                abi=module_data['abi']
+            )
+            
+            # Deploy the contract
+            tx_hash = contract.constructor().transact({
+                'from': deployer_address,
+                'gas': 3000000  # Increased gas for larger modules
+            })
+            
+            # Wait for deployment
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            module_address = receipt.contractAddress
+            
+            print(f"   ✅ TimeTransfersLimitsModule deployed at: {module_address}")
+            print(f"   📋 Will configure with cooldown: {config.get('cooldown_period', 0)} seconds")
+            
+            return {'success': True, 'address': module_address}
+            
+        except Exception as e:
+            print(f"   ❌ Error deploying TimeTransfersLimitsModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _deploy_modular_compliance(self, deployer_address):
+        """Deploy ModularCompliance contract using pre-compiled bytecode"""
+        try:
+            print(f"   🚀 Deploying ModularCompliance contract...")
+            
+            # Load ModularCompliance contract data
+            modular_compliance_data = self._load_modular_compliance_contract()
+            if not modular_compliance_data:
+                print(f"   ❌ Could not load ModularCompliance contract data")
+                return None
+            
+            # Deploy the contract
+            contract = self.w3.eth.contract(
+                bytecode=modular_compliance_data['bytecode'],
+                abi=modular_compliance_data['abi']
+            )
+            
+            # Deploy the contract
+            tx_hash = contract.constructor().transact({
+                'from': deployer_address,
+                'gas': 5000000  # High gas for complex contract
+            })
+            
+            # Wait for deployment
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            modular_compliance_address = receipt.contractAddress
+            
+            print(f"   ✅ ModularCompliance deployed at: {modular_compliance_address}")
+            
+            return modular_compliance_address
+            
+        except Exception as e:
+            print(f"   ❌ Error deploying ModularCompliance: {e}")
+            return None
+
+    def _load_modular_compliance_contract(self):
+        """Load ModularCompliance contract data from artifacts"""
+        try:
+            import json
+            from pathlib import Path
+            
+            # Path to the ModularCompliance artifact
+            artifact_path = Path(__file__).parent.parent / 'artifacts' / 'trex' / 'ModularCompliance.json'
+            
+            if not artifact_path.exists():
+                print(f"   ❌ ModularCompliance artifact not found: {artifact_path}")
+                return None
+            
+            with open(artifact_path, 'r') as f:
+                artifact = json.load(f)
+            
+            return {
+                'bytecode': artifact['bytecode'],
+                'abi': artifact['abi']
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Error loading ModularCompliance contract: {e}")
+            return None
+
+    def _add_modules_to_compliance(self, modular_compliance_address, deployed_modules, deployer_address):
+        """Add deployed modules to ModularCompliance contract"""
+        try:
+            print(f"   🔧 Adding modules to ModularCompliance...")
+            
+            # Load ModularCompliance contract
+            modular_compliance_data = self._load_modular_compliance_contract()
+            if not modular_compliance_data:
+                return {'success': False, 'error': 'Could not load ModularCompliance contract'}
+            
+            contract = self.w3.eth.contract(
+                address=modular_compliance_address,
+                abi=modular_compliance_data['abi']
+            )
+            
+            # Add each module to the compliance contract
+            for module in deployed_modules:
+                print(f"     Adding {module['type']} at {module['address']}")
+                
+                # Call addModule function
+                tx_hash = contract.functions.addModule(module['address']).transact({
+                    'from': deployer_address,
+                    'gas': 2000000
+                })
+                
+                # Wait for transaction
+                receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+                if receipt.status != 1:
+                    return {'success': False, 'error': f'Failed to add {module["type"]} to ModularCompliance'}
+                
+                print(f"     ✅ Added {module['type']} successfully")
+            
+            return {'success': True}
+            
+        except Exception as e:
+            print(f"   ❌ Error adding modules to compliance: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _configure_compliance_modules(self, modular_compliance_address, deployed_modules, deployer_address):
+        """Configure deployed compliance modules with user settings"""
+        try:
+            print(f"   🔧 Configuring compliance modules...")
+            
+            # Configure each module based on its type
+            for module in deployed_modules:
+                print(f"     Configuring {module['type']}...")
+                
+                if module['type'] == 'CountryAllowModule':
+                    self._configure_country_allow_module(module, deployer_address)
+                elif module['type'] == 'SupplyLimitModule':
+                    self._configure_supply_limit_module(module, deployer_address)
+                elif module['type'] == 'TimeTransfersLimitsModule':
+                    self._configure_time_transfers_module(module, deployer_address)
+            
+            return {'success': True}
+            
+        except Exception as e:
+            print(f"   ❌ Error configuring modules: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _configure_country_restrict_module(self, module, deployer_address):
+        """Configure CountryRestrictModule with allowed countries"""
+        try:
+            config = module['config']
+            allowed_countries = config.get('allowed_countries', [])
+            
+            if not allowed_countries:
+                print(f"     ⚠️ No countries specified for CountryRestrictModule")
+                return {'success': False, 'error': 'No countries specified'}
+            
+            # Load module contract
+            module_data = self._load_module_contract('CountryRestrictModule')
+            if not module_data:
+                return {'success': False, 'error': 'Failed to load module contract'}
+            
+            contract = self.w3.eth.contract(
+                address=module['address'],
+                abi=module_data['abi']
+            )
+            
+            # Call batchRestrictCountries function
+            tx_hash = contract.functions.batchRestrictCountries(allowed_countries).transact({
+                'from': deployer_address,
+                'gas': 2000000
+            })
+            
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt.status == 1:
+                print(f"     ✅ Configured CountryRestrictModule with countries: {allowed_countries}")
+                return {'success': True}
+            else:
+                print(f"     ❌ Failed to configure CountryRestrictModule")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"     ❌ Error configuring CountryRestrictModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _configure_country_allow_module(self, module, deployer_address):
+        """Configure CountryAllowModule with allowed countries"""
+        try:
+            config = module['config']
+            allowed_countries = config.get('allowed_countries', [])
+            
+            if not allowed_countries:
+                print(f"     ⚠️ No countries specified for CountryAllowModule")
+                return {'success': False, 'error': 'No countries specified'}
+            
+            # Load module contract
+            module_data = self._load_module_contract('CountryAllowModule')
+            if not module_data:
+                return {'success': False, 'error': 'Failed to load module contract'}
+            
+            contract = self.w3.eth.contract(
+                address=module['address'],
+                abi=module_data['abi']
+            )
+            
+            # Call batchAllowCountries function
+            tx_hash = contract.functions.batchAllowCountries(allowed_countries).transact({
+                'from': deployer_address,
+                'gas': 2000000
+            })
+            
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt.status == 1:
+                print(f"     ✅ Configured CountryAllowModule with allowed countries: {allowed_countries}")
+                return {'success': True}
+            else:
+                print(f"     ❌ Failed to configure CountryAllowModule")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"     ❌ Error configuring CountryAllowModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _configure_supply_limit_module(self, module, deployer_address):
+        """Configure SupplyLimitModule with supply limit"""
+        try:
+            config = module['config']
+            supply_limit = config.get('supply_limit', 100)
+            
+            # Load module contract
+            module_data = self._load_module_contract('SupplyLimitModule')
+            if not module_data:
+                return {'success': False, 'error': 'Failed to load module contract'}
+            
+            contract = self.w3.eth.contract(
+                address=module['address'],
+                abi=module_data['abi']
+            )
+            
+            # Convert supply limit to wei (18 decimals)
+            supply_limit_wei = supply_limit * 10**18
+            # Call setSupplyLimit function
+            tx_hash = contract.functions.setSupplyLimit(supply_limit_wei).transact({
+                'from': deployer_address,
+                'gas': 2000000
+            })
+            
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt.status == 1:
+                print(f"     ✅ Configured SupplyLimitModule with limit: {supply_limit}")
+                return {'success': True}
+            else:
+                print(f"     ❌ Failed to configure SupplyLimitModule")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"     ❌ Error configuring SupplyLimitModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _configure_time_transfers_module(self, module, deployer_address):
+        """Configure TimeTransfersLimitsModule with cooldown period"""
+        try:
+            config = module['config']
+            cooldown_period = config.get('cooldown_period', 300)
+            
+            # Load module contract
+            module_data = self._load_module_contract('TimeTransfersLimitsModule')
+            if not module_data:
+                return {'success': False, 'error': 'Failed to load module contract'}
+            
+            contract = self.w3.eth.contract(
+                address=module['address'],
+                abi=module_data['abi']
+            )
+            
+            # Call setCooldownPeriod function (assuming this exists)
+            tx_hash = contract.functions.setCooldownPeriod(cooldown_period).transact({
+                'from': deployer_address,
+                'gas': 2000000
+            })
+            
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt.status == 1:
+                print(f"     ✅ Configured TimeTransfersLimitsModule with cooldown: {cooldown_period}s")
+                return {'success': True}
+            else:
+                print(f"     ❌ Failed to configure TimeTransfersLimitsModule")
+                return {'success': False, 'error': 'Transaction failed'}
+                
+        except Exception as e:
+            print(f"     ❌ Error configuring TimeTransfersLimitsModule: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _build_deploy_modular_compliance_transaction(self, deployer_address):
+        """Build MetaMask transaction for deploying ModularCompliance contract"""
+        try:
+            print(f"   🔧 Building ModularCompliance deployment transaction...")
+            
+            # Load ModularCompliance contract data
+            modular_compliance_data = self._load_modular_compliance_contract()
+            if not modular_compliance_data:
+                return {'success': False, 'error': 'Could not load ModularCompliance contract data'}
+            
+            # Build the contract instance
+            contract = self.w3.eth.contract(
+                bytecode=modular_compliance_data['bytecode'],
+                abi=modular_compliance_data['abi']
+            )
+            
+            # Build unsigned transaction for MetaMask
+            tx = contract.constructor().build_transaction({
+                'from': deployer_address,
+                'gas': 5000000,  # High gas for complex contract
+                'gasPrice': self.w3.eth.gas_price,
+                'nonce': self.w3.eth.get_transaction_count(deployer_address)
+            })
+            
+            print(f"   ✅ ModularCompliance deployment transaction built successfully")
+            
+            return {
+                'success': True,
+                'transaction': {
+                    'to': None,  # Contract deployment
+                    'data': tx.get('data'),
+                    'gas': hex(tx.get('gas')),
+                    'gasPrice': hex(tx.get('gasPrice')),
+                    'value': '0x0',
+                    'chainId': '0x7a69'
+                }
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Error building ModularCompliance deployment transaction: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _build_add_modules_transactions(self, deployed_modules, deployer_address):
+        """Build MetaMask transactions for adding modules to ModularCompliance"""
+        try:
+            print(f"   🔧 Building add modules transactions...")
+            
+            # Load ModularCompliance contract data
+            modular_compliance_data = self._load_modular_compliance_contract()
+            if not modular_compliance_data:
+                return {'success': False, 'error': 'Could not load ModularCompliance contract data'}
+            
+            transactions = []
+            
+            for i, module in enumerate(deployed_modules):
+                print(f"     Building transaction {i+1}: Add {module['type']}")
+                
+                # Build the actual MetaMask transaction for addModule
+                # We'll use a placeholder address that the frontend will replace
+                modular_compliance_address = "0x0000000000000000000000000000000000000000"  # Placeholder
+                
+                # Encode the addModule function call
+                add_module_data = self._encode_add_module_call(module['address'], modular_compliance_data['abi'])
+                
+                transaction = {
+                    'to': modular_compliance_address,  # Frontend will replace this
+                    'data': add_module_data,
+                    'gas': '0x1e8480',  # 2M gas
+                    'gasPrice': '0x3b9aca00',  # 1 gwei
+                    'value': '0x0',
+                    'chainId': '0x7a69',
+                    'module_type': module['type'],
+                    'module_address': module['address'],
+                    'module_config': module['config']
+                }
+                
+                transactions.append(transaction)
+            
+            return {
+                'success': True,
+                'transactions': transactions
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Error building add modules transactions: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _encode_add_module_call(self, module_address, modular_compliance_abi):
+        """Encode the addModule function call for ModularCompliance"""
+        try:
+            # Find the addModule function in the ABI
+            add_module_function = None
+            for func in modular_compliance_abi:
+                if func.get('name') == 'addModule' and func.get('type') == 'function':
+                    add_module_function = func
+                    break
+            
+            if not add_module_function:
+                raise Exception("addModule function not found in ModularCompliance ABI")
+            
+            # Encode the function call
+            function_selector = self.web3_service.w3.keccak(
+                text=f"{add_module_function['name']}({','.join([inp['type'] for inp in add_module_function['inputs']])})"
+            )[:4]
+            
+            # Encode the parameters
+            encoded_params = self.web3_service.w3.codec.encode(
+                [inp['type'] for inp in add_module_function['inputs']],
+                [module_address]
+            )
+            
+            # Combine selector and encoded parameters
+            encoded_data = function_selector + encoded_params
+            
+            return encoded_data.hex()
+            
+        except Exception as e:
+            print(f"   ❌ Error encoding addModule call: {e}")
+            return '0x'
+
+    def _build_configure_modules_transactions(self, deployed_modules, deployer_address):
+        """Build MetaMask transactions for configuring modules"""
+        try:
+            print(f"   🔧 Building configure modules transactions...")
+            
+            transactions = []
+            
+            for i, module in enumerate(deployed_modules):
+                print(f"     Building transaction {i+1}: Configure {module['type']}")
+                
+                # Build the actual MetaMask transaction for configuring the module
+                config_data = self._encode_configure_module_call(module)
+                
+                transaction = {
+                    'to': module['address'],  # Each module has its own address
+                    'data': config_data,
+                    'gas': '0x1e8480',  # 2M gas
+                    'gasPrice': '0x3b9aca00',  # 1 gwei
+                    'value': '0x0',
+                    'chainId': '0x7a69',
+                    'module_type': module['type'],
+                    'module_address': module['address'],
+                    'module_config': module['config']
+                }
+                
+                transactions.append(transaction)
+            
+            return {
+                'success': True,
+                'transactions': transactions
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Error building configure modules transactions: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _encode_configure_module_call(self, module):
+        """Encode the configuration function call for a specific module"""
+        try:
+            module_type = module['type']
+            module_config = module['config']
+            
+            if module_type == 'CountryAllowModule':
+                return self._encode_country_allow_config(module_config, module['address'])
+            elif module_type == 'SupplyLimitModule':
+                return self._encode_supply_limit_config(module_config, module['address'])
+            elif module_type == 'TimeTransfersLimitsModule':
+                return self._encode_time_transfers_config(module_config, module['address'])
+            else:
+                print(f"   ⚠️ Unknown module type for configuration: {module_type}")
+                return '0x'
+                
+        except Exception as e:
+            print(f"   ❌ Error encoding configure module call: {e}")
+            return '0x'
+
+    def _encode_country_restrict_config(self, config, module_address):
+        """Encode batchRestrictCountries function call for CountryRestrictModule"""
+        try:
+            allowed_countries = config.get('allowed_countries', [])
+            
+            # Function signature: batchRestrictCountries(uint16[] memory _countries)
+            function_selector = self.w3.keccak(text="batchRestrictCountries(uint16[])")[:4]
+            
+            # Encode the parameters
+            encoded_params = self.w3.codec.encode(['uint16[]'], [allowed_countries])
+            
+            return (function_selector + encoded_params).hex()
+            
+        except Exception as e:
+            print(f"   ❌ Error encoding country restrict config: {e}")
+            return "0x"  # Return empty data on error
+
+    def _encode_country_allow_config(self, config, module_address):
+        """Encode batchAllowCountries function call for CountryAllowModule"""
+        try:
+            allowed_countries = config.get('allowed_countries', [])
+            
+            # Function signature: batchAllowCountries(uint16[] memory _countries)
+            function_selector = self.w3.keccak(text="batchAllowCountries(uint16[])")[:4]
+            
+            # Encode the parameters
+            encoded_params = self.w3.codec.encode(['uint16[]'], [allowed_countries])
+            
+            return (function_selector + encoded_params).hex()
+            
+        except Exception as e:
+            print(f"   ❌ Error encoding country allow config: {e}")
+            return "0x"  # Return empty data on error
+
+    def _encode_supply_limit_config(self, config, module_address):
+        """Encode setSupplyLimit function call for SupplyLimitModule"""
+        try:
+            supply_limit = config.get('supply_limit', 100)
+            # Convert supply limit to wei (18 decimals)
+            supply_limit_wei = supply_limit * 10**18
+            
+            # Function signature: setSupplyLimit(uint256 _limit)
+            function_selector = self.w3.keccak(text="setSupplyLimit(uint256)")[:4]
+            
+            # Encode the parameters
+            encoded_params = self.w3.codec.encode(['uint256'], [supply_limit_wei])
+            
+            return (function_selector + encoded_params).hex()
+            
+        except Exception as e:
+            print(f"   ❌ Error encoding supply limit config: {e}")
+            return "0x"  # Return empty data on error
+
+    def _encode_time_transfers_config(self, config, module_address):
+        """Encode setCooldownPeriod function call for TimeTransfersLimitsModule"""
+        try:
+            cooldown_period = config.get('cooldown_period', 300)
+            
+            # Function signature: setCooldownPeriod(uint256 _cooldownPeriod)
+            function_selector = self.w3.keccak(text="setCooldownPeriod(uint256)")[:4]
+            
+            # Encode the parameters
+            encoded_params = self.w3.codec.encode(['uint256'], [cooldown_period])
+            
+            return (function_selector + encoded_params).hex()
+            
+        except Exception as e:
+            print(f"   ❌ Error encoding time transfers config: {e}")
+            return "0x"  # Return empty data on error
+
+    def _get_configure_function_name(self, module_type):
+        """Get the function name for configuring a module"""
+        function_names = {
+            'CountryAllowModule': 'batchAllowCountries',
+            'SupplyLimitModule': 'setSupplyLimit',
+            'TimeTransfersLimitsModule': 'setCooldownPeriod'
+        }
+        return function_names.get(module_type, 'configure')
+
+    def _get_configure_function_params(self, module_type, config):
+        """Get the function parameters for configuring a module"""
+        if module_type == 'CountryAllowModule':
+            return [config.get('allowed_countries', [])]
+        elif module_type == 'SupplyLimitModule':
+            return [config.get('supply_limit', 100)]
+        elif module_type == 'TimeTransfersLimitsModule':
+            return [config.get('cooldown_period', 300)]
+        else:
+            return []
+
+    def _build_token_deployment_with_compliance(self, modular_compliance_tx, deployer_address):
+        """Build token deployment transaction that includes ModularCompliance address"""
+        try:
+            print(f"   🔧 Building token deployment with ModularCompliance...")
+            
+            # For the hybrid approach, we can't build the token deployment transaction yet
+            # because we don't have the ModularCompliance address. The frontend will need to:
+            # 1. Deploy ModularCompliance first
+            # 2. Add and configure modules
+            # 3. Then build the token deployment with the actual ModularCompliance address
+            
+            # Return a placeholder that indicates the token deployment needs to be built later
+            return {
+                'success': True,
+                'transaction': {
+                    'to': None,  # Will be set after ModularCompliance deployment
+                    'data': '0x',  # Will be built after ModularCompliance deployment
+                    'gas': '0x1e8480',  # 2M gas
+                    'gasPrice': '0x3b9aca00',  # 1 gwei
+                    'value': '0x0',
+                    'chainId': '0x7a69',
+                    'requires_modular_compliance_address': True  # Flag for frontend
+                }
+            }
+            
+        except Exception as e:
+            print(f"   ❌ Error building token deployment transaction: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def build_add_to_ir_transaction(self, token_address, user_address, onchain_id_address, user_address_for_gas=None, country_code=None):
         """
         Build Add to Identity Registry transaction for MetaMask signing (without executing)
         
@@ -2105,6 +3066,7 @@ class TREXService:
             user_address (str): Address to add to Identity Registry
             onchain_id_address (str): OnchainID address
             user_address_for_gas (str): User's wallet address for gas estimation
+            country_code (int): Country code for the user (defaults to 840 for US if not provided)
             
         Returns:
             dict: Transaction data for MetaMask signing
@@ -2146,11 +3108,37 @@ class TREXService:
             estimate_from = user_address_for_gas if user_address_for_gas else '0x0000000000000000000000000000000000000000'
             print(f"🔍 Using address for gas estimation: {estimate_from}")
             
+            # Check if the issuer is an agent of the Identity Registry
+            try:
+                is_agent = identity_registry_contract.functions.isAgent(estimate_from).call()
+                print(f"🔍 Is {estimate_from} an agent of Identity Registry? {is_agent}")
+                if not is_agent:
+                    return {'success': False, 'error': f'Address {estimate_from} is not an agent of the Identity Registry. Cannot register identities.'}
+            except Exception as e:
+                print(f"⚠️ Could not check agent status: {e}")
+            
+            # Check if the user is already registered
+            try:
+                is_registered = identity_registry_contract.functions.contains(checksum_user_address).call()
+                print(f"🔍 Is {checksum_user_address} already registered? {is_registered}")
+                if is_registered:
+                    return {'success': False, 'error': f'Address {checksum_user_address} is already registered in the Identity Registry.'}
+            except Exception as e:
+                print(f"⚠️ Could not check registration status: {e}")
+            
+            # Verify OnchainID address is valid (not zero address)
+            if checksum_onchain_id_address == "0x0000000000000000000000000000000000000000":
+                return {'success': False, 'error': 'OnchainID address is zero address. User must have a valid OnchainID.'}
+            
             # Use the correct function name that works in V1: registerIdentity
+            # Use provided country_code or default to US (840)
+            user_country_code = country_code if country_code is not None else 840
+            print(f"🔍 Using country code: {user_country_code}")
+            
             estimated_gas = identity_registry_contract.functions.registerIdentity(
                 checksum_user_address,
                 checksum_onchain_id_address,
-                840  # Default country code (US)
+                user_country_code
             ).estimate_gas({
                 'from': estimate_from
             })
@@ -2160,16 +3148,34 @@ class TREXService:
             print(f"📊 Estimated gas for registerIdentity: {estimated_gas}, Using: {gas_with_buffer}")
             
             # Build the transaction using the correct function name
-            transaction = identity_registry_contract.functions.registerIdentity(
+            # Use the actual user address for the transaction (not placeholder)
+            actual_from_address = user_address_for_gas if user_address_for_gas else checksum_user_address
+            
+            # DEBUG: Check what function we're actually calling
+            print(f"🔍 DEBUG: About to call registerIdentity with:")
+            print(f"   Contract address: {identity_registry_address}")
+            print(f"   Function: registerIdentity")
+            print(f"   Parameters: {checksum_user_address}, {checksum_onchain_id_address}, {user_country_code}")
+            
+            # Get the function object
+            try:
+                register_identity_func = identity_registry_contract.functions.registerIdentity
+                print(f"🔍 DEBUG: Function object: {register_identity_func}")
+                print(f"🔍 DEBUG: Function signature: {register_identity_func.abi}")
+            except Exception as e:
+                print(f"❌ ERROR getting function object: {e}")
+                return {'success': False, 'error': f'Failed to get registerIdentity function: {e}'}
+            
+            transaction = register_identity_func(
                 checksum_user_address,
                 checksum_onchain_id_address,
-                840  # Default country code (US)
+                user_country_code
             ).build_transaction({
-                'from': '0x0000000000000000000000000000000000000000',  # Placeholder, will be set by MetaMask
+                'from': actual_from_address,  # Use actual user address
                 'gas': gas_with_buffer,  # Estimated gas with buffer
                 'gasPrice': self.w3.eth.gas_price,  # Use current network gas price
+                'nonce': self.w3.eth.get_transaction_count(actual_from_address),  # Get actual nonce
                 'chainId': 31337  # Hardhat local network (0x7a69 in hex)
-                # Note: 'nonce' is not included - let MetaMask handle it automatically
             })
             
             # Return transaction data for MetaMask signing
@@ -3034,7 +4040,7 @@ class TREXService:
             print(f"❌ Error building add trusted issuer transaction: {str(e)}")
             return {'success': False, 'error': f'Failed to build add trusted issuer transaction: {str(e)}'}
 
-    def build_deployment_transaction(self, deployer_address, token_name, token_symbol, total_supply, claim_topics, claim_issuer_address):
+    def build_deployment_transaction(self, deployer_address, token_name, token_symbol, total_supply, claim_topics, claim_issuer_address, compliance_modules=None, compliance_module_addresses=None):
         print(f"🔍 DEBUG: build_deployment_transaction called with claim_issuer_address: {claim_issuer_address}")
         """Build unsigned deployment transaction for MetaMask"""
         try:
@@ -3102,42 +4108,88 @@ class TREXService:
             except Exception as e:
                 print(f"⚠️ Could not check Gateway roles: {e}")
             
-            # Build token details structure - MUST match TREX Gateway ABI exactly
-            token_details = {
-                'owner': deployer_address,
-                'name': token_name,
-                'symbol': token_symbol,
-                'decimals': 18,
-                'irs': "0x" + "0" * 40,  # ethers.ZeroAddress
-                'ONCHAINID': "0x" + "0" * 40,  # ethers.ZeroAddress
-                'irAgents': [deployer_address],
-                'tokenAgents': [deployer_address],
-                'complianceModules': [],  # Empty array as per ABI
-                'complianceSettings': []  # Empty array as per ABI
-            }
+            # Process compliance modules
+            if compliance_module_addresses:
+                # Use provided compliance module addresses (for build_with_compliance)
+                print(f"🔧 Using provided compliance module addresses: {compliance_module_addresses}")
+                compliance_settings = [b""] * len(compliance_module_addresses)  # Empty settings for now
+            elif compliance_modules:
+                print(f"🔧 Processing {len(compliance_modules)} compliance modules...")
+                
+                # Deploy and configure compliance modules
+                deployment_result = self.deploy_compliance_modules(compliance_modules, deployer_address)
+                
+                if deployment_result['success']:
+                    print(f"✅ Compliance modules deployed and configured successfully")
+                    print(f"   Deployed modules: {len(deployment_result['deployed_modules'])}")
+                    
+                    # Use the deployed module addresses directly
+                    compliance_module_addresses = deployment_result['compliance_module_addresses']
+                    
+                    # Use empty compliance settings during deployment (modules will be added but not configured)
+                    # Configuration will be done after deployment via separate transactions
+                    compliance_settings = []
+                    print(f"   ⚠️  Using empty compliance settings - modules will be added but not configured")
+                    print(f"   📝 Note: Compliance modules will be configured after token deployment")
+                    
+                    print(f"   Compliance module addresses: {compliance_module_addresses}")
+                    print(f"   Compliance settings: {[s.hex() for s in compliance_settings]}")
+                else:
+                    print(f"❌ Failed to deploy compliance modules: {deployment_result.get('error', 'Unknown error')}")
+                    print("⚠️  Proceeding without compliance modules")
+                    compliance_module_addresses = []
+                    compliance_settings = []
+            else:
+                print("🔧 No compliance modules specified")
+                compliance_module_addresses = []
+                compliance_settings = []
             
-            # Build claim details structure
+            # Build token details structure as TUPLE - MUST match TREX Gateway ABI exactly
+            # Format: (address,string,string,uint8,address,address,address[],address[],address[],bytes[])
+            token_details_tuple = (
+                deployer_address,  # owner (address)
+                token_name,        # name (string)
+                token_symbol,      # symbol (string)
+                18,                # decimals (uint8)
+                "0x" + "0" * 40,  # irs (address) - ZeroAddress
+                "0x" + "0" * 40,  # ONCHAINID (address) - ZeroAddress
+                [deployer_address],  # irAgents (address[])
+                [deployer_address],  # tokenAgents (address[])
+                compliance_module_addresses,  # complianceModules (address[])
+                compliance_settings           # complianceSettings (bytes[])
+            )
+            
+            # Build claim details structure as TUPLE
+            # Format: (uint256[],address[],uint256[][])
             claim_topics_int = [int(topic) for topic in claim_topics]
-            claim_details = {
-                'claimTopics': claim_topics_int,
-                'issuers': [claim_issuer_address],
-                'issuerClaims': [claim_topics_int]  # Array of arrays - each issuer gets all topics
-            }
+            claim_details_tuple = (
+                claim_topics_int,                    # claimTopics (uint256[])
+                [claim_issuer_address],              # issuers (address[])
+                [claim_topics_int]                   # issuerClaims (uint256[][]) - Array of arrays
+            )
             
-            print(f"🔧 Token Details Structure:")
-            print(f"   Owner: {token_details['owner']}")
-            print(f"   Name: {token_details['name']}")
-            print(f"   Symbol: {token_details['symbol']}")
-            print(f"   Decimals: {token_details['decimals']}")
-            print(f"   Token Agents: {token_details['tokenAgents']}")
-            print(f"   IR Agents: {token_details['irAgents']}")
-            print(f"   Compliance Modules: {token_details['complianceModules']}")
-            print(f"   Compliance Settings: {token_details['complianceSettings']}")
+            print(f"🔧 Token Details Structure (Tuple Format):")
+            print(f"   Owner: {token_details_tuple[0]}")
+            print(f"   Name: {token_details_tuple[1]}")
+            print(f"   Symbol: {token_details_tuple[2]}")
+            print(f"   Decimals: {token_details_tuple[3]}")
+            print(f"   IRS: {token_details_tuple[4]}")
+            print(f"   ONCHAINID: {token_details_tuple[5]}")
+            print(f"   IR Agents: {token_details_tuple[6]}")
+            print(f"   Token Agents: {token_details_tuple[7]}")
+            print(f"   Compliance Modules: {token_details_tuple[8]}")
+            print(f"   Compliance Settings: {token_details_tuple[9]}")
             
-            print(f"🔧 Claim Details Structure:")
-            print(f"   Claim Topics: {claim_details['claimTopics']}")
-            print(f"   Issuers: {claim_details['issuers']}")
-            print(f"   Issuer Claims: {claim_details['issuerClaims']}")
+            if compliance_modules:
+                print(f"🔧 Compliance Modules Configuration:")
+                for i, module in enumerate(compliance_modules):
+                    print(f"   Module {i+1}: {module['type']}")
+                    print(f"     Config: {module['config']}")
+            
+            print(f"🔧 Claim Details Structure (Tuple Format):")
+            print(f"   Claim Topics: {claim_details_tuple[0]}")
+            print(f"   Issuers: {claim_details_tuple[1]}")
+            print(f"   Issuer Claims: {claim_details_tuple[2]}")
             print(f"   Claim Issuer Address: {claim_issuer_address}")
             
             # CRITICAL: Add post-deployment minting step
@@ -3154,21 +4206,21 @@ class TREXService:
                 
                 # Build the transaction
                 print(f"🔍 CRITICAL: About to call deployTREXSuite with:")
-                print(f"   token_details: {token_details}")
-                print(f"   claim_details: {claim_details}")
+                print(f"   token_details_tuple: {token_details_tuple}")
+                print(f"   claim_details_tuple: {claim_details_tuple}")
                 print(f"   deployer_address: {deployer_address}")
                 
                 # Verify the structure matches the ABI exactly
                 print(f"🔍 VERIFYING STRUCTURE MATCHES ABI:")
-                print(f"   token_details keys: {list(token_details.keys())}")
-                print(f"   claim_details keys: {list(claim_details.keys())}")
+                print(f"   token_details_tuple length: {len(token_details_tuple)}")
+                print(f"   claim_details_tuple length: {len(claim_details_tuple)}")
                 
 
                 # Try to estimate gas first, with fallback to reasonable limit
                 try:
                     estimated_gas = gateway_contract.functions.deployTREXSuite(
-                        token_details,
-                        claim_details
+                        token_details_tuple,
+                        claim_details_tuple
                     ).estimate_gas({'from': deployer_address})
                     gas_limit = int(estimated_gas * 1.2)  # Add 20% buffer
                     print(f"✅ Gas estimated: {estimated_gas}, using: {gas_limit}")
@@ -3178,8 +4230,8 @@ class TREXService:
                     print(f"🔄 Using fallback gas limit: {gas_limit}")
 
                 tx = gateway_contract.functions.deployTREXSuite(
-                    token_details,
-                    claim_details
+                    token_details_tuple,
+                    claim_details_tuple
                 ).build_transaction({
                     'from': deployer_address,
                     'gas': gas_limit,
@@ -3298,7 +4350,7 @@ class TREXService:
                         print(f"      Are they equal? {tx.get('data') == metamask_transaction['data']}")
                 
                 # Return the unsigned transaction for MetaMask (MetaMask expects specific formats)
-                return {
+                result = {
                     'success': True,
                     'transaction': {
                         'to': tx.get('to'),
@@ -3312,6 +4364,21 @@ class TREXService:
                     'gateway_address': gateway_address,
                     'note': 'Transaction built for MetaMask signing'
                 }
+                
+                # Add compliance modules configuration for post-deployment if present
+                if compliance_modules:
+                    # Store the deployed module addresses with the config
+                    compliance_modules_with_addresses = []
+                    for i, module in enumerate(compliance_modules):
+                        module_with_address = module.copy()
+                        module_with_address['address'] = compliance_module_addresses[i]
+                        compliance_modules_with_addresses.append(module_with_address)
+                    
+                    result['compliance_modules_config'] = compliance_modules_with_addresses
+                    result['needs_post_deployment_config'] = True
+                    result['note'] = 'Transaction built for MetaMask signing - compliance modules will be configured after deployment'
+                
+                return result
                 
             except Exception as e:
                 print(f"❌ Error building transaction: {e}")
